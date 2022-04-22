@@ -2,7 +2,6 @@ import "./men-homepage/men-homepage.js";
 import "./wrap-routes/wrap-routes.js";
 import "./data/api.js";
 import "./data/group-data.js";
-// import "./data/inventory-data.js";
 import "./search-element/search-element.js";
 import "./inventory-item/inventory-item.js";
 import "./inventory-pager/inventory-pager.js";

@@ -76,28 +76,5 @@ export class AppRoute extends BaseElement {
 
     return `${wrap}${basePath}`;
   }
-
-  handleLocationChange() {
-    let matched = false;
-    const location = this.location;
-
-    for (const path of AppRoute.resolvers.get(this.page)) {
-      if (path === location) {
-        matched = true;
-        break;
-      }
-    }
-
-    if (matched) {
-      if (!this.page.active) {
-        this.outlet.appendChild(this.page);
-      }
-    } else if (this.page.active) {
-      this.outlet.removeChild(this.page);
-      this.page.innerHTML = "";
-    }
-  }
 }
-AppRoute.pages = new Map();
-AppRoute.resolvers = new Map();
 customElements.define("app-route", AppRoute);

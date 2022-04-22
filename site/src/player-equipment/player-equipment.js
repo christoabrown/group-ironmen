@@ -79,14 +79,5 @@ export class PlayerEquipment extends BaseElement {
       }
     }
   }
-
-  getEquipmentInSlot(slot) {
-    for (const item of Object.values(this.equipment)) {
-      if (item.positions[0] === slot) {
-        return item;
-      }
-    }
-    return null;
-  }
 }
 customElements.define("player-equipment", PlayerEquipment);

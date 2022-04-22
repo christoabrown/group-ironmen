@@ -19,7 +19,6 @@ pub fn hash(value: &str, salt: &str, iterations: u32) -> std::vec::Vec<u8> {
     let v = value.as_bytes();
     for _ in 0..iterations {
         hasher.update(v);
-        hasher.update(v);
     }
     hasher.update(salt);
     hasher.update(SECRET);

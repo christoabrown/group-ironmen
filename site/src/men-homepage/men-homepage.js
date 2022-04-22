@@ -1,8 +1,9 @@
-import { BasePage } from "../base-page/base-page";
+import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { storage } from "../data/storage";
+import { exampleData } from "../data/example-data";
 
-export class MenHomepage extends BasePage {
+export class MenHomepage extends BaseElement {
   constructor() {
     super();
   }
@@ -13,6 +14,7 @@ export class MenHomepage extends BasePage {
 
   connectedCallback() {
     super.connectedCallback();
+    exampleData.enable();
     api.exampleDataEnabled = true;
     api.enable();
     this.render();
@@ -24,6 +26,7 @@ export class MenHomepage extends BasePage {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    exampleData.disable();
     api.exampleDataEnabled = false;
     api.disable();
   }

@@ -50,7 +50,9 @@ export class WorldMap extends BaseElement {
 
   async loadMapDataFiles() {
     if (this.mapDataFilesLoaded) return;
-    const mapData = await fetch("/data/map_data.json").then((f) => f.json());
+    this.mapDataFilesLoaded = true;
+    const mapData = WorldMap.mapData || (await fetch("/data/map_data.json").then((f) => f.json()));
+    WorldMap.mapData = mapData;
 
     this.iconDefs = mapData.icons;
     this.iconLocations = mapData.locations;
@@ -62,7 +64,6 @@ export class WorldMap extends BaseElement {
       const y = parseInt(region[2]);
       this.validCoords[plane].add(cantor(x, y));
     }
-    this.mapDataFilesLoaded = true;
   }
 
   handleFocusPlayer(event) {

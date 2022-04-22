@@ -21,7 +21,6 @@ inventory-item {
 }
 
 .inventory-item__details,
-.inventory-item__wiki-link,
 .inventory-item__bottom {
   font-family: "rssmall";
 }

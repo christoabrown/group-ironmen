@@ -20,23 +20,10 @@ export class MemberNameInput extends MenInput {
       },
     ];
     super.connectedCallback();
-
-    // this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-  }
-
-  handleUpdatedMembers(members) {
-    members = members.filter((member) => member.name !== "@SHARED");
-    if (!isNaN(this.memberNumber)) {
-      const member = members[this.memberNumber - 1];
-      if (member) {
-        this.input.value = member.name;
-        this.member = member;
-      }
-    }
   }
 }
 

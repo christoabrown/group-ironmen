@@ -6,11 +6,6 @@ export class Item {
     this.id = id;
     this.quantity = quantity;
     this.visible = true;
-    this.positions = [];
-  }
-
-  addPosition(position) {
-    this.positions.push(position);
   }
 
   get imageUrl() {
