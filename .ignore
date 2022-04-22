@@ -1,0 +1,19 @@
+# This file ignores stuff for ripgrep search
+
+site/assets
+site/public
+package-lock.json
+*.png
+*.ttf
+site/node_modules
+server/node_modules
+server/application*
+server/combined*
+site/.husky
+.idea
+.github
+plugin/.gradle
+plugin/.idea
+plugin/buildSrc/build
+plugin/gradle
+plugin/group_ironman_plugin/build
