@@ -3,6 +3,99 @@ import { SkillName } from "./skill";
 
 class ExampleData {
   constructor() {
+    Item.itemDetails = {
+      995: {
+        name: "Coins",
+        highalch: 0,
+        stacks: [
+          {
+            id: 996,
+            count: 2,
+          },
+          {
+            id: 997,
+            count: 3,
+          },
+          {
+            id: 998,
+            count: 4,
+          },
+          {
+            id: 999,
+            count: 5,
+          },
+          {
+            id: 1000,
+            count: 25,
+          },
+          {
+            id: 1001,
+            count: 100,
+          },
+          {
+            id: 1002,
+            count: 250,
+          },
+          {
+            id: 1003,
+            count: 1000,
+          },
+          {
+            id: 1004,
+            count: 10000,
+          },
+        ],
+        id: "995",
+      },
+      26382: {
+        name: "Torva full helm",
+        highalch: 120000,
+        stacks: null,
+        id: "26382",
+      },
+      26384: {
+        name: "Torva platebody",
+        highalch: 360000,
+        stacks: null,
+        id: "26384",
+      },
+      26386: {
+        name: "Torva platelegs",
+        highalch: 240000,
+        stacks: null,
+        id: "26386",
+      },
+      6685: {
+        name: "Saradomin brew(4)",
+        highalch: 120,
+        stacks: null,
+        id: "6685",
+      },
+    };
+  }
+
+  enable() {
+    this.reset();
+    this.doXpDrop();
+    this.doCoordinateUpdate();
+    this.doHealthUpdate();
+    this.intervals = [];
+    this.intervals.push(setInterval(this.doHealthUpdate.bind(this), 3000));
+    this.intervals.push(setInterval(this.doXpDrop.bind(this), 2000));
+    this.intervals.push(setInterval(this.doCoordinateUpdate.bind(this), 1000));
+  }
+
+  disable() {
+    if (this.intervals) {
+      for (const interval of this.intervals) {
+        clearInterval(interval);
+      }
+
+      this.intervals = [];
+    }
+  }
+
+  reset() {
     this.seersVillageAgility = [
       { x: 2729, y: 3489, plane: 0 },
       { x: 2729, y: 3489, plane: 0 },
@@ -114,112 +207,18 @@ class ExampleData {
         bank: [{ id: 995, quantity: 1000000 }],
       },
     };
-
-    Item.itemDetails = {
-      995: {
-        name: "Coins",
-        highalch: 0,
-        stacks: [
-          {
-            id: 996,
-            count: 2,
-          },
-          {
-            id: 997,
-            count: 3,
-          },
-          {
-            id: 998,
-            count: 4,
-          },
-          {
-            id: 999,
-            count: 5,
-          },
-          {
-            id: 1000,
-            count: 25,
-          },
-          {
-            id: 1001,
-            count: 100,
-          },
-          {
-            id: 1002,
-            count: 250,
-          },
-          {
-            id: 1003,
-            count: 1000,
-          },
-          {
-            id: 1004,
-            count: 10000,
-          },
-        ],
-        id: "995",
-      },
-      26382: {
-        name: "Torva full helm",
-        highalch: 120000,
-        stacks: null,
-        id: "26382",
-      },
-      26384: {
-        name: "Torva platebody",
-        highalch: 360000,
-        stacks: null,
-        id: "26384",
-      },
-      26386: {
-        name: "Torva platelegs",
-        highalch: 240000,
-        stacks: null,
-        id: "26386",
-      },
-      6685: {
-        name: "Saradomin brew(4)",
-        highalch: 120,
-        stacks: null,
-        id: "6685",
-      },
-    };
-  }
-
-  enable() {
-    this.doXpDrop();
-    this.doCoordinateUpdate();
-    this.doHealthUpdate();
-    this.intervals = [];
-    this.intervals.push(setInterval(this.doHealthUpdate.bind(this), 3000));
-    this.intervals.push(setInterval(this.doXpDrop.bind(this), 2000));
-    this.intervals.push(setInterval(this.doCoordinateUpdate.bind(this), 1000));
-  }
-
-  disable() {
-    if (this.intervals) {
-      for (const interval of this.intervals) {
-        clearInterval(interval);
-      }
-
-      this.intervals = [];
-    }
-  }
-
-  reset() {
-    this.members = {
-      "group alt two": {},
-      Zezima: {},
-      "Bank alt": {},
-      "@SHARED": {},
-    };
   }
 
   getGroupData() {
     const groupData = Object.entries(this.members).map(([name, data]) => {
       return { name, ...data };
     });
-    this.reset();
+    this.members = {
+      "group alt two": {},
+      Zezima: {},
+      "Bank alt": {},
+      "@SHARED": {},
+    };
     return groupData;
   }
 
