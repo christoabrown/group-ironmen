@@ -1,0 +1,7 @@
+player-skills {
+  display: grid;
+  margin-bottom: 4px;
+  height: 256px;
+  grid-template-columns: 62px 62px 62px;
+  justify-content: center;
+}

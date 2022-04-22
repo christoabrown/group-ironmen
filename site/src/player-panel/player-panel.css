@@ -1,0 +1,30 @@
+player-panel {
+  display: block;
+  width: 100%;
+  position: relative;
+  transform: translate3d(0, 0, 1px);
+}
+
+.player-panel__minibar {
+  background: var(--elevated);
+  border: 1px solid var(--light-border);
+  display: flex;
+}
+
+.player-panel__minibar button {
+  font-family: "rssmall";
+  color: var(--primary-text);
+  text-shadow: 1px 1px var(--black);
+  font-size: 16px;
+  flex-grow: 1;
+  margin: 0;
+}
+
+.player-panel__minibar button:hover,
+button.player-panel__tab-active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.player-panel__content {
+  margin-top: 8px;
+}

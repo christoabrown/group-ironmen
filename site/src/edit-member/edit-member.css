@@ -1,0 +1,8 @@
+edit-member {
+  display: flex;
+  align-items: flex-end;
+}
+
+edit-member > * {
+  margin-right: 1em;
+}

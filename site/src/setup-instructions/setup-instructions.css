@@ -1,0 +1,40 @@
+setup-instructions {
+  display: flex;
+  justify-content: center;
+  padding: 5em;
+}
+
+.setup__container {
+  max-width: 500px;
+}
+
+.setup__block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.setup__block {
+  margin-bottom: 1em;
+}
+
+.setup__config {
+  display: flex;
+}
+
+.setup__config img {
+  max-width: 250px;
+}
+
+.setup__go-to-group {
+  display: flex;
+  justify-content: center;
+  margin-top: 2em;
+}
+
+.setup__credential {
+  background: var(--elevated);
+  border: 1px solid var(--light-border);
+  border-radius: 2px;
+  padding: 0.25em 0.5em;
+}

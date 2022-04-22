@@ -1,0 +1,38 @@
+xp-dropper {
+  display: block;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 100%;
+  overflow: hidden;
+  height: 100%;
+  pointer-events: none;
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateY(0%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+
+.xp-dropper__drop {
+  position: absolute;
+  right: 4px;
+  top: 0;
+  height: max-content;
+  animation: scroll 4s linear;
+  animation-fill-mode: forwards;
+  font-family: "rssmall", sans-serif;
+  text-shadow: 1px 1px black;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.xp-droppper__skill-icon {
+  height: 1em;
+}

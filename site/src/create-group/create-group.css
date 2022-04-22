@@ -1,0 +1,34 @@
+create-group {
+  display: flex;
+  justify-content: center;
+  padding: 5em;
+}
+
+.create-group__steps {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 500px;
+}
+
+.create-group__step {
+  width: 500px;
+}
+
+.create-group__step + .create-group__step {
+  margin-top: 4em;
+}
+
+.create-group__name input {
+  font-size: 1.5em;
+}
+
+.create-group__step-members,
+.create-group__submit {
+  display: none;
+}
+
+.create-group__submit {
+  margin-top: 2em;
+  margin-bottom: 1em;
+}

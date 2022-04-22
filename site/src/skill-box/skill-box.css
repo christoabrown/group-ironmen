@@ -1,0 +1,54 @@
+skill-box {
+  display: flex;
+  position: relative;
+  transform: translateZ(1px);
+}
+
+.skill-box__left,
+.skill-box__right {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.skill-box__left,
+.skill-box__right,
+.skill-box__progress {
+  pointer-events: none;
+}
+
+.skill-box__icon {
+  position: absolute;
+}
+
+.skill-box__current-level,
+.skill-box__baseline-level {
+  position: absolute;
+  font-family: "rssmall", sans-serif;
+  font-size: 13px;
+  color: yellow;
+  text-shadow: 1px 1px black;
+}
+
+.skill-box__baseline-level {
+  left: 50%;
+  top: 47%;
+}
+
+.skill-box__current-level {
+  right: 50%;
+  bottom: 47%;
+}
+
+.skill-box__progress {
+  width: 100%;
+  padding: 0 4px;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: 0;
+}
+
+.skill-box__progress-bar {
+  height: 2px;
+}

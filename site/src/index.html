@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Group Iron Men</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      {{style}}
+    </style>
+  </head>
+  <body>
+    <loading-screen></loading-screen>
+    <app-route
+      route-path="/"
+      route-component="men-homepage"
+      route-outlet=".unauthed-section__outlet"
+      route-wrapper=".unauthed-section"
+    ></app-route>
+    <app-route
+      route-path="/create-group"
+      route-component="create-group"
+      route-outlet=".unauthed-section__outlet"
+      route-wrapper=".unauthed-section"
+    ></app-route>
+    <app-route
+      route-path="/setup-instructions"
+      route-component="setup-instructions"
+      route-outlet=".unauthed-section__outlet"
+      route-wrapper=".unauthed-section"
+    ></app-route>
+    <app-route
+      route-path="/login"
+      route-component="login-page"
+      route-outlet=".unauthed-section__outlet"
+      route-wrapper=".unauthed-section"
+    ></app-route>
+    <app-route
+      route-path="/logout"
+      route-component="logout-page"
+      route-outlet=".unauthed-section__outlet"
+      route-wrapper=".unauthed-section"
+    ></app-route>
+
+    <app-route
+      route-path="/"
+      route-component="items-page"
+      route-outlet=".authed-section__outlet"
+      route-wrapper=".authed-section"
+    ></app-route>
+    <app-route route-path="/items" alias-for="/" route-wrapper=".authed-section"></app-route>
+    <app-route
+      route-path="/map"
+      route-component="map-page"
+      route-outlet=".authed-section__outlet"
+      route-wrapper=".authed-section"
+    ></app-route>
+    <app-route
+      route-path="/settings"
+      route-component="group-settings"
+      route-outlet=".authed-section__outlet"
+      route-wrapper=".authed-section"
+    ></app-route>
+
+    <wrap-routes class="unauthed-section" route-path="">
+      <template>
+        <main class="unauthed-section__outlet"></main>
+      </template>
+    </wrap-routes>
+
+    <wrap-routes class="authed-section" route-path="/group">
+      <template>
+        <app-initializer></app-initializer>
+        <side-panel></side-panel>
+        <div class="authed-section__main-content">
+          <app-navigation></app-navigation>
+          <div class="authed-section__outlet"></div>
+        </div>
+      </template>
+    </wrap-routes>
+
+    <rs-tooltip></rs-tooltip>
+    <script async type="module" src="/app.js"></script>
+    <script>
+      window.updateLayout = () => {
+        const layoutDirection = localStorage.getItem("layout-direction");
+        if (layoutDirection) document.querySelector(".authed-section").style.flexDirection = "row-reverse";
+        else document.querySelector(".authed-section").style.flexDirection = "row";
+      };
+      window.updateLayout();
+    </script>
+
+    <app-route route-path="*" route-redirect="/"></app-route>
+  </body>
+</html>

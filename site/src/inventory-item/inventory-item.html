@@ -1,0 +1,16 @@
+<div class="inventory-item__top">
+  <img class="inventory-item__picture" src="${item.imageUrl}" loading="lazy" />
+  <div class="inventory-item__top-right">
+    <div class="item-name">${item.name}</div>
+    <div class="inventory-item__details">
+      <span>Quantity</span>
+      <span>${item.quantity.toLocaleString()}</span>
+      <span>High Alch</span>
+      <span>${!!item.highAlch ? item.highAlch + "gp" : "N/A"}</span>
+    </div>
+    <!-- <a href="${item.wikiLink}" class="inventory-item__wiki-link" target="_blank" title="Open ${item.name} on Wiki"> -->
+    <!--   Wiki -->
+    <!-- </a> -->
+  </div>
+</div>
+<div class="inventory-item__bottom">${playerHtml}</div>

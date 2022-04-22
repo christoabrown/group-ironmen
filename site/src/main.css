@@ -1,0 +1,161 @@
+:root {
+  --primary-text: white;
+  --link-color: #eae0d5;
+
+  --elevated: rgba(255, 255, 255, 0.08);
+  --light-border: rgba(255, 255, 255, 0.12);
+  --darken: rgba(0, 0, 0, 0.2);
+
+  --light-brown: #eae0d5;
+  --brown: #c6ac8f;
+  --dark-brown: #715e47;
+  --black: #0a0908;
+
+  --invalid: #a20202;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  background: linear-gradient(#a3896d, #6c583f);
+  box-shadow: inset 0 0 100px hsla(0, 0%, 0%, 0.3);
+  color: var(--primary-text);
+  overflow: hidden;
+  position: relative;
+  font-size: 16px;
+  font-family: "Inter var", ui-sans-serif, system-ui, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+.unauthed-section {
+  overflow: auto;
+}
+
+.unauthed-section__outlet {
+  width: 100%;
+  height: 100%;
+}
+
+@font-face {
+  font-family: "rssmall";
+  font-display: block;
+  src: url("/fonts/RuneScape-Chat-07.ttf");
+}
+
+.authed-section button {
+  background: none;
+  color: var(--light-brown);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.authed-section__main-content {
+  width: 100%;
+  font-family: Arial;
+  padding: 20px 8px;
+  overflow-y: auto;
+}
+
+button {
+  cursor: pointer;
+  font-family: "Inter var", ui-sans-serif, system-ui, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+button.men-button {
+  font-size: 1em;
+  background: white;
+  color: var(--dark-brown);
+  padding: 0.5em 1em;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  border: none;
+  box-sizing: border-box;
+}
+
+button.men-button.small {
+  padding: 0.2em 0.4em;
+}
+
+button.men-button.delete {
+  background: #bf0f0f;
+  color: var(--primary-text);
+}
+
+button:disabled {
+  background: #b5b5b5;
+  color: #6a6868;
+  cursor: not-allowed;
+}
+
+button.active {
+  border-bottom: 2px solid;
+}
+
+a {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+input {
+  border-radius: 4px;
+  border: 1px solid var(--light-border);
+  background: var(--elevated);
+  color: var(--primary-text);
+  padding: 0 8px;
+  line-height: 2em;
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+input.invalid {
+  border: 1px solid var(--invalid);
+}
+
+select {
+  background: none;
+  border: none;
+  color: var(--primary-text);
+  font-family: Arial;
+  padding: 5px;
+  background: var(--elevated);
+  border: 1px solid var(--light-border);
+  border-radius: 2px;
+  min-height: 1em;
+  margin-right: 8px;
+}
+
+select option {
+  color: var(--black);
+  background: white;
+}
+
+h4 {
+  margin: 0;
+}
+
+h3 {
+  margin: 0;
+  font-size: 2em;
+}
+
+p {
+  margin: 0;
+  margin-bottom: 1em;
+}
+
+.emphasize {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.validation-error {
+  color: var(--invalid);
+  font-weight: bold;
+}

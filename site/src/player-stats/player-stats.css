@@ -1,0 +1,45 @@
+player-stats {
+  display: block;
+  width: 100%;
+  font-family: "rssmall", sans-serif;
+  text-shadow: 1px 1px black;
+  overflow: visible;
+  white-space: nowrap;
+  line-height: 1;
+  position: relative;
+}
+
+.player-stats__prayer-numbers,
+.player-stats__name,
+.player-stats__hitpoints-numbers {
+  margin-left: 8px;
+  z-index: 1;
+  position: relative;
+}
+
+.player-stats__prayer,
+.player-stats__hitpoints,
+.player-stats__energy {
+  box-sizing: border-box;
+  position: relative;
+  padding: 2px 0;
+}
+
+.player-stats__prayer-bar,
+.player-stats__hitpoints-bar,
+.player-stats__energy-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  z-index: 0;
+  background: transparent;
+}
+
+.player-stats__energy {
+  height: 3px;
+}
+
+.player-stats__inactive {
+  filter: grayscale(100%);
+}

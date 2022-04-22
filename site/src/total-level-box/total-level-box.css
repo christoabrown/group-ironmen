@@ -1,0 +1,24 @@
+total-level-box {
+  display: flex;
+  font-family: "rssmall", sans-serif;
+  font-size: 13px;
+  color: yellow;
+  text-shadow: 1px 1px black;
+  position: relative;
+  justify-content: center;
+  align-items: center;
+}
+
+.total-level-box__content,
+.total-level-box__image {
+  pointer-events: none;
+}
+
+.total-level-box__content {
+  position: absolute;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}

@@ -1,0 +1,27 @@
+item-box {
+  position: relative;
+  font-family: "rssmall", sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.item-box__image {
+  z-index: 0;
+  pointer-events: none;
+  transform: translateX(2px);
+  height: 100%;
+}
+
+.item-box__quantity {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  color: yellow;
+  text-shadow: 1px 1px black;
+  transform: translate(-10%, -20%);
+  font-size: 14px;
+}

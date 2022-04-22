@@ -1,0 +1,31 @@
+app-navigation {
+  display: flex;
+  margin-bottom: 1em;
+  align-items: center;
+}
+
+.app-navigation__nav,
+.app-navigation__left,
+.app-navigation__right {
+  display: flex;
+}
+
+.app-navigation__nav {
+  justify-content: space-between;
+  flex-grow: 1;
+}
+
+.app-navigation__nav men-link {
+  margin: 0;
+}
+
+.app-navigation__nav men-link + men-link {
+  margin-left: 1em;
+}
+
+.app-navigation__group-name {
+  font-family: "rssmall";
+  font-size: 1.5em;
+  text-shadow: 2px 2px var(--black);
+  margin-right: 1em;
+}

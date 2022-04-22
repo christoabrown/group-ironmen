@@ -1,0 +1,59 @@
+inventory-item {
+  display: flex;
+  background: var(--brown);
+  box-sizing: border-box;
+  overflow: hidden;
+  flex-direction: column;
+  position: relative;
+  transform: translate3d(0, 0, 1px);
+}
+
+.inventory-item__top {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  color: var(--black);
+  transform: translateZ(1px);
+}
+
+.inventory-item__top-right {
+  padding-left: 2em;
+}
+
+.inventory-item__details,
+.inventory-item__wiki-link,
+.inventory-item__bottom {
+  font-family: "rssmall";
+}
+
+.inventory-item__details {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-gap: 0 0.5em;
+}
+
+.inventory-item__picture {
+  width: 50px;
+  min-height: 45px;
+  min-width: 50px;
+  border: none;
+  margin-left: 4px;
+}
+
+.inventory-item__bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  background: #b99a78;
+  padding: 4px 12px;
+  align-items: center;
+  white-space: nowrap;
+  grid-gap: 0 8px;
+  text-shadow: 1px 1px var(--black);
+}
+
+.inventory-item__quantity-bar {
+  height: 8px;
+  width: 100%;
+  transform-origin: left;
+  mix-blend-mode: overlay;
+}

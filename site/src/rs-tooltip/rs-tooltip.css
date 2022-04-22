@@ -1,0 +1,13 @@
+rs-tooltip {
+  display: none;
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: "rssmall", sans-serif;
+  padding: 4px;
+  pointer-events: none;
+  white-space: pre;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+}

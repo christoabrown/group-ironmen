@@ -1,0 +1,11 @@
+inventory-pager {
+  margin-left: 1em;
+}
+
+.inventory-pager__label {
+  margin-bottom: 0.25em;
+}
+
+.inventory-pager__buttons button {
+  padding: 0 0.25em;
+}

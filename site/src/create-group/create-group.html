@@ -1,0 +1,28 @@
+<div class="create-group__steps">
+  <div class="create-group__step">
+    <h3>Pick a name for your group</h3>
+    <p>This does <span class="emphasize">not</span> need to be the in-game name.</p>
+    <men-input class="create-group__name" input-id="group-name" placeholder-text="Group name"></men-input>
+  </div>
+
+  <div class="create-group__step">
+    <h3>What size is the group?</h3>
+    <p>This can be changed later.</p>
+    <select id="group-member-count">
+      <option disabled selected value>Select an option</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+    </select>
+  </div>
+
+  <div class="create-group__step create-group__step-members">
+    <h3>Enter each members' name</h3>
+    <p>This <span class="emphasize">does</span> need to match the in-game name. (Can be changed later)</p>
+    <div class="create-group__member-inputs"></div>
+  </div>
+
+  <button type="button" class="create-group__submit men-button">Create group</button>
+  <div class="create-group__server-error validation-error"></div>
+</div>

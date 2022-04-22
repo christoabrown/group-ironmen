@@ -1,0 +1,30 @@
+player-inventory {
+  font-family: "rssmall", sans-serif;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  height: 260px;
+  min-width: 190px;
+}
+
+player-inventory item-box:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-inventory__inventory {
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, 40px);
+  grid-template-rows: repeat(7, 34px);
+  justify-content: center;
+}
+
+.player-inventory__background {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 190px;
+  height: 254px;
+}

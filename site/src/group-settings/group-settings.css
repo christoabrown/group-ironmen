@@ -1,0 +1,12 @@
+group-settings {
+  display: block;
+  padding: 1em 3em;
+}
+
+.group-settings__section-content {
+  padding-left: 1em;
+}
+
+.group-settings__members edit-member {
+  margin-bottom: 1em;
+}

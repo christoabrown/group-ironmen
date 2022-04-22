@@ -1,0 +1,20 @@
+<div class="skill-box__left">
+  <img loading="lazy" src="/ui/174-0.png" />
+  <img loading="lazy" class="skill-box__icon" src="${this.skill.icon}" />
+</div>
+
+<div class="skill-box__right">
+  <img loading="lazy" src="/ui/175-0.png" />
+  <div class="skill-box__current-level">${this.skill.level}</div>
+  <div class="skill-box__baseline-level">${Math.min(99, this.skill.level)}</div>
+</div>
+
+<div class="skill-box__progress">
+  <div
+    class="skill-box__progress-bar"
+    style="
+      width: ${this.skill.levelProgress * 100}%;
+      background: hsl(${this.skill.levelProgress * 100}, 100%, 50%);
+    "
+  ></div>
+</div>
