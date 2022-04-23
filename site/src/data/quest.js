@@ -92,6 +92,7 @@ export class Quest {
   }
 
   static randomQuestStates() {
+    if (!Quest.questData) return;
     const result = {};
     const states = Object.keys(QuestState);
     for (const questId of Object.keys(Quest.questData)) {
