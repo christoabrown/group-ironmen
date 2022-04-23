@@ -130,7 +130,7 @@ export class Skill {
     for (const [name, xp] of Object.entries(skills)) {
       const skill = new Skill(name, xp);
       result[name] = skill;
-      if (name !== SkillName.Overall) overallLevel += skill.level;
+      if (name !== SkillName.Overall) overallLevel += Math.min(99, skill.level);
     }
 
     if (result[SkillName.Overall]) {

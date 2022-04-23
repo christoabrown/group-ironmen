@@ -3,7 +3,11 @@ import { pubsub } from "./pubsub";
 
 export class Item {
   constructor(id, quantity) {
-    this.id = id;
+    if (typeof id === "string") {
+      this.id = parseInt(id);
+    } else {
+      this.id = id;
+    }
     this.quantity = quantity;
     this.visible = true;
   }

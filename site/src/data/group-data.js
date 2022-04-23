@@ -78,6 +78,7 @@ class GroupData {
           if (applyFilter) {
             groupItem.visible = this.shouldItemBeVisible(item, this.filter);
           }
+
           pubsub.publish(`item-update:${item.id}`, groupItem);
           anyItemUpdates = true;
         }

@@ -6,7 +6,7 @@
       <span>Quantity</span>
       <span>${item.quantity.toLocaleString()}</span>
       <span>High Alch</span>
-      <span>${!!item.highAlch ? item.highAlch + "gp" : "N/A"}</span>
+      <span>${!!item.highAlch ? item.highAlch.toLocaleString() + "gp" : "N/A"}</span>
     </div>
   </div>
 </div>

@@ -90,4 +90,13 @@ export class Quest {
 
     pubsub.publish("quest-data-loaded");
   }
+
+  static randomQuestStates() {
+    const result = {};
+    const states = Object.keys(QuestState);
+    for (const questId of Object.keys(Quest.questData)) {
+      result[questId] = states[Math.floor(Math.random() * states.length)];
+    }
+    return result;
+  }
 }

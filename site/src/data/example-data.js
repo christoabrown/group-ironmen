@@ -1,5 +1,6 @@
 import { Item } from "./item";
 import { SkillName } from "./skill";
+import { Quest } from "./quest";
 
 class ExampleData {
   constructor() {
@@ -45,7 +46,7 @@ class ExampleData {
             count: 10000,
           },
         ],
-        id: "995",
+        id: 995,
       },
       26382: {
         name: "Torva full helm",
@@ -75,6 +76,7 @@ class ExampleData {
   }
 
   enable() {
+    this.disable();
     this.reset();
     this.doXpDrop();
     this.doCoordinateUpdate();
@@ -138,6 +140,7 @@ class ExampleData {
 
     this.members = {
       Zezima: {
+        quests: Quest.randomQuestStates(),
         bank: [{ id: 995, quantity: Math.floor(Math.random() * 25000000) }],
         stats: {
           hitpoints: { current: 99, max: 99 },
@@ -155,6 +158,7 @@ class ExampleData {
         last_updated: "2022-01-23T01:34:06.104Z",
       },
       "group alt two": {
+        quests: Quest.randomQuestStates(),
         coordinates: this.seersVillageAgility[this.currentSeersVillageCoordinate],
         stats: {
           hitpoints: { current: 55, max: 93 },
@@ -228,6 +232,7 @@ class ExampleData {
         },
         equipment: Item.randomItems(14, 1),
         coordinates: { x: 3103, y: 3025, plane: 0 },
+        quests: Quest.randomQuestStates(),
       },
       "@SHARED": {
         bank: [{ id: 995, quantity: 1000000 }],
