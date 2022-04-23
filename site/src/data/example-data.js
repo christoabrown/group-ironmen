@@ -139,6 +139,20 @@ class ExampleData {
     this.members = {
       Zezima: {
         bank: [{ id: 995, quantity: Math.floor(Math.random() * 25000000) }],
+        stats: {
+          hitpoints: { current: 99, max: 99 },
+          prayer: { current: 99, max: 99 },
+          energy: { current: 100, max: 100 },
+          world: 330,
+        },
+        skills: Object.values(SkillName).reduce((acc, skillName) => {
+          acc[skillName] = Math.floor(Math.random() * 14000000);
+          return acc;
+        }, {}),
+        equipment: Item.randomItems(14, 1),
+        inventory: Item.randomItems(28),
+        coordinates: { x: 3029, y: 3000, plane: 0 },
+        last_updated: "2022-01-23T01:34:06.104Z",
       },
       "group alt two": {
         coordinates: this.seersVillageAgility[this.currentSeersVillageCoordinate],
@@ -148,6 +162,10 @@ class ExampleData {
           energy: { current: 75, max: 100 },
           world: 330,
         },
+        skills: Object.values(SkillName).reduce((acc, skillName) => {
+          acc[skillName] = Math.floor(Math.random() * 14000000);
+          return acc;
+        }, {}),
         bank: [{ id: 995, quantity: Math.floor(Math.random() * 5000000) }],
         inventory: [
           { id: 26382, quantity: 1 },
@@ -197,11 +215,19 @@ class ExampleData {
         ],
       },
       "Bank alt": {
-        bank: [{ id: 995, quantity: Math.floor(Math.random() * 5000000) }],
+        bank: [{ id: 995, quantity: Math.floor(Math.random() * 5000000) }, ...Item.randomItems(500)],
         skills: Object.values(SkillName).reduce((acc, skillName) => {
           acc[skillName] = Math.floor(Math.random() * 14000000);
           return acc;
         }, {}),
+        stats: {
+          hitpoints: { current: 7, max: 10 },
+          prayer: { current: 10, max: 10 },
+          energy: { current: 100, max: 100 },
+          world: 309,
+        },
+        equipment: Item.randomItems(14, 1),
+        coordinates: { x: 3103, y: 3025, plane: 0 },
       },
       "@SHARED": {
         bank: [{ id: 995, quantity: 1000000 }],
@@ -214,7 +240,9 @@ class ExampleData {
       return { name, ...data };
     });
     this.members = {
-      "group alt two": {},
+      "group alt two": {
+        skills: this.members["group alt two"].skills,
+      },
       Zezima: {},
       "Bank alt": {},
       "@SHARED": {},
@@ -223,9 +251,7 @@ class ExampleData {
   }
 
   doXpDrop() {
-    this.members["group alt two"].skills = {
-      Agility: Math.floor(Math.random() * 100),
-    };
+    this.members["group alt two"].skills["Agility"] += 50;
   }
 
   doHealthUpdate() {

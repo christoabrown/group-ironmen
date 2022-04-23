@@ -5,6 +5,7 @@ import { api } from "../data/api";
 import { storage } from "../data/storage";
 import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
+import { exampleData } from "../data/example-data";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -28,8 +29,19 @@ export class AppInitializer extends BaseElement {
 
   async initializeApp() {
     loadingScreenManager.showLoadingScreen();
-    const group = storage.getGroup();
     await Promise.all([Item.loadItems(), Quest.loadQuests()]);
+    const group = storage.getGroup();
+
+    if (group.groupName === "@EXAMPLE") {
+      exampleData.enable();
+      api.exampleDataEnabled = true;
+      api.enable();
+      loadingScreenManager.hideLoadingScreen();
+      return;
+    } else {
+      exampleData.disable();
+      api.exampleDataEnabled = false;
+    }
 
     if (this.isConnected) {
       const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);

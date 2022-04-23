@@ -61,6 +61,7 @@ class Router {
     const location = this.location;
     let matchedRoute = null;
 
+    // Find the matched route and disable any that don't match
     for (const path of this.registeredRoutes.keys()) {
       const matches = this.didMatch(location, path);
       if (matches) {
@@ -70,20 +71,19 @@ class Router {
       }
     }
 
+    // Disable any unmatched wrappers
     for (const route of this.registeredRoutes.values()) {
-      if (route === matchedRoute) {
-        this.activateRoute(route);
-      } else {
-        if ((matchedRoute === null || route.wrapper !== matchedRoute.wrapper) && route.wrapper) {
-          route.wrapper.disable();
-        }
+      if ((matchedRoute === null || route.wrapper !== matchedRoute.wrapper) && route.wrapper) {
+        route.wrapper.disable();
       }
     }
 
-    if (matchedRoute === null) {
+    // Enable the matched route
+    if (matchedRoute) {
+      this.activateRoute(matchedRoute);
+    } else {
       this.activeRoute = null;
       window.history.pushState("", "", "/");
-      return;
     }
   }
 }

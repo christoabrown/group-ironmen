@@ -33,3 +33,4 @@ import "./edit-member/edit-member.js";
 import "./loading-screen/loading-screen.js";
 import "./login-page/login-page.js";
 import "./logout-page/logout-page.js";
+import "./demo-page/demo-page.js";
