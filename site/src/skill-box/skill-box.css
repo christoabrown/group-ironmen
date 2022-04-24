@@ -46,7 +46,7 @@ skill-box {
   padding: 0 4px;
   box-sizing: border-box;
   position: absolute;
-  bottom: 0;
+  bottom: 1px;
 }
 
 .skill-box__progress-bar {
