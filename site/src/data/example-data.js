@@ -1,6 +1,7 @@
 import { Item } from "./item";
 import { SkillName } from "./skill";
 import { Quest } from "./quest";
+import { utility } from "../utility";
 
 class ExampleData {
   constructor() {
@@ -78,13 +79,11 @@ class ExampleData {
   enable() {
     this.disable();
     this.reset();
-    this.doXpDrop();
-    this.doCoordinateUpdate();
-    this.doHealthUpdate();
-    this.intervals = [];
-    this.intervals.push(setInterval(this.doHealthUpdate.bind(this), 3000));
-    this.intervals.push(setInterval(this.doXpDrop.bind(this), 2000));
-    this.intervals.push(setInterval(this.doCoordinateUpdate.bind(this), 1000));
+    this.intervals = [
+      utility.callOnInterval(this.doHealthUpdate.bind(this), 3000),
+      utility.callOnInterval(this.doXpDrop.bind(this), 2000),
+      utility.callOnInterval(this.doCoordinateUpdate.bind(this), 1000),
+    ];
   }
 
   disable() {
