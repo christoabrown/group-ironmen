@@ -52,9 +52,7 @@ export class MemberData {
       this.publishUpdate("skills");
       updatedAttributes.add("skills");
 
-      if (previousSkills) {
-        this.computeXpDrops(previousSkills);
-      }
+      this.computeXpDrops(previousSkills);
     }
 
     if (memberData.inventory) {
@@ -121,12 +119,19 @@ export class MemberData {
   }
 
   computeXpDrops(previousSkills) {
+    if (!previousSkills) {
+      for (const skillName of Object.values(SkillName)) {
+        pubsub.publish(`${skillName}:${this.name}`, this.skills[skillName]);
+      }
+      return;
+    }
+
     const xpDrops = [];
     for (const skillName of Object.values(SkillName)) {
-      if (skillName === "Overall") continue;
       if (!this.skills[skillName] || !previousSkills[skillName]) continue;
       const xpDiff = this.skills[skillName].xp - previousSkills[skillName].xp;
-      if (xpDiff > 0) xpDrops.push(new Skill(skillName, xpDiff));
+      if (xpDiff > 0 && skillName !== "Overall") xpDrops.push(new Skill(skillName, xpDiff));
+      if (xpDiff !== 0) pubsub.publish(`${skillName}:${this.name}`, this.skills[skillName]);
     }
 
     if (xpDrops.length > 0) {

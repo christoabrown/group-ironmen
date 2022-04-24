@@ -19,21 +19,28 @@ export class BaseElement extends HTMLElement {
     this.eventListener(this, "mouseout", this.handleMouseOut.bind(this));
   }
 
+  updateTooltip(tooltipText) {
+    this.setAttribute("tooltip-text", tooltipText);
+    if (this.showingTooltip) {
+      tooltipManager.showTooltip(tooltipText);
+    }
+  }
+
   handleMouseOver(mouseEvent) {
     const target = mouseEvent.target;
     const tooltipText = target.getAttribute("tooltip-text");
     if (tooltipText) {
-      tooltipManager.showTooltip(tooltipText);
+      this.showingTooltip = true;
+      this.updateTooltip(tooltipText);
       mouseEvent.stopPropagation();
     }
   }
 
   handleMouseOut(mouseEvent) {
     const target = mouseEvent.target;
-    const tooltipText = target.getAttribute("tooltip-text");
-    if (tooltipText) {
+    if (target === this) {
+      this.showingTooltip = false;
       tooltipManager.hideTooltip();
-      mouseEvent.stopPropagation();
     }
   }
 

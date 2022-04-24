@@ -46,8 +46,8 @@ export class Skill {
     this.overallLevel = overallLevel;
   }
 
-  get icon() {
-    switch (this.name) {
+  static getIcon(skillName) {
+    switch (skillName) {
       case SkillName.Attack:
         return "/ui/197-0.png";
       case SkillName.Strength:
@@ -96,6 +96,10 @@ export class Skill {
         return "/ui/221-0.png";
     }
     return "";
+  }
+
+  get icon() {
+    return Skill.getIcon(this.name);
   }
 
   get level() {

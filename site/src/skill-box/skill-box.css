@@ -51,4 +51,6 @@ skill-box {
 
 .skill-box__progress-bar {
   height: 2px;
+  width: 100%;
+  transform-origin: left;
 }

@@ -13,15 +13,15 @@ export class PlayerSkills extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    const playerName = this.getAttribute("player-name");
-    this.subscribe(`skills:${playerName}`, this.handleUpdatedSkills.bind(this));
+    this.playerName = this.getAttribute("player-name");
+    this.renderSkillBoxes();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
   }
 
-  handleUpdatedSkills(skills) {
+  renderSkillBoxes() {
     const skillBoxes = document.createDocumentFragment();
     [
       SkillName.Attack,
@@ -49,12 +49,13 @@ export class PlayerSkills extends BaseElement {
       SkillName.Hunter,
     ].forEach((skillName) => {
       const skillBox = document.createElement("skill-box");
-      skillBox.skill = skills[skillName];
+      skillBox.setAttribute("player-name", this.playerName);
+      skillBox.setAttribute("skill-name", skillName);
       skillBoxes.appendChild(skillBox);
     });
 
     const overallSkillBox = document.createElement("total-level-box");
-    overallSkillBox.skill = skills[SkillName.Overall];
+    overallSkillBox.setAttribute("player-name", this.playerName);
     skillBoxes.appendChild(overallSkillBox);
     this.innerHTML = "";
     this.appendChild(skillBoxes);
