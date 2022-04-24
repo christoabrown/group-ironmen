@@ -21,6 +21,8 @@ pub enum ApiError {
     DeleteGroupMemberError(tokio_postgres::error::Error),
     #[from(ignore)]
     RenameGroupMemberError(tokio_postgres::error::Error),
+    #[from(ignore)]
+    IsMemberInGroupError(tokio_postgres::error::Error),
     GroupFullError,
     AesError(aes_gcm::Error),
 }
@@ -48,6 +50,7 @@ impl ResponseError for ApiError {
             ApiError::GetGroupIdError(ref err) => handle_pg_error(err, "GetGroupIdError"),
             ApiError::AddMemberError(ref err) => handle_pg_error(err, "AddMemberError"),
             ApiError::GetGroupDataError(ref err) => handle_pg_error(err, "GetGroupDataError"),
+            ApiError::IsMemberInGroupError(ref err) => handle_pg_error(err, "IsMemberInGroupError"),
             ApiError::DeleteGroupMemberError(ref err) => {
                 handle_pg_error(err, "DeleteGroupMemberError")
             }

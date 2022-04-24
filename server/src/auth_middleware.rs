@@ -1,11 +1,11 @@
 use crate::crypto::Crypter;
 use crate::db;
 use actix_web::{
+    body::BoxBody,
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     web, Error, FromRequest, HttpMessage, HttpRequest,
-    body::BoxBody
 };
-use deadpool_postgres::{Pool};
+use deadpool_postgres::Pool;
 use futures::{
     future::{ready, LocalBoxFuture, Ready},
     FutureExt,
@@ -21,7 +21,7 @@ impl AuthenticateMiddlewareFactory {
 impl<S, B> Transform<S, ServiceRequest> for AuthenticateMiddlewareFactory
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    B: actix_web::body::MessageBody + 'static
+    B: actix_web::body::MessageBody + 'static,
 {
     type Response = ServiceResponse<BoxBody>;
     type Error = Error;
@@ -68,7 +68,7 @@ pub struct AuthenticateMiddleware<S> {
 impl<S, B> Service<ServiceRequest> for AuthenticateMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    B: actix_web::body::MessageBody + 'static
+    B: actix_web::body::MessageBody + 'static,
 {
     type Response = ServiceResponse<BoxBody>;
     type Error = Error;
@@ -82,7 +82,9 @@ where
             let group_name = match req.match_info().get("group_name") {
                 Some(group_name) => group_name,
                 None => {
-                    return Ok(req.error_response(actix_web::error::ErrorBadRequest("Missing group name from request")));
+                    return Ok(req.error_response(actix_web::error::ErrorBadRequest(
+                        "Missing group name from request",
+                    )));
                 }
             };
 
@@ -90,26 +92,34 @@ where
                 let auth_header = match req.headers().get("Authorization") {
                     Some(auth_header) => auth_header,
                     None => {
-                        return Ok(req.error_response(actix_web::error::ErrorBadRequest("Authorization header missing from request")));
+                        return Ok(req.error_response(actix_web::error::ErrorBadRequest(
+                            "Authorization header missing from request",
+                        )));
                     }
                 };
                 let token = match auth_header.to_str() {
                     Ok(token) => token,
                     Err(_) => {
-                        return Ok(req.error_response(actix_web::error::ErrorBadRequest("Unable to parse Authorization header")));
+                        return Ok(req.error_response(actix_web::error::ErrorBadRequest(
+                            "Unable to parse Authorization header",
+                        )));
                     }
                 };
 
                 let db_pool = match req.app_data::<web::Data<Pool>>() {
                     Some(db_pool) => db_pool,
                     None => {
-                        return Ok(req.error_response(actix_web::error::ErrorInternalServerError("")));
+                        return Ok(
+                            req.error_response(actix_web::error::ErrorInternalServerError(""))
+                        );
                     }
                 };
                 let client = match db_pool.get().await {
                     Ok(client) => client,
                     Err(_) => {
-                        return Ok(req.error_response(actix_web::error::ErrorInternalServerError("")));
+                        return Ok(
+                            req.error_response(actix_web::error::ErrorInternalServerError(""))
+                        );
                     }
                 };
 

@@ -83,6 +83,10 @@ pub async fn update_group_member(
     db_pool: web::Data<Pool>,
 ) -> Result<HttpResponse, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
+    if !in_group {
+        return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
+    }
     db::update_group_member(
         &client,
         auth.group_id,

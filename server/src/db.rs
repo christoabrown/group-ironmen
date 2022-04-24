@@ -102,6 +102,20 @@ pub async fn rename_group_member(
     Ok(())
 }
 
+pub async fn is_member_in_group(
+    client: &Client,
+    group_id: i64,
+    member_name: &str,
+) -> Result<bool, ApiError> {
+    let stmt = client.prepare_cached("SELECT COUNT(member_name) FROM groupironman.members WHERE group_id=$1 AND member_name=$2").await?;
+    let member_count: i64 = client
+        .query_one(&stmt, &[&group_id, &member_name])
+        .await?
+        .try_get(0)
+        .map_err(ApiError::IsMemberInGroupError)?;
+    Ok(member_count > 0)
+}
+
 fn add_set_for_column<T>(
     sets: &mut std::vec::Vec<String>,
     param_pos: usize,
