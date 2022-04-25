@@ -123,3 +123,8 @@ pub struct EncryptedData {
     pub nonce: [u8; 12],
     pub ciphertext: std::vec::Vec<u8>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AmIInGroupRequest {
+    pub member_name: String,
+}

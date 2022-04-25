@@ -1,7 +1,9 @@
 use crate::auth_middleware::Authenticated;
 use crate::db;
 use crate::error::ApiError;
-use crate::models::{GroupData, GroupMember, QueryInfo, RenameGroupMember, SHARED_MEMBER};
+use crate::models::{
+    AmIInGroupRequest, GroupData, GroupMember, QueryInfo, RenameGroupMember, SHARED_MEMBER,
+};
 use crate::validators::valid_name;
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
@@ -120,5 +122,20 @@ pub async fn get_group_data(
 
 #[get("/am-i-logged-in")]
 pub async fn am_i_logged_in(_auth: Authenticated) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[get("/am-i-in-group")]
+pub async fn am_i_in_group(
+    auth: Authenticated,
+    db_pool: web::Data<Pool>,
+    q: web::Query<AmIInGroupRequest>,
+) -> Result<HttpResponse, Error> {
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let in_group: bool = db::is_member_in_group(&client, auth.group_id, &q.member_name).await?;
+    println!("{}", q.member_name);
+    if !in_group {
+        return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
+    }
     Ok(HttpResponse::Ok().finish())
 }

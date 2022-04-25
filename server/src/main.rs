@@ -44,7 +44,8 @@ async fn main() -> std::io::Result<()> {
             .service(authed::add_group_member)
             .service(authed::delete_group_member)
             .service(authed::rename_group_member)
-            .service(authed::am_i_logged_in);
+            .service(authed::am_i_logged_in)
+            .service(authed::am_i_in_group);
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
             .allow_any_origin()
