@@ -3,14 +3,21 @@ men-homepage {
   flex-direction: column;
   width: 100%;
   font-size: 16px;
-  font-family: "rssmall";
+  position: relative;
+  background: var(--black);
+  height: 100%;
+}
+
+.men-homepage__container {
+  z-index: 10;
+  overflow: auto;
 }
 
 .men-homepage__header-container {
   position: relative;
 }
 
-.men-homepage__header-container world-map {
+men-homepage world-map {
   position: absolute;
   top: 0;
   left: 0;
@@ -20,7 +27,7 @@ men-homepage {
   overflow: hidden;
 }
 
-.men-homepage__header-container world-map .world-map__map {
+men-homepage world-map .world-map__map {
   height: 100%;
   pointer-events: none;
 }
@@ -30,7 +37,6 @@ men-homepage {
   margin: 5em 0;
   position: relative;
   z-index: 1;
-  text-shadow: 3px 3px var(--black);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -38,11 +44,14 @@ men-homepage {
 }
 
 .men-homepage__header h1 {
+  text-shadow: 3px 3px var(--black);
   font-size: 8em;
+  font-family: "rssmall";
 }
 
 .men-homepage__header p {
-  font-size: 3em;
+  text-shadow: 2px 2px var(--black);
+  font-size: 2em;
   color: var(--light-brown);
 }
 
@@ -63,9 +72,10 @@ men-homepage {
 }
 
 .men-homepage__features h2 {
-  font-size: 4em;
+  text-shadow: 2px 2px var(--black);
+  font-size: 3em;
   margin: 0;
-  border-bottom: 1px dashed var(--brown);
+  padding-bottom: 8px;
   margin-bottom: 0.25em;
   line-height: 0.8em;
 }
@@ -77,9 +87,9 @@ men-homepage {
 }
 
 .men-homepage__feature-card {
-  background: var(--darken);
-  border: 1px solid var(--darken);
+  background: var(--dark-brown);
   margin: 8px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
 }
 
 .men-homepage__feature-card-top {
@@ -88,7 +98,6 @@ men-homepage {
   justify-content: center;
   overflow: hidden;
   max-height: 17em;
-  border-bottom: 1px solid var(--darken);
   background: rgba(0, 0, 0, 0.1);
 }
 
@@ -98,7 +107,6 @@ men-homepage {
 }
 
 .men-homepage__feature-card-bottom {
-  font-size: 1.2em;
   transform: translateZ(1px);
   padding: 0.8em;
 }
