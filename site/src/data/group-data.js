@@ -15,6 +15,7 @@ class GroupData {
     const removedMembers = new Set(this.members.keys());
 
     let updatedAttributes = new Set();
+    let lastUpdated = new Date(0);
     for (const memberData of groupData) {
       const memberName = memberData.name;
       removedMembers.delete(memberName);
@@ -25,6 +26,10 @@ class GroupData {
 
       const member = this.members.get(memberName);
       member.update(memberData).forEach((attribute) => updatedAttributes.add(attribute));
+
+      if (member.lastUpdated && member.lastUpdated > lastUpdated) {
+        lastUpdated = member.lastUpdated;
+      }
     }
 
     for (const removedMember of removedMembers.values()) {
@@ -102,6 +107,8 @@ class GroupData {
     if (anyItemUpdates) {
       pubsub.publish("items-updated");
     }
+
+    return new Date(lastUpdated.getTime() + 1);
   }
 
   shouldItemBeVisible(item, filter) {

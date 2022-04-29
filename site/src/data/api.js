@@ -71,7 +71,6 @@ class Api {
 
   async getGroupData() {
     const nextCheck = this.nextCheck;
-    this.nextCheck = new Date().toISOString();
 
     if (this.exampleDataEnabled) {
       const newGroupData = exampleData.getGroupData();
@@ -92,7 +91,7 @@ class Api {
       }
 
       const newGroupData = await response.json();
-      groupData.update(newGroupData);
+      this.nextCheck = groupData.update(newGroupData).toISOString();
       pubsub.publish("get-group-data", groupData);
     }
   }
