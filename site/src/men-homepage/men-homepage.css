@@ -8,6 +8,15 @@ men-homepage {
   height: 100%;
 }
 
+men-homepage social-links {
+  z-index: 20;
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 1em;
+  font-size: 1.2em;
+}
+
 .men-homepage__container {
   z-index: 10;
   overflow: auto;
@@ -62,7 +71,6 @@ men-homepage world-map .world-map__map {
 
 .men-homepage__features-container {
   padding: 3em;
-  color: var(--light-brown);
   flex-grow: 1;
 }
 

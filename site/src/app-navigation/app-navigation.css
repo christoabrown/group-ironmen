@@ -8,6 +8,7 @@ app-navigation {
 .app-navigation__left,
 .app-navigation__right {
   display: flex;
+  align-items: center;
 }
 
 .app-navigation__nav {
@@ -27,5 +28,9 @@ app-navigation {
   font-family: "rssmall";
   font-size: 1.5em;
   text-shadow: 2px 2px var(--black);
+  margin-right: 1em;
+}
+
+app-navigation social-links {
   margin-right: 1em;
 }
