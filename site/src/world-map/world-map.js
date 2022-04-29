@@ -153,7 +153,7 @@ export class WorldMap extends BaseElement {
     };
     const startingLocation = this.startingLocation
       ? this.gamePositionToLatLong(this.startingLocation.x, this.startingLocation.y)
-      : [1215, 311];
+      : this.gamePositionToLatLong(3103, 3095);
     const startingZoom = this.startingZoom || 5;
     const addControls = !this.hasAttribute("no-controls");
     const map = L.map(this.querySelector(".world-map__map"), {
@@ -168,15 +168,41 @@ export class WorldMap extends BaseElement {
       keyboard: addControls,
       scrollWheelZoom: addControls,
     }).setView(startingLocation, startingZoom, { animate: false });
-    map.on("mousedown", () => {
-      this.followingPlayer = null;
-    });
+
     this.map = map;
     this.tileLayers = [];
     for (let i = 0; i < 4; ++i) {
       this.tileLayers.push(this.createMapPlaneLayer(i));
     }
     this.tileLayers[0].addTo(map);
+
+    if (addControls) {
+      map.on("mousedown", () => {
+        this.followingPlayer = null;
+      });
+
+      const Position = L.Control.extend({
+        _container: null,
+        options: {
+          position: "bottomleft",
+        },
+
+        onAdd: function (map) {
+          this._xy = L.DomUtil.create("div", "world-map__mouse-position");
+          return this._xy;
+        },
+
+        updateHTML: function (x, y) {
+          this._xy.innerHTML = `(${x}, ${y})`;
+        },
+      });
+      this.position = new Position();
+      this.map.addControl(this.position);
+      this.map.addEventListener("mousemove", (event) => {
+        const [x, y] = this.latLongToGamePosition(event.latlng.lat, event.latlng.lng);
+        this.position.updateHTML(x, y);
+      });
+    }
   }
 
   async initIcons() {
@@ -218,6 +244,17 @@ export class WorldMap extends BaseElement {
         }
       }
     });
+  }
+
+  latLongToGamePosition(lat, long) {
+    const latUnitsPerTile = 8;
+    const pixelsPerGameTile = 4;
+    const unitsPerPixel = latUnitsPerTile / 256;
+    const unitsPerGameTile = unitsPerPixel * pixelsPerGameTile;
+
+    const y = -(unitsPerGameTile + lat - 1576) / unitsPerGameTile;
+    const x = -(unitsPerGameTile - 2 * long) / (2 * unitsPerGameTile);
+    return [Math.round(x), Math.round(y)];
   }
 
   gamePositionToLatLong(x, y) {

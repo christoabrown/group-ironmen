@@ -3,6 +3,11 @@ world-map {
   display: block;
 }
 
+.world-map__mouse-position {
+  text-shadow: 1px 1px var(--black);
+  pointer-events: none;
+}
+
 .world-map__control-container {
   position: absolute;
   top: 15px;
