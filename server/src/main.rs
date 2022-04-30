@@ -35,6 +35,9 @@ async fn main() -> std::io::Result<()> {
     let pool = config.pg.create_pool(None, NoTls).unwrap();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
+    let client = pool.get().await.unwrap();
+    db::update_schema(&client).await.unwrap();
+
     HttpServer::new(move || {
         let unauthed_scope = web::scope("/api").service(unauthed::create_group);
         let authed_scope = web::scope("/api/group/{group_name}")

@@ -148,7 +148,7 @@ pub async fn update_group_member(
     crypter: &Crypter,
 ) -> Result<(), ApiError> {
     let mut sets = vec![];
-    let mut params: std::vec::Vec<&(dyn ToSql + Sync)> = vec![];
+    let mut params: std::vec::Vec<&(dyn ToSql + Sync)> = Vec::with_capacity(10);
     let stats_json = add_set_for_column(
         &mut sets,
         params.len() + 1,
@@ -218,6 +218,16 @@ pub async fn update_group_member(
     )?;
     if bank_json.is_some() {
         params.push(&bank_json);
+    }
+    let rune_pouch_json = add_set_for_column(
+        &mut sets,
+        params.len() + 1,
+        "rune_pouch",
+        &group_member.rune_pouch,
+        &crypter,
+    )?;
+    if rune_pouch_json.is_some() {
+        params.push(&rune_pouch_json);
     }
 
     if !sets.is_empty() {
@@ -299,7 +309,8 @@ CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as ski
 CASE WHEN quests_last_update >= $1::TIMESTAMPTZ THEN quests ELSE NULL END as quests,
 CASE WHEN inventory_last_update >= $1::TIMESTAMPTZ THEN inventory ELSE NULL END as inventory,
 CASE WHEN equipment_last_update >= $1::TIMESTAMPTZ THEN equipment ELSE NULL END as equipment,
-CASE WHEN bank_last_update >= $1::TIMESTAMPTZ THEN bank ELSE NULL END as bank
+CASE WHEN bank_last_update >= $1::TIMESTAMPTZ THEN bank ELSE NULL END as bank,
+CASE WHEN rune_pouch_last_update >= $1::TIMESTAMPTZ THEN rune_pouch ELSE NULL END as rune_pouch
 FROM groupironman.members WHERE group_id=$2
 "#,
         )
@@ -324,6 +335,7 @@ FROM groupironman.members WHERE group_id=$2
             equipment: parse_optional(&row, "equipment", crypter)?,
             bank: parse_optional(&row, "bank", crypter)?,
             shared_bank: None,
+            rune_pouch: parse_optional(&row, "rune_pouch", crypter)?,
             last_updated: last_updated,
         };
 
@@ -331,4 +343,19 @@ FROM groupironman.members WHERE group_id=$2
     }
 
     Ok(result)
+}
+
+pub async fn update_schema(client: &Client) -> Result<(), ApiError> {
+    let stmt = client
+        .prepare(
+            r#"
+ALTER TABLE groupironman.members
+ADD COLUMN IF NOT EXISTS rune_pouch_last_update TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS rune_pouch TEXT NOT NULL default '{}'::TEXT
+"#,
+        )
+        .await?;
+    client.execute(&stmt, &[]).await?;
+
+    Ok(())
 }

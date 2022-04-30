@@ -17,7 +17,7 @@ mod valid_name_tests {
             "CAPITAL LETTERS",
             "MiXeD case-123",
             "0123456789",
-            "underscore_name"
+            "underscore_name",
         ];
 
         for name in valid_names {

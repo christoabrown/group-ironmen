@@ -68,6 +68,7 @@ pub struct Item {
 }
 pub type Inventory = [Item; 28];
 pub type Equipment = [Item; 14];
+pub type RunePouch = [Item; 3];
 pub type Bank = std::vec::Vec<Item>;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -95,6 +96,8 @@ pub struct GroupMember {
     pub bank: Option<Bank>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shared_bank: Option<Bank>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rune_pouch: Option<RunePouch>,
     #[serde(skip_deserializing)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
