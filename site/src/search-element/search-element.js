@@ -7,6 +7,18 @@ export class SearchElement extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.enableTooltip();
+    this.setAttribute(
+      "tooltip-text",
+      `
+Some special filtering can be done by entering any of:
+<ul>
+  <li>Player name to only show their items.</li>
+  <li>"shared" to show items in shared storage.</li>
+  <li>Item ID</li>
+</ul>
+`
+    );
     this.render();
     this.searchInput = this.querySelector(".search-element__input");
     this.eventListener(this.querySelector(".search-element__reset"), "click", this.resetSearch.bind(this));

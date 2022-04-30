@@ -27,21 +27,17 @@ export class BaseElement extends HTMLElement {
   }
 
   handleMouseOver(mouseEvent) {
-    const target = mouseEvent.target;
-    const tooltipText = target.getAttribute("tooltip-text");
+    const tooltipText = this.getAttribute("tooltip-text");
     if (tooltipText) {
       this.showingTooltip = true;
-      this.updateTooltip(tooltipText);
+      this.updateTooltip(tooltipText.trim());
       mouseEvent.stopPropagation();
     }
   }
 
   handleMouseOut(mouseEvent) {
-    const target = mouseEvent.target;
-    if (target === this) {
-      this.showingTooltip = false;
-      tooltipManager.hideTooltip();
-    }
+    this.showingTooltip = false;
+    tooltipManager.hideTooltip();
   }
 
   unbindEvents() {

@@ -55,7 +55,6 @@ body {
 
 .authed-section__main-content {
   width: 100%;
-  font-family: Arial;
   padding: 20px 8px;
   overflow-y: auto;
 }
@@ -158,4 +157,10 @@ p {
 .validation-error {
   color: var(--invalid);
   font-weight: bold;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  padding-left: 1em;
 }

@@ -8,6 +8,7 @@ export class InventoryPager extends BaseElement {
     super();
     this.pageLimit = 50;
     this.currentPage = 1;
+    this.numberOfItems = 0;
     this.compare = InventoryPager.compareOnQuantity;
   }
 
@@ -15,6 +16,7 @@ export class InventoryPager extends BaseElement {
     super.connectedCallback();
     this.pageTarget = document.querySelector(".items-page__list");
     this.sortTarget = document.querySelector(".items-page__sort");
+    this.itemCount = document.querySelector(".items-page__item-count");
     this.searchElement = document.querySelector(".items-page__search");
     this.eventListener(this.searchElement, "input", this.handleSearch.bind(this));
     this.eventListener(this.sortTarget, "change", this.handleSortChange.bind(this));
@@ -30,6 +32,13 @@ export class InventoryPager extends BaseElement {
       pageButtonsHtml += `<button class="${active} inventory-pager__button">${i + 1}</button>`;
     }
     return `{{inventory-pager.html}}`;
+  }
+
+  render() {
+    super.render();
+    if (this.numberOfItems !== undefined) {
+      this.itemCount.innerHTML = `${this.numberOfItems} items`;
+    }
   }
 
   handleSearch() {
@@ -71,8 +80,12 @@ export class InventoryPager extends BaseElement {
   }
 
   handleUpdatedItems() {
+    const previousItemCount = this.numberOfItems;
     this.maybeRenderPage(this.currentPage);
-    this.render();
+
+    if (this.numberOfItems !== previousItemCount) {
+      this.render();
+    }
   }
 
   maybeRenderPage(pageNumber) {
@@ -80,6 +93,7 @@ export class InventoryPager extends BaseElement {
 
     const items = Object.values(groupData.groupItems).filter((item) => item.visible);
     this.numberOfPages = Math.floor(items.length / this.pageLimit);
+    this.numberOfItems = items.length;
     if (items.length - this.pageLimit * this.numberOfPages > 0) this.numberOfPages++;
     if (this.currentPage > this.numberOfPages) {
       this.currentPage = 1;

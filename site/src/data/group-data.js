@@ -11,6 +11,7 @@ class GroupData {
   }
 
   update(groupData) {
+    groupData.sort((a, b) => a.name.localeCompare(b.name));
     let membersUpdated = false;
     const removedMembers = new Set(this.members.keys());
 
@@ -98,10 +99,7 @@ class GroupData {
     }
 
     if (membersUpdated) {
-      pubsub.publish(
-        "members-updated",
-        [...this.members.values()].sort((a, b) => a.name.localeCompare(b.name))
-      );
+      pubsub.publish("members-updated", [...this.members.values()]);
     }
 
     if (anyItemUpdates) {
@@ -112,11 +110,14 @@ class GroupData {
   }
 
   shouldItemBeVisible(item, filter) {
-    if (filter.length === 0 || item.name.toLowerCase().includes(filter) || item.id === filter) {
+    if (filter.length === 0 || item.name.toLowerCase().includes(filter) || item.id.toString() === filter) {
       return true;
     } else if ("shared".includes(filter) && item.quantities["@SHARED"] > 0) {
       return true;
     } else {
+      for (const [playerName, quantity] of Object.entries(item.quantities)) {
+        if (quantity > 0 && playerName.toLowerCase() === filter) return true;
+      }
       return false;
     }
   }

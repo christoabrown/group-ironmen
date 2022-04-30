@@ -28,11 +28,12 @@ export class RsTooltip extends BaseElement {
   updatePosition(mouseEvent) {
     const x = mouseEvent.clientX;
     const y = mouseEvent.clientY;
-    const top = y - this.height;
+    const top = Math.max(0, y - this.height);
     let left = x + 2;
     if (left >= document.body.clientWidth / 2) {
       left -= this.offsetWidth + 2;
     }
+
     this.style.transform = `translate(${left}px, ${top}px)`;
   }
 

@@ -35,7 +35,7 @@ export class SkillBox extends BaseElement {
     this.progressBar.style.background = `hsl(${levelProgress * 100}, 100%, 50%)`;
 
     this.updateTooltip(
-      `Total XP: ${skill.xp.toLocaleString()}\nXP until next level: ${skill.xpUntilNextLevel.toLocaleString()}`
+      `Total XP: ${skill.xp.toLocaleString()}<br />XP until next level: ${skill.xpUntilNextLevel.toLocaleString()}`
     );
   }
 }

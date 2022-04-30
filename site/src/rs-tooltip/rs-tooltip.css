@@ -6,7 +6,6 @@ rs-tooltip {
   font-family: "rssmall", sans-serif;
   padding: 4px;
   pointer-events: none;
-  white-space: pre;
   z-index: 1000;
   top: 0;
   left: 0;
