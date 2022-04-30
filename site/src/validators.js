@@ -1,5 +1,5 @@
 export function validCharacters(value) {
-  return !/[^A-Za-z 0-9-]/g.test(value);
+  return !/[^A-Za-z 0-9-_]/g.test(value);
 }
 
 export function validLength(value) {

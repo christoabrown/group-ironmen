@@ -17,6 +17,7 @@ mod valid_name_tests {
             "CAPITAL LETTERS",
             "MiXeD case-123",
             "0123456789",
+            "underscore_name"
         ];
 
         for name in valid_names {
@@ -29,7 +30,6 @@ mod valid_name_tests {
         let invalid_names = [
             "@SHARED",
             "invalid!",
-            "_",
             "@",
             "-=+[];'./,<>?\"\\|`~",
             "=",
@@ -65,7 +65,7 @@ mod valid_name_tests {
 
 pub fn valid_name(name: &str) -> bool {
     lazy_static! {
-        static ref NAME_RE: Regex = Regex::new("[^A-Za-z 0-9-]").unwrap();
+        static ref NAME_RE: Regex = Regex::new("[^A-Za-z 0-9-_]").unwrap();
     }
 
     let len = name.trim().len();
