@@ -34,6 +34,7 @@ export class PlayerStats extends BaseElement {
     this.updateStatBarSize("energy");
     this.subscribe(`stats:${this.playerName}`, this.handleUpdatedStats.bind(this));
     this.subscribe(`inactive:${this.playerName}`, this.handleWentInactive.bind(this));
+    this.subscribe(`active:${this.playerName}`, this.handleWentActive.bind(this));
 
     this.resizeObserver = new ResizeObserver(this.handleContainerSizeChanged.bind(this));
     this.resizeObserver.observe(this);
@@ -63,16 +64,18 @@ export class PlayerStats extends BaseElement {
     this.updateWorld(undefined, inactive);
   }
 
+  handleWentActive(_, member) {
+    this.world = undefined;
+    this.updateWorld(member.stats.world, false);
+  }
+
   updateWorld(world, isInactive) {
     if (isInactive) {
-      if (this.world !== undefined) {
-        this.worldEl.innerText = `INACTIVE`;
-        this.world = undefined;
-      }
+      this.worldEl.innerText = `INACTIVE`;
       if (!this.classList.contains("player-stats__inactive")) {
         this.classList.add("player-stats__inactive");
       }
-    } else if (this.world === undefined || this.world !== world) {
+    } else if (this.world !== world) {
       this.world = world;
       if (this.classList.contains("player-stats__inactive")) {
         this.classList.remove("player-stats__inactive");

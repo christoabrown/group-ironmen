@@ -48,6 +48,11 @@ export class Item {
   static parseItemData(data) {
     const result = [];
     for (let i = 0; i < data.length; ++i) {
+      if (data[i].id === 0) {
+        result.push(new Item(0, 0));
+        continue;
+      }
+
       if (!Item.itemDetails[data[i].id]) {
         console.warn(`Unrecognized item id: ${data[i].id}`);
         continue;
@@ -55,7 +60,6 @@ export class Item {
 
       const item = new Item(data[i].id, data[i].quantity);
       result.push(item);
-      //data[i] =
     }
 
     return result;

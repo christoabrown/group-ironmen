@@ -57,7 +57,10 @@ class GroupData {
     }
 
     let receivedItemData =
-      updatedAttributes.has("inventory") || updatedAttributes.has("bank") || updatedAttributes.has("equipment");
+      updatedAttributes.has("inventory") ||
+      updatedAttributes.has("bank") ||
+      updatedAttributes.has("equipment") ||
+      updatedAttributes.has("runePouch");
 
     const encounteredItemIds = new Set();
     if (receivedItemData) {
@@ -82,7 +85,7 @@ class GroupData {
           this.groupItems[item.id] = groupItem;
 
           if (applyFilter) {
-            groupItem.visible = this.shouldItemBeVisible(item, this.filter);
+            groupItem.visible = this.shouldItemBeVisible(groupItem, this.filter);
           }
 
           pubsub.publish(`item-update:${item.id}`, groupItem);
@@ -110,6 +113,8 @@ class GroupData {
   }
 
   shouldItemBeVisible(item, filter) {
+    if (!item || !item.quantities) return false;
+
     if (filter.length === 0 || item.name.toLowerCase().includes(filter) || item.id.toString() === filter) {
       return true;
     } else if ("shared".includes(filter) && item.quantities["@SHARED"] > 0) {

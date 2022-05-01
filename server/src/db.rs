@@ -302,7 +302,8 @@ pub async fn get_group_data(
             r#"
 SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
-quests_last_update, inventory_last_update, equipment_last_update, bank_last_update) as last_updated,
+quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
+rune_pouch_last_update) as last_updated,
 CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
 CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
 CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,

@@ -73,6 +73,30 @@ class ExampleData {
         stacks: null,
         id: "6685",
       },
+      563: {
+        name: "Law rune",
+        highalch: 144,
+        stacks: null,
+        id: "563",
+      },
+      561: {
+        name: "Nature rune",
+        highalch: 108,
+        stacks: null,
+        id: "561",
+      },
+      554: {
+        name: "Fire rune",
+        highalch: 2,
+        stacks: null,
+        id: "554",
+      },
+      12791: {
+        name: "Rune pouch",
+        highalch: 0,
+        stacks: null,
+        id: "12791",
+      },
     };
   }
 
@@ -157,6 +181,20 @@ class ExampleData {
         last_updated: "2022-01-23T01:34:06.104Z",
       },
       "group alt two": {
+        rune_pouch: [
+          {
+            id: 563,
+            quantity: 1922,
+          },
+          {
+            id: 561,
+            quantity: 5,
+          },
+          {
+            id: 554,
+            quantity: 15194,
+          },
+        ],
         quests: Quest.randomQuestStates(),
         coordinates: this.seersVillageAgility[this.currentSeersVillageCoordinate],
         stats: {
@@ -174,7 +212,7 @@ class ExampleData {
           { id: 26382, quantity: 1 },
           { id: 26384, quantity: 1 },
           { id: 26386, quantity: 1 },
-          { id: 0, quantity: 0 },
+          { id: 12791, quantity: 1 },
           { id: 0, quantity: 0 },
           { id: 0, quantity: 0 },
           { id: 0, quantity: 0 },

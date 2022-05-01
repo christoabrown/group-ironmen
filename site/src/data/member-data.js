@@ -10,12 +10,19 @@ export class MemberData {
       bank: new Map(),
       inventory: new Map(),
       equipment: new Map(),
+      runePouch: new Map(),
     };
     this.inactive = false;
   }
 
   update(memberData) {
     let updatedAttributes = new Set();
+
+    if (memberData.stats) {
+      this.stats = memberData.stats;
+      this.publishUpdate("stats");
+      updatedAttributes.add("stats");
+    }
 
     if (memberData.last_updated) {
       this.lastUpdated = new Date(memberData.last_updated);
@@ -25,13 +32,9 @@ export class MemberData {
 
       if (!wasInactive && this.inactive) {
         this.publishUpdate("inactive");
+      } else if (wasInactive && !this.inactive) {
+        this.publishUpdate("active");
       }
-    }
-
-    if (memberData.stats) {
-      this.stats = memberData.stats;
-      this.publishUpdate("stats");
-      updatedAttributes.add("stats");
     }
 
     if (memberData.coordinates) {
@@ -76,6 +79,13 @@ export class MemberData {
       updatedAttributes.add("bank");
     }
 
+    if (memberData.rune_pouch) {
+      this.runePouch = Item.parseItemData(memberData.rune_pouch);
+      this.updateItemQuantitiesIn("runePouch");
+      this.publishUpdate("runePouch");
+      updatedAttributes.add("runePouch");
+    }
+
     return updatedAttributes;
   }
 
@@ -87,7 +97,8 @@ export class MemberData {
     return (
       (this.itemQuantities.bank.get(itemId) || 0) +
       (this.itemQuantities.equipment.get(itemId) || 0) +
-      (this.itemQuantities.inventory.get(itemId) || 0)
+      (this.itemQuantities.inventory.get(itemId) || 0) +
+      (this.itemQuantities.runePouch.get(itemId) || 0)
     );
   }
 
@@ -101,7 +112,7 @@ export class MemberData {
 
   *allItems() {
     const yieldedIds = new Set();
-    for (const item of this.itemsIn("inventory", "bank", "equipment")) {
+    for (const item of this.itemsIn("inventory", "bank", "equipment", "runePouch")) {
       if (!yieldedIds.has(item.id)) {
         yieldedIds.add(item.id);
         yield item;

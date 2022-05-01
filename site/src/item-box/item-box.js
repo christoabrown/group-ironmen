@@ -13,9 +13,9 @@ export class ItemBox extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.enableTooltip();
-    const playerName = this.getAttribute("player-name");
+    this.playerName = this.getAttribute("player-name");
     const inventoryType = this.getAttribute("inventory-type");
-    const totalInventoryQuantity = groupData.inventoryQuantityForItem(this.item.id, playerName, inventoryType);
+    const totalInventoryQuantity = groupData.inventoryQuantityForItem(this.item.id, this.playerName, inventoryType);
     const stackHighAlch = totalInventoryQuantity * this.item.highAlch;
     this.setAttribute(
       "tooltip-text",
