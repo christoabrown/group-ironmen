@@ -1,14 +1,13 @@
-DROP SCHEMA IF EXISTS groupironman CASCADE;
-CREATE SCHEMA groupironman;
+CREATE SCHEMA IF NOT EXISTS groupironman;
 
-CREATE TABLE groupironman.groups(
+CREATE TABLE IF NOT EXISTS groupironman.groups(
        group_id BIGSERIAL UNIQUE,
        group_name TEXT NOT NULL,
        group_token_hash CHAR(64) NOT NULL,
        PRIMARY KEY (group_name, group_token_hash)
 );
 
-CREATE TABLE groupironman.members(
+CREATE TABLE IF NOT EXISTS groupironman.members(
        group_id BIGSERIAL REFERENCES groupironman.groups(group_id),
        member_name TEXT,
 
