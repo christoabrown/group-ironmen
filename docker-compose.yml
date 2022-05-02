@@ -1,0 +1,36 @@
+version: "3.8"
+services:
+  group-ironmen-tracker-frontend:
+    image: chrisleeeee/group-ironmen-tracker-frontend
+    environment:
+      - HOST_URL=${HOST_URL}
+    restart: always
+    container_name: group-ironmen-tracker-frontend
+    ports:
+      - 4000:4000 # replace this if using a docker-compatible reverse proxy like traefik
+  group-ironmen-tracker-backend:
+    image: chrisleeeee/group-ironmen-tracker-backend
+    environment:
+      - PG_USER=${PG_USER}
+      - PG_PASSWORD=${PG_PASSWORD}
+      - PG_HOST=${PG_HOST}
+      - PG_PORT=${PG_PORT}
+      - PG_DB=${PG_DB}
+      - BACKEND_SECRET=${BACKEND_SECRET}
+    restart: always
+    depends_on:
+      - "postgres"
+    container_name: group-ironmen-tracker-backend
+    ports:
+      - 5000:8080  # replace this if using a docker-compatible reverse proxy like traefik
+  postgres:
+    image: postgres
+    restart: always
+    container_name: group-ironmen-tracker-postgres
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    volumes:
+      - ./pg-data:/var/lib/postrgresql/data # change the left-hand side of : to the path you prefer the DB to store the data in
+      - ./server/src/sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql # change the left-hand side of the : to the path that contains the schema.sql
