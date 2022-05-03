@@ -1,5 +1,6 @@
 # Group Ironmen Tracker Frontend and Backend
 Website: [groupiron.men](https://groupiron.men)
+
 Source for plugin: [https://github.com/christoabrown/group-ironmen-tracker](https://github.com/christoabrown/group-ironmen-tracker)
 
 This repo is for the frontend website and backend of the above plugin.
@@ -42,7 +43,7 @@ After you have set up the `.env` file and `schema.sql` path, you can run `docker
 
 ### Without docker-compose (untested)
 
-If you are not using the docker-compose, then you will have to set up the Postgres database and pass secrets in using Docker args. See below in the [Without Docker](#without-docker) section for how to set up the database.
+If you are not using the docker-compose, then you will have to set up the Postgres database and pass secrets in using Docker environment variables. See below in the [Without Docker](#without-docker) section for how to set up the database.
 
 You can then run the following to run the image for the frontend, adding the values of the environment variables:
 
@@ -53,7 +54,7 @@ docker run -d -e HOST_URL= chrisleeeee/group-ironmen-tracker-frontend
 Same thing for the backend:
 
 ```sh
-docker run -d -e PG_USER= -e PG_PASSWORD= -e PG_HOST= -e PG_PORT=  -e PG_DB= -e BACKEND_SECRET= chrisleeeee/group-ironmen-tracker-frontend
+docker run -d -e PG_USER= -e PG_PASSWORD= -e PG_HOST= -e PG_PORT=  -e PG_DB= -e BACKEND_SECRET= chrisleeeee/group-ironmen-tracker-backend
 ```
 
 Check `.env.example` for an explanation on what the value of each environment variable should be.
