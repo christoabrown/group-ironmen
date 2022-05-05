@@ -32,6 +32,10 @@ class PubSub {
     }
   }
 
+  unpublish(dataName) {
+    this.mostRecentPublish.delete(dataName);
+  }
+
   anyoneListening(dataName) {
     return this.subscribers.has(dataName) && this.subscribers.get(dataName).size > 0;
   }

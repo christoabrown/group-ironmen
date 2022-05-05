@@ -5,6 +5,7 @@ side-panel {
   max-width: 300px;
   min-width: 300px;
   overflow-y: auto;
+  overflow-x: hidden;
   box-sizing: border-box;
   padding: 20px 8px;
   box-shadow: inset 0 0 100px hsla(0, 0%, 0%, 0.15);

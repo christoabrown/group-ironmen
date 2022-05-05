@@ -2,6 +2,7 @@ import { Quest } from "./quest";
 import { Item } from "./item";
 import { Skill, SkillName } from "./skill";
 import { pubsub } from "./pubsub";
+import { utility } from "../utility";
 
 export class MemberData {
   constructor(name) {
@@ -26,9 +27,10 @@ export class MemberData {
 
     if (memberData.last_updated) {
       this.lastUpdated = new Date(memberData.last_updated);
-      const now = new Date();
+      const timeSinceLastUpdated = utility.timeSinceLastUpdate(memberData.last_updated);
       let wasInactive = this.inactive;
-      this.inactive = !isNaN(this.lastUpdated.getTime()) && now.getTime() - this.lastUpdated.getTime() > 300 * 1000;
+
+      this.inactive = !isNaN(timeSinceLastUpdated) && timeSinceLastUpdated > 300 * 1000;
 
       if (!wasInactive && this.inactive) {
         this.publishUpdate("inactive");
@@ -84,6 +86,11 @@ export class MemberData {
       this.updateItemQuantitiesIn("runePouch");
       this.publishUpdate("runePouch");
       updatedAttributes.add("runePouch");
+    }
+
+    if (memberData.interacting) {
+      this.interacting = memberData.interacting;
+      this.publishUpdate("interacting");
     }
 
     return updatedAttributes;

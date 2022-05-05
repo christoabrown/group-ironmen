@@ -33,6 +33,12 @@ class Utility {
     }
     return str;
   }
+
+  timeSinceLastUpdate(lastUpdated) {
+    lastUpdated = new Date(lastUpdated);
+    const now = new Date();
+    return now.getTime() - lastUpdated.getTime();
+  }
 }
 const utility = new Utility();
 

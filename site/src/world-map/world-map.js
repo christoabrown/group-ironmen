@@ -1,5 +1,7 @@
 /* global L */
+/* global WeakRef */
 import { BaseElement } from "../base-element/base-element";
+import { pubsub } from "../data/pubsub";
 
 function cantor(x, y) {
   return ((x + y) * (x + y + 1)) / 2 + y;
@@ -27,6 +29,7 @@ export class WorldMap extends BaseElement {
       .then(() => this.initMap())
       .then(() => this.initIcons())
       .then(() => {
+        pubsub.publish("map-shown", new WeakRef(this));
         this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
         this.subscribe("coordinates", this.handleUpdatedMember.bind(this));
         this.eventListener(this, "click", this.handleFocusPlayer.bind(this));
@@ -45,6 +48,7 @@ export class WorldMap extends BaseElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    pubsub.unpublish("map-shown");
     this.map.remove();
   }
 
@@ -244,6 +248,18 @@ export class WorldMap extends BaseElement {
         }
       }
     });
+
+    this.playerIcon = L.icon({
+      iconUrl: "/icons/3561-0.png",
+      iconSize: [27 / 1.5, 33 / 1.5],
+      iconAnchor: [27 / 3, 33 / 3],
+    });
+
+    this.interactingIcon = L.icon({
+      iconUrl: "/icons/1046-0.png",
+      iconSize: [20, 20],
+      iconAnchor: [20 / 2, 20 / 2],
+    });
   }
 
   latLongToGamePosition(lat, long) {
@@ -252,7 +268,7 @@ export class WorldMap extends BaseElement {
     const unitsPerPixel = latUnitsPerTile / 256;
     const unitsPerGameTile = unitsPerPixel * pixelsPerGameTile;
 
-    const y = -(unitsPerGameTile + lat - 1576) / unitsPerGameTile;
+    const y = -(2 * lat + unitsPerGameTile - 3152) / (2 * unitsPerGameTile);
     const x = -(unitsPerGameTile - 2 * long) / (2 * unitsPerGameTile);
     return [Math.round(x), Math.round(y)];
   }
@@ -275,11 +291,9 @@ export class WorldMap extends BaseElement {
       this.playerMarkers.delete(name);
     }
     const latlng = this.gamePositionToLatLong(x, y);
-    const marker = new L.CircleMarker(latlng, {
-      radius: 5,
-      color: "#FF0000",
-      fill: true,
-      fillOpacity: 1,
+    const marker = new L.Marker(latlng, {
+      icon: this.playerIcon,
+      interactive: false,
     })
       .bindTooltip(name, {
         permanent: true,
@@ -295,6 +309,24 @@ export class WorldMap extends BaseElement {
     if (this.followingPlayer === name) {
       this.panToPlayer(name);
     }
+  }
+
+  addInteractingMarker(x, y, name) {
+    const latlng = this.gamePositionToLatLong(x, y);
+    const marker = new L.Marker(latlng, {
+      icon: this.interactingIcon,
+      interactive: false,
+    })
+      .bindTooltip(name, {
+        permanent: true,
+        opacity: 1,
+        className: "interacting-label",
+        offset: [0, -5],
+        direction: "bottom",
+      })
+      .openTooltip();
+    marker.addTo(this.map);
+    return marker;
   }
 
   async followPlayer(name) {

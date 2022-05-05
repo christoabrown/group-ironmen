@@ -43,17 +43,26 @@ world-map {
   image-rendering: pixelated;
 }
 
-.leaflet-tooltip.player-label {
-  background-color: black;
+.leaflet-tooltip.player-label,
+.leaflet-tooltip.interacting-label {
+  background: none;
   border: transparent;
   box-shadow: none;
-  color: white;
-  font-family: monospace;
-  font-weight: 400;
+  color: yellow;
+  text-shadow: 1px 1px var(--black);
+  font-family: "rssmall";
   padding: 4px;
+  font-size: 16px;
 }
 
-.leaflet-tooltip.player-label:before {
+.leaflet-tooltip.interacting-label {
+  color: #b80606;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.leaflet-tooltip.player-label:before,
+.leaflet-tooltip.interacting-label:before {
   border: none;
   content: unset;
 }
@@ -109,6 +118,7 @@ world-map {
 }
 .leaflet-marker-icon,
 .leaflet-marker-shadow {
+  image-rendering: -webkit-optimize-contrast;
   display: block;
 }
 /* .leaflet-container svg: reset svg max-width decleration shipped in Joomla! (joomla.org) 3.x */

@@ -36,3 +36,5 @@ import "./logout-page/logout-page.js";
 import "./demo-page/demo-page.js";
 import "./social-links/social-links.js";
 import "./rune-pouch/rune-pouch.js";
+import "./stat-bar/stat-bar.js";
+import "./player-interacting/player-interacting.js";

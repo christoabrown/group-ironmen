@@ -33,7 +33,6 @@ player-stats {
   top: 0;
   width: 100%;
   z-index: 0;
-  background: transparent;
 }
 
 .player-stats__energy {
@@ -42,4 +41,13 @@ player-stats {
 
 .player-stats__inactive {
   filter: grayscale(100%);
+}
+
+player-stats player-interacting {
+  height: 45%;
+  width: 40%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -10%);
 }

@@ -1,0 +1,8 @@
+stat-bar {
+  display: block;
+  max-height: 100%;
+}
+
+canvas {
+  transform-origin: 0 0;
+}

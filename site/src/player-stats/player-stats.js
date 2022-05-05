@@ -18,41 +18,18 @@ export class PlayerStats extends BaseElement {
     this.playerName = this.getAttribute("player-name");
     this.render();
     this.worldEl = this.querySelector(".player-stats__world");
-    this.statBarsCtx = {
-      hitpoints: this.querySelector(".player-stats__hitpoints-bar").getContext("2d"),
-      prayer: this.querySelector(".player-stats__prayer-bar").getContext("2d"),
-      energy: this.querySelector(".player-stats__energy-bar").getContext("2d"),
-    };
 
-    this.statBarColors = {
-      hitpoints: { r: 102, g: 146, b: 61 },
-      prayer: { r: 41, g: 130, b: 153 },
-      energy: { r: 169, g: 169, b: 169 },
-    };
-    this.updateStatBarSize("hitpoints");
-    this.updateStatBarSize("prayer");
-    this.updateStatBarSize("energy");
+    this.hitpointsBar = this.querySelector(".player-stats__hitpoints-bar");
+    this.prayerBar = this.querySelector(".player-stats__prayer-bar");
+    this.energyBar = this.querySelector(".player-stats__energy-bar");
+
     this.subscribe(`stats:${this.playerName}`, this.handleUpdatedStats.bind(this));
     this.subscribe(`inactive:${this.playerName}`, this.handleWentInactive.bind(this));
     this.subscribe(`active:${this.playerName}`, this.handleWentActive.bind(this));
-
-    this.resizeObserver = new ResizeObserver(this.handleContainerSizeChanged.bind(this));
-    this.resizeObserver.observe(this);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.resizeObserver.disconnect();
-    this.resizeObserver = null;
-  }
-
-  handleContainerSizeChanged(entries) {
-    this.updateStatBarSize("hitpoints");
-    this.updateStatBarSize("prayer");
-    this.updateStatBarSize("energy");
-    this.redrawStat("hitpoints");
-    this.redrawStat("prayer");
-    this.redrawStat("energy");
   }
 
   handleUpdatedStats(stats, memberData) {
@@ -88,54 +65,24 @@ export class PlayerStats extends BaseElement {
     if (stats.hitpoints === undefined || stats.prayer === undefined || stats.energy === undefined) {
       return;
     }
-    this.updateStat(stats.hitpoints, "hitpoints");
-    this.updateStat(stats.prayer, "prayer");
-    this.updateStat(stats.energy, "energy");
+
+    this.updateText(stats.hitpoints, "hitpoints");
+    this.updateText(stats.prayer, "prayer");
+
+    window.requestAnimationFrame(() => {
+      this.hitpointsBar.update(stats.hitpoints.current / stats.hitpoints.max);
+      this.prayerBar.update(stats.prayer.current / stats.prayer.max);
+      this.energyBar.update(stats.energy.current / stats.energy.max);
+    });
   }
 
-  updateStatBarSize(name) {
-    const barContainer = this.querySelector(`.player-stats__${name}`);
-    const canvas = this.statBarsCtx[name].canvas;
+  updateText(stat, name) {
+    const numbers = this.querySelector(`.player-stats__${name}-numbers`);
+    if (!numbers) return;
 
-    const width = Math.round(barContainer.clientWidth);
-    let height = Math.round(barContainer.clientHeight);
-    if (name === "hitpoints" || name === "prayer") height += 1;
-    canvas.width = width;
-    canvas.height = height;
-  }
-
-  darkenColor(color) {
-    const d = 3.0;
-    return {
-      r: Math.round(color.r / d),
-      g: Math.round(color.g / d),
-      b: Math.round(color.b / d),
-    };
-  }
-
-  updateStat(stat, name) {
     const currentStat = this[name];
     if (currentStat === undefined || currentStat.current !== stat.current || currentStat.max !== stat.max) {
       this[name] = stat;
-      this.redrawStat(name);
-    }
-  }
-
-  redrawStat(name) {
-    const ctx = this.statBarsCtx[name];
-    const stat = this[name];
-    if (ctx === undefined || stat === undefined) return;
-    const width = Math.round((stat.current / stat.max) * ctx.canvas.width);
-    const color = this.statBarColors[name];
-    const clearColor = this.darkenColor(color);
-    ctx.fillStyle = `rgb(${clearColor.r}, ${clearColor.g}, ${clearColor.b})`;
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-    ctx.fillRect(0, 0, width, ctx.canvas.height);
-
-    const numbers = this.querySelector(`.player-stats__${name}-numbers`);
-    if (numbers) {
       numbers.innerText = `${stat.current} / ${stat.max}`;
     }
   }
