@@ -2,3 +2,5 @@
 **/.husky
 **/.eslint*
 **/prettier*
+README.md
+.gitignore
