@@ -1,9 +1,12 @@
 use crate::crypto::{token_hash, Crypter};
 use crate::error::ApiError;
-use crate::models::{CreateGroup, EncryptedData, GroupData, GroupMember, SHARED_MEMBER};
+use crate::models::{
+    Bank, CreateGroup, EncryptedData, GroupData, GroupMember, Item, SHARED_MEMBER,
+};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::Client;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 use tokio_postgres::{error::Error, types::ToSql, Row};
 
 pub async fn create_group(client: &mut Client, create_group: &CreateGroup) -> Result<(), ApiError> {
@@ -257,6 +260,14 @@ pub async fn update_group_member(
             .map_err(ApiError::UpdateGroupMemberError)?;
     }
 
+    // Merge deposited items into bank
+    match group_member.deposited {
+        Some(deposited) => {
+            deposit_items(client, group_id, &group_member.name, deposited, crypter).await?;
+        }
+        None => (),
+    }
+
     match group_member.shared_bank {
         Some(shared_bank) => {
             let _stmt = "UPDATE groupironman.members SET bank=$1, bank_last_update=NOW() WHERE group_id=$2 AND member_name=$3";
@@ -265,6 +276,74 @@ pub async fn update_group_member(
             let encrypted_json = serde_json::to_string(&encrypted_data)?;
             client
                 .execute(&stmt, &[&encrypted_json, &group_id, &SHARED_MEMBER])
+                .await
+                .map_err(ApiError::UpdateGroupMemberError)?;
+        }
+        None => (),
+    }
+
+    Ok(())
+}
+
+pub async fn deposit_items(
+    client: &Client,
+    group_id: i64,
+    member_name: &str,
+    deposited: Bank,
+    crypter: &Crypter,
+) -> Result<(), ApiError> {
+    if deposited.len() == 0 {
+        return Ok(());
+    }
+
+    let _get_bank_stmt =
+        "SELECT bank FROM groupironman.members WHERE group_id=$1 AND member_name=$2";
+    let get_bank_stmt = client.prepare_cached(&_get_bank_stmt).await?;
+    let row = client
+        .query_one(&get_bank_stmt, &[&group_id, &member_name])
+        .await
+        .map_err(ApiError::UpdateGroupMemberError)?;
+
+    let opt_bank: Option<Bank> = parse_optional(&row, "bank", crypter)?;
+
+    match opt_bank {
+        Some(mut bank) => {
+            let mut deposited_map = HashMap::new();
+            for item in deposited {
+                deposited_map.insert(item.id, item.quantity);
+            }
+
+            for item in &mut bank {
+                if deposited_map.contains_key(&item.id) {
+                    item.quantity += deposited_map.get(&item.id).unwrap_or(&0);
+                    deposited_map.remove(&item.id);
+                }
+            }
+
+            for id in deposited_map.keys() {
+                if *id == 0 {
+                    continue;
+                }
+
+                let item = Item {
+                    id: *id,
+                    quantity: *deposited_map.get(&id).unwrap_or(&0),
+                };
+
+                if item.quantity > 0 {
+                    bank.push(item);
+                }
+            }
+
+            let encrypted_bank = crypter.encrypt(bank)?;
+            let encrypted_bank_json = serde_json::to_string(&encrypted_bank)?;
+            let _update_bank_stmt = "UPDATE groupironman.members SET bank=$1, bank_last_update=NOW() WHERE group_id=$2 AND member_name=$3";
+            let update_bank_stmt = client.prepare_cached(&_update_bank_stmt).await?;
+            client
+                .execute(
+                    &update_bank_stmt,
+                    &[&encrypted_bank_json, &group_id, &member_name],
+                )
                 .await
                 .map_err(ApiError::UpdateGroupMemberError)?;
         }
@@ -349,6 +428,7 @@ FROM groupironman.members WHERE group_id=$2
             shared_bank: None,
             rune_pouch: parse_optional(&row, "rune_pouch", crypter)?,
             interacting: parse_optional(&row, "interacting", crypter)?,
+            deposited: None,
             last_updated: last_updated,
         };
 

@@ -63,8 +63,8 @@ pub type Quests = std::collections::HashMap<String, QuestState>;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Item {
-    id: i32,
-    quantity: i32,
+    pub id: i32,
+    pub quantity: i32,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -74,7 +74,7 @@ pub struct Interacting {
     ratio: i32,
     location: Coordinates,
     #[serde(default = "default_last_updated")]
-    last_updated: DateTime<Utc>
+    last_updated: DateTime<Utc>,
 }
 fn default_last_updated() -> DateTime<Utc> {
     Utc::now()
@@ -114,6 +114,8 @@ pub struct GroupMember {
     pub rune_pouch: Option<RunePouch>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interacting: Option<Interacting>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deposited: Option<Bank>,
     #[serde(skip_deserializing)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
