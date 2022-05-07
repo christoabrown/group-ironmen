@@ -70,12 +70,8 @@ export class Item {
     Item.itemDetails = await response.json();
     for (const [itemId, itemDetails] of Object.entries(Item.itemDetails)) {
       const stacks = itemDetails.stacks;
-      const duplicates = itemDetails.duplicates || [];
       itemDetails.stacks = stacks ? stacks.map((stack) => ({ id: stack[1], count: stack[0] })) : null;
       itemDetails.id = itemId;
-      for (const duplicateId of duplicates) {
-        Item.itemDetails[duplicateId] = itemDetails;
-      }
     }
 
     pubsub.publish("item-data-loaded");
