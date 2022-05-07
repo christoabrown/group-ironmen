@@ -1,0 +1,17 @@
+{
+  "name": "osrs-cache",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "update": "node update.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^3.2.3",
+    "axios": "^0.26.1",
+    "glob": "^8.0.1",
+    "xml2js": "^0.4.23"
+  }
+}

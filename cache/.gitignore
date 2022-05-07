@@ -1,0 +1,8 @@
+runelite
+node_modules
+item-data
+item-images
+.#*
+items_need_images.csv
+item_data.json
+cache
