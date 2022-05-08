@@ -242,6 +242,16 @@ pub async fn update_group_member(
     if interacting_json.is_some() {
         params.push(&interacting_json);
     }
+    let seed_vault_json = add_set_for_column(
+        &mut sets,
+        params.len() + 1,
+        "seed_vault",
+        &group_member.seed_vault,
+        &crypter,
+    )?;
+    if seed_vault_json.is_some() {
+        params.push(&seed_vault_json);
+    }
 
     if !sets.is_empty() {
         let _stmt = format!(
@@ -392,7 +402,7 @@ pub async fn get_group_data(
 SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
-rune_pouch_last_update, interacting_last_update) as last_updated,
+rune_pouch_last_update, interacting_last_update, seed_vault_last_update) as last_updated,
 CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
 CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
 CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,
@@ -401,7 +411,8 @@ CASE WHEN inventory_last_update >= $1::TIMESTAMPTZ THEN inventory ELSE NULL END 
 CASE WHEN equipment_last_update >= $1::TIMESTAMPTZ THEN equipment ELSE NULL END as equipment,
 CASE WHEN bank_last_update >= $1::TIMESTAMPTZ THEN bank ELSE NULL END as bank,
 CASE WHEN rune_pouch_last_update >= $1::TIMESTAMPTZ THEN rune_pouch ELSE NULL END as rune_pouch,
-CASE WHEN interacting_last_update >= $1::TIMESTAMPTZ THEN interacting ELSE NULL END as interacting
+CASE WHEN interacting_last_update >= $1::TIMESTAMPTZ THEN interacting ELSE NULL END as interacting,
+CASE WHEN seed_vault_last_update >= $1::TIMESTAMPTZ THEN seed_vault ELSE NULL END as seed_vault
 FROM groupironman.members WHERE group_id=$2
 "#,
         )
@@ -428,6 +439,7 @@ FROM groupironman.members WHERE group_id=$2
             shared_bank: None,
             rune_pouch: parse_optional(&row, "rune_pouch", crypter)?,
             interacting: parse_optional(&row, "interacting", crypter)?,
+            seed_vault: parse_optional(&row, "seed_vault", crypter)?,
             deposited: None,
             last_updated: last_updated,
         };
@@ -446,7 +458,9 @@ ALTER TABLE groupironman.members
 ADD COLUMN IF NOT EXISTS rune_pouch_last_update TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS rune_pouch TEXT NOT NULL default '{}'::TEXT,
 ADD COLUMN IF NOT EXISTS interacting_last_update TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS interacting TEXT NOT NULL default '{}'::TEXT
+ADD COLUMN IF NOT EXISTS interacting TEXT NOT NULL default '{}'::TEXT,
+ADD COLUMN IF NOT EXISTS seed_vault_last_update TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS seed_vault TEXT NOT NULL default '{}'::TEXT
 "#,
         )
         .await?;

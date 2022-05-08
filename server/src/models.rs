@@ -84,6 +84,7 @@ pub type Inventory = [Item; 28];
 pub type Equipment = [Item; 14];
 pub type RunePouch = [Item; 3];
 pub type Bank = std::vec::Vec<Item>;
+pub type SeedVault = std::vec::Vec<Item>;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RenameGroupMember {
@@ -114,6 +115,8 @@ pub struct GroupMember {
     pub rune_pouch: Option<RunePouch>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interacting: Option<Interacting>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed_vault: Option<SeedVault>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deposited: Option<Bank>,
     #[serde(skip_deserializing)]

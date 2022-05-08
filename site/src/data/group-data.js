@@ -60,7 +60,8 @@ class GroupData {
       updatedAttributes.has("inventory") ||
       updatedAttributes.has("bank") ||
       updatedAttributes.has("equipment") ||
-      updatedAttributes.has("runePouch");
+      updatedAttributes.has("runePouch") ||
+      updatedAttributes.has("seedVault");
 
     const encounteredItemIds = new Set();
     if (receivedItemData) {
