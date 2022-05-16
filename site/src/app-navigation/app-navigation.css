@@ -25,6 +25,7 @@ app-navigation {
 }
 
 .app-navigation__group-name {
+  color: white;
   font-family: "rssmall";
   font-size: 1.5em;
   text-shadow: 2px 2px var(--black);

@@ -12,7 +12,7 @@ export class MemberData {
       inventory: new Map(),
       equipment: new Map(),
       runePouch: new Map(),
-      seedVault: new Map()
+      seedVault: new Map(),
     };
     this.inactive = false;
   }

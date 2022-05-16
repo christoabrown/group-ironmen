@@ -6,6 +6,7 @@ men-homepage {
   position: relative;
   background: var(--black);
   height: 100%;
+  color: white;
 }
 
 men-homepage social-links {
@@ -61,7 +62,6 @@ men-homepage world-map .world-map__map {
 .men-homepage__header p {
   text-shadow: 2px 2px var(--black);
   font-size: 2em;
-  color: var(--light-brown);
 }
 
 .men-homepage__header h1,
@@ -95,7 +95,8 @@ men-homepage world-map .world-map__map {
 }
 
 .men-homepage__feature-card {
-  background: var(--dark-brown);
+  background: var(--card-background);
+  color: var(--card-text-color);
   margin: 8px;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
 }

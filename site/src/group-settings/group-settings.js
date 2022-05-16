@@ -11,13 +11,23 @@ export class GroupSettings extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.theme = localStorage.getItem("theme");
     this.render();
     this.memberSection = this.querySelector(".group-settings__members");
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
+
+    this.eventListener(this.querySelector(".group-settings__theme-group"), "change", this.updateTheme.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+  }
+
+  updateTheme(event) {
+    const theme = event.target.value;
+    localStorage.setItem("theme", theme);
+    this.theme = theme;
+    window.updateTheme();
   }
 
   handleUpdatedMembers(members) {

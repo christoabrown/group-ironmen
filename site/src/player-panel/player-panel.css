@@ -3,6 +3,7 @@ player-panel {
   width: 100%;
   position: relative;
   transform: translate3d(0, 0, 1px);
+  color: white;
 }
 
 .player-panel__minibar {
@@ -13,7 +14,7 @@ player-panel {
 
 .player-panel__minibar button {
   font-family: "rssmall";
-  color: var(--primary-text);
+  color: white;
   text-shadow: 1px 1px var(--black);
   font-size: 16px;
   flex-grow: 1;

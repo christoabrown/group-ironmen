@@ -7,10 +7,12 @@ export class SearchElement extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.enableTooltip();
-    this.setAttribute(
-      "tooltip-text",
-      `
+
+    if (!this.classList.contains("player-quests__filter")) {
+      this.enableTooltip();
+      this.setAttribute(
+        "tooltip-text",
+        `
 Some special filtering can be done by entering any of:
 <ul>
   <li>Player name to only show their items.</li>
@@ -18,7 +20,8 @@ Some special filtering can be done by entering any of:
   <li>Item ID</li>
 </ul>
 `
-    );
+      );
+    }
     this.render();
     this.searchInput = this.querySelector(".search-element__input");
     this.eventListener(this.querySelector(".search-element__reset"), "click", this.resetSearch.bind(this));

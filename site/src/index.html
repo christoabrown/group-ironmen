@@ -93,6 +93,16 @@
         else document.querySelector(".authed-section").style.flexDirection = "row";
       };
       window.updateLayout();
+
+      window.updateTheme = () => {
+        const theme = localStorage.getItem("theme");
+        if (theme === "dark") {
+          document.documentElement.classList.add("dark-mode");
+        } else {
+          document.documentElement.classList.remove("dark-mode");
+        }
+      };
+      window.updateTheme();
     </script>
 
     <app-route route-path="*" route-redirect="/"></app-route>

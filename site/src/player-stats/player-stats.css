@@ -7,6 +7,7 @@ player-stats {
   white-space: nowrap;
   line-height: 1;
   position: relative;
+  color: white;
 }
 
 .player-stats__prayer-numbers,

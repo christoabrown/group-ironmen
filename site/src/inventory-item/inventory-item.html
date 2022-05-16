@@ -1,7 +1,7 @@
 <div class="inventory-item__top">
   <img class="inventory-item__picture" src="${item.imageUrl}" loading="lazy" />
   <div class="inventory-item__top-right">
-    <div class="item-name">${item.name}</div>
+    <div class="inventory-item__name"><a href="${item.wikiLink}" target="_blank">${item.name}</a></div>
     <div class="inventory-item__details">
       <span>Quantity</span>
       <span>${item.quantity.toLocaleString()}</span>

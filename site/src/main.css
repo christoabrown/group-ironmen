@@ -1,17 +1,29 @@
 :root {
-  --primary-text: white;
-  --link-color: #eae0d5;
+  --primary-text: #121212;
 
   --elevated: rgba(255, 255, 255, 0.08);
   --light-border: rgba(255, 255, 255, 0.12);
   --darken: rgba(0, 0, 0, 0.2);
 
-  --light-brown: #eae0d5;
-  --brown: #c6ac8f;
-  --dark-brown: #715e47;
+  --background: #c0a886;
+
+  --card-background: #e2dbc8;
+  --card-text-color: #000000;
+
+  --link-color: #52351e;
+  --button-color: #715e47;
   --black: #0a0908;
 
   --invalid: #a20202;
+}
+
+:root.dark-mode {
+  --primary-text: white;
+  --background: #121212;
+  --card-background: rgb(39, 39, 39);
+  --card-text-color: white;
+  --link-color: #bbdefb;
+  --button-color: #212121;
 }
 
 html,
@@ -20,8 +32,7 @@ body {
   height: 100%;
   padding: 0;
   margin: 0;
-  background: linear-gradient(#a3896d, #6c583f);
-  box-shadow: inset 0 0 100px hsla(0, 0%, 0%, 0.3);
+  background: var(--background);
   color: var(--primary-text);
   overflow: hidden;
   position: relative;
@@ -47,7 +58,7 @@ body {
 
 .authed-section button {
   background: none;
-  color: var(--light-brown);
+  color: var(--link-color);
   padding: 0;
   border: none;
   border-radius: 0;
@@ -68,9 +79,9 @@ button {
 button.men-button {
   font-size: 1em;
   background: white;
-  color: var(--dark-brown);
+  color: var(--button-color);
   padding: 0.5em 1em;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   font-weight: 600;
   border: none;
   box-sizing: border-box;
@@ -82,7 +93,7 @@ button.men-button.small {
 
 button.men-button.delete {
   background: #bf0f0f;
-  color: var(--primary-text);
+  color: white;
 }
 
 button:disabled {

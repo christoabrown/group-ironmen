@@ -51,9 +51,10 @@ class Router {
   activateRoute(route) {
     if (this.activeRoute !== route) {
       this.activeRoute = route;
-      route.enable();
-
+      // NOTE: This publish needs to happen before the route is enabled. Otherwise the enabled route
+      // could activate other routes and the published events go out of order.
       pubsub.publish("route-activated", route);
+      route.enable();
     }
   }
 

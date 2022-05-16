@@ -5,6 +5,7 @@ world-map {
 
 .world-map__mouse-position {
   text-shadow: 1px 1px var(--black);
+  color: white;
   pointer-events: none;
 }
 

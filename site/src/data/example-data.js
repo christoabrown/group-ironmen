@@ -270,6 +270,17 @@ class ExampleData {
         equipment: Item.randomItems(14, 1),
         coordinates: { x: 3103, y: 3025, plane: 0 },
         quests: Quest.randomQuestStates(),
+        interacting: {
+          last_updated: "2050-01-01T00:00:00.000Z",
+          name: "Goblin",
+          ratio: 25,
+          scale: 30,
+          location: {
+            x: 3104,
+            y: 3025,
+            plane: 0,
+          },
+        },
       },
       "@SHARED": {
         bank: [{ id: 995, quantity: 1000000 }],
