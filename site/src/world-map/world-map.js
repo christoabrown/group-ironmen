@@ -29,7 +29,7 @@ export class WorldMap extends BaseElement {
       .then(() => this.initMap())
       .then(() => this.initIcons())
       .then(() => {
-        pubsub.publish("map-shown", new WeakRef(this));
+        pubsub.publish("map-shown");
         this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
         this.subscribe("coordinates", this.handleUpdatedMember.bind(this));
         this.eventListener(this, "click", this.handleFocusPlayer.bind(this));

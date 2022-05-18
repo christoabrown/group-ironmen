@@ -42,8 +42,7 @@ export class PlayerInteracting extends BaseElement {
     }
   }
 
-  handleMapShown(mapRef) {
-    this.mapRef = mapRef;
+  handleMapShown() {
     if (this.interacting) this.addMapMarker();
   }
 
@@ -73,7 +72,7 @@ export class PlayerInteracting extends BaseElement {
   }
 
   get map() {
-    return this.mapRef?.deref();
+    return document.querySelector("world-map");
   }
 
   get visible() {

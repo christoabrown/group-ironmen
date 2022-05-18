@@ -1,5 +1,5 @@
 :root {
-  --primary-text: #121212;
+  --primary-text: #333333;
 
   --elevated: rgba(255, 255, 255, 0.08);
   --light-border: rgba(255, 255, 255, 0.12);
@@ -8,7 +8,7 @@
   --background: #c0a886;
 
   --card-background: #e2dbc8;
-  --card-text-color: #000000;
+  --card-text-color: #333333;
 
   --link-color: #52351e;
   --button-color: #715e47;

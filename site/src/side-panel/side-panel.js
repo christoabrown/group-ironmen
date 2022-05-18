@@ -1,4 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
+import { appearance } from "../appearance";
 
 export class SidePanel extends BaseElement {
   constructor() {
@@ -34,12 +35,11 @@ export class SidePanel extends BaseElement {
   }
 
   swapLayoutDirection() {
-    if (localStorage.getItem("layout-direction")) {
-      localStorage.removeItem("layout-direction");
+    if (appearance.getLayout() === "row-reverse") {
+      appearance.setLayout("default");
     } else {
-      localStorage.setItem("layout-direction", "row-reverse");
+      appearance.setLayout("row-reverse");
     }
-    window.updateLayout();
   }
 }
 customElements.define("side-panel", SidePanel);

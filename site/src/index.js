@@ -1,3 +1,4 @@
+import "./appearance.js";
 import "./men-homepage/men-homepage.js";
 import "./wrap-routes/wrap-routes.js";
 import "./data/api.js";

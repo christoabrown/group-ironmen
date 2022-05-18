@@ -1,4 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
+import { appearance } from "../appearance";
 
 export class GroupSettings extends BaseElement {
   constructor() {
@@ -11,10 +12,11 @@ export class GroupSettings extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.theme = localStorage.getItem("theme");
+    this.theme = appearance.getTheme();
     this.render();
     this.memberSection = this.querySelector(".group-settings__members");
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
+    this.subscribe("theme", this.handleUpdatedTheme.bind(this));
 
     this.eventListener(this.querySelector(".group-settings__theme-group"), "change", this.updateTheme.bind(this));
   }
@@ -23,11 +25,20 @@ export class GroupSettings extends BaseElement {
     super.disconnectedCallback();
   }
 
+  handleUpdatedTheme() {
+    this.theme = appearance.getTheme();
+
+    if (this.theme === "dark") {
+      this.querySelector("#group-settings__theme-dark").checked = true;
+    } else {
+      this.querySelector("#group-settings__theme-light").checked = true;
+    }
+  }
+
   updateTheme(event) {
     const theme = event.target.value;
-    localStorage.setItem("theme", theme);
+    appearance.setTheme(theme);
     this.theme = theme;
-    window.updateTheme();
   }
 
   handleUpdatedMembers(members) {

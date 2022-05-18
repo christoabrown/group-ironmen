@@ -86,25 +86,6 @@
 
     <rs-tooltip></rs-tooltip>
     <script async type="module" src="/app.js"></script>
-    <script>
-      window.updateLayout = () => {
-        const layoutDirection = localStorage.getItem("layout-direction");
-        if (layoutDirection) document.querySelector(".authed-section").style.flexDirection = "row-reverse";
-        else document.querySelector(".authed-section").style.flexDirection = "row";
-      };
-      window.updateLayout();
-
-      window.updateTheme = () => {
-        const theme = localStorage.getItem("theme");
-        if (theme === "dark") {
-          document.documentElement.classList.add("dark-mode");
-        } else {
-          document.documentElement.classList.remove("dark-mode");
-        }
-      };
-      window.updateTheme();
-    </script>
-
     <app-route route-path="*" route-redirect="/"></app-route>
   </body>
 </html>
