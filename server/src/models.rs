@@ -152,3 +152,13 @@ pub struct EncryptedData {
 pub struct AmIInGroupRequest {
     pub member_name: String,
 }
+#[derive(Deserialize)]
+pub struct WikiGEPrice {
+    pub high: Option<i64>,
+    pub low: Option<i64>,
+}
+#[derive(Deserialize)]
+pub struct WikiGEPrices {
+    pub data: std::collections::HashMap<i32, WikiGEPrice>,
+}
+pub type GEPrices = std::collections::HashMap<i32, i64>;

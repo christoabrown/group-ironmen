@@ -1,5 +1,6 @@
 import { utility } from "../utility";
 import { pubsub } from "./pubsub";
+import { api } from "./api";
 
 export class Item {
   constructor(id, quantity) {
@@ -41,6 +42,10 @@ export class Item {
     return Item.itemDetails[this.id].highalch;
   }
 
+  get gePrice() {
+    return Item.gePrices[this.id] || 0;
+  }
+
   isValid() {
     return this.id > 0;
   }
@@ -75,6 +80,11 @@ export class Item {
     }
 
     pubsub.publish("item-data-loaded");
+  }
+
+  static async loadGePrices() {
+    const response = await api.getGePrices();
+    Item.gePrices = await response.json();
   }
 
   static randomItem(quantity = null) {

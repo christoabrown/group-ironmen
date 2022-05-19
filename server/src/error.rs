@@ -25,6 +25,7 @@ pub enum ApiError {
     IsMemberInGroupError(tokio_postgres::error::Error),
     GroupFullError,
     AesError(aes_gcm::Error),
+    ReqwestError(reqwest::Error),
 }
 impl std::error::Error for ApiError {}
 fn handle_pg_error(err: &tokio_postgres::error::Error, name: &str) -> HttpResponse {
@@ -67,6 +68,10 @@ impl ResponseError for ApiError {
             }
             ApiError::GroupFullError => HttpResponse::BadRequest()
                 .body("Group has already reached the maximum amount of players"),
+            ApiError::ReqwestError(ref err) => {
+                log::error!("ReqwestError: {}", err);
+                HttpResponse::InternalServerError().body(format!("ReqwestError: {}", err))
+            }
         }
     }
 }

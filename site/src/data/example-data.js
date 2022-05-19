@@ -5,6 +5,12 @@ import { utility } from "../utility";
 
 class ExampleData {
   constructor() {
+    Item.gePrices = {
+      26386: 450355946,
+      26382: 229822222,
+      26384: 481017546,
+      6685: 7251,
+    };
     Item.itemDetails = {
       995: {
         name: "Coins",

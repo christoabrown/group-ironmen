@@ -32,6 +32,10 @@ class Api {
     return `${this.baseUrl}/group/${this.groupName}/am-i-logged-in`;
   }
 
+  get gePricesUrl() {
+    return `${this.baseUrl}/ge-prices`;
+  }
+
   setCredentials(groupName, groupToken) {
     this.groupName = groupName;
     this.groupToken = groupToken;
@@ -152,6 +156,11 @@ class Api {
       headers: { Authorization: this.groupToken },
     });
 
+    return response;
+  }
+
+  async getGePrices() {
+    const response = await fetch(this.gePricesUrl);
     return response;
   }
 }

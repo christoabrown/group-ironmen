@@ -17,6 +17,7 @@ export class InventoryPager extends BaseElement {
     this.pageTarget = document.querySelector(".items-page__list");
     this.sortTarget = document.querySelector(".items-page__sort");
     this.itemCount = document.querySelector(".items-page__item-count");
+    this.totalGeValue = document.querySelector(".items-page__total-ge-price");
     this.searchElement = document.querySelector(".items-page__search");
     this.eventListener(this.searchElement, "input", this.handleSearch.bind(this));
     this.eventListener(this.sortTarget, "change", this.handleSortChange.bind(this));
@@ -37,7 +38,18 @@ export class InventoryPager extends BaseElement {
   render() {
     super.render();
     if (this.numberOfItems !== undefined) {
-      this.itemCount.innerHTML = `${this.numberOfItems} items`;
+      this.itemCount.innerHTML = this.numberOfItems.toLocaleString();
+
+      let totalGeValue = 0;
+      for (const item of Object.values(groupData.groupItems)) {
+        const gePrice = item.gePrice;
+        if (gePrice === 0) continue;
+        for (const quantity of Object.values(item.quantities)) {
+          totalGeValue += quantity * gePrice;
+        }
+      }
+
+      this.totalGeValue.innerHTML = totalGeValue.toLocaleString();
     }
   }
 
@@ -54,6 +66,8 @@ export class InventoryPager extends BaseElement {
       this.compare = InventoryPager.compareOnQuantity;
     } else if (selectedSort === "highalch") {
       this.compare = InventoryPager.compareOnHighAlch;
+    } else if (selectedSort === "geprice") {
+      this.compare = InventoryPager.compareOnGePrice;
     }
 
     this.maybeRenderPage(this.currentPage);
@@ -77,6 +91,10 @@ export class InventoryPager extends BaseElement {
 
   static compareOnHighAlch(a, b) {
     return b.highAlch - a.highAlch;
+  }
+
+  static compareOnGePrice(a, b) {
+    return b.gePrice - a.gePrice;
   }
 
   handleUpdatedItems() {

@@ -38,8 +38,12 @@ async fn main() -> std::io::Result<()> {
     let client = pool.get().await.unwrap();
     db::update_schema(&client).await.unwrap();
 
+    unauthed::start_ge_updater();
+
     HttpServer::new(move || {
-        let unauthed_scope = web::scope("/api").service(unauthed::create_group);
+        let unauthed_scope = web::scope("/api")
+            .service(unauthed::create_group)
+            .service(unauthed::get_ge_prices);
         let authed_scope = web::scope("/api/group/{group_name}")
             .wrap(AuthenticateMiddlewareFactory::new())
             .service(authed::update_group_member)

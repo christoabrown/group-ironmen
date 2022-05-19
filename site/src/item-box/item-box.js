@@ -17,9 +17,15 @@ export class ItemBox extends BaseElement {
     const inventoryType = this.getAttribute("inventory-type");
     const totalInventoryQuantity = groupData.inventoryQuantityForItem(this.item.id, this.playerName, inventoryType);
     const stackHighAlch = totalInventoryQuantity * this.item.highAlch;
+    const stackGePrice = totalInventoryQuantity * this.item.gePrice;
     this.setAttribute(
       "tooltip-text",
-      `${this.item.name} x ${totalInventoryQuantity}<br />HA: ${stackHighAlch.toLocaleString()}`
+      `
+${this.item.name} x ${totalInventoryQuantity}
+<br />
+HA: ${stackHighAlch.toLocaleString()}
+<br />
+GE: ${stackGePrice.toLocaleString()}`
     );
     this.render();
   }

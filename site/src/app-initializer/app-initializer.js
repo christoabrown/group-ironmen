@@ -29,7 +29,7 @@ export class AppInitializer extends BaseElement {
 
   async initializeApp() {
     loadingScreenManager.showLoadingScreen();
-    await Promise.all([Item.loadItems(), Quest.loadQuests()]);
+    await Promise.all([Item.loadItems(), Item.loadGePrices(), Quest.loadQuests()]);
     const group = storage.getGroup();
 
     if (group.groupName === "@EXAMPLE") {

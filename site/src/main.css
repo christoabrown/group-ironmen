@@ -138,7 +138,6 @@ select {
   border: 1px solid var(--light-border);
   border-radius: 2px;
   min-height: 1em;
-  margin-right: 8px;
 }
 
 select option {
