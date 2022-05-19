@@ -312,6 +312,7 @@ export class WorldMap extends BaseElement {
   }
 
   addInteractingMarker(x, y, name) {
+    if (typeof L === "undefined") return;
     const latlng = this.gamePositionToLatLong(x, y);
     const marker = new L.Marker(latlng, {
       icon: this.interactingIcon,
