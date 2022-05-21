@@ -9,7 +9,7 @@ export class InventoryPager extends BaseElement {
     this.pageLimit = 50;
     this.currentPage = 1;
     this.numberOfItems = 0;
-    this.compare = InventoryPager.compareOnQuantity;
+    this.compare = this.compareOnQuantity.bind(this);
   }
 
   connectedCallback() {
@@ -19,9 +19,12 @@ export class InventoryPager extends BaseElement {
     this.itemCount = document.querySelector(".items-page__item-count");
     this.totalGeValue = document.querySelector(".items-page__total-ge-price");
     this.searchElement = document.querySelector(".items-page__search");
+    this.showIndividualPricesInput = document.querySelector("#items-page__individual-items");
+    this.showIndividualPrices = this.showIndividualPricesInput.checked;
     this.eventListener(this.searchElement, "input", this.handleSearch.bind(this));
     this.eventListener(this.sortTarget, "change", this.handleSortChange.bind(this));
     this.eventListener(this, "click", this.handleClick.bind(this));
+    this.eventListener(this.showIndividualPricesInput, "change", this.handleIndividualPricesChange.bind(this));
     this.subscribe("items-updated", this.handleUpdatedItems.bind(this));
   }
 
@@ -39,18 +42,13 @@ export class InventoryPager extends BaseElement {
     super.render();
     if (this.numberOfItems !== undefined) {
       this.itemCount.innerHTML = this.numberOfItems.toLocaleString();
-
-      let totalGeValue = 0;
-      for (const item of Object.values(groupData.groupItems)) {
-        const gePrice = item.gePrice;
-        if (gePrice === 0) continue;
-        for (const quantity of Object.values(item.quantities)) {
-          totalGeValue += quantity * gePrice;
-        }
-      }
-
-      this.totalGeValue.innerHTML = totalGeValue.toLocaleString();
     }
+  }
+
+  handleIndividualPricesChange() {
+    this.showIndividualPrices = this.showIndividualPricesInput.checked;
+    this.maybeRenderPage(this.currentPage, true);
+    this.render();
   }
 
   handleSearch() {
@@ -63,11 +61,11 @@ export class InventoryPager extends BaseElement {
   handleSortChange() {
     const selectedSort = this.sortTarget.value;
     if (selectedSort === "totalquantity") {
-      this.compare = InventoryPager.compareOnQuantity;
+      this.compare = this.compareOnQuantity.bind(this);
     } else if (selectedSort === "highalch") {
-      this.compare = InventoryPager.compareOnHighAlch;
+      this.compare = this.compareOnHighAlch.bind(this);
     } else if (selectedSort === "geprice") {
-      this.compare = InventoryPager.compareOnGePrice;
+      this.compare = this.compareOnGePrice.bind(this);
     }
 
     this.maybeRenderPage(this.currentPage);
@@ -85,16 +83,24 @@ export class InventoryPager extends BaseElement {
     this.render();
   }
 
-  static compareOnQuantity(a, b) {
+  compareOnQuantity(a, b) {
     return b.quantity - a.quantity;
   }
 
-  static compareOnHighAlch(a, b) {
-    return b.highAlch - a.highAlch;
+  compareOnHighAlch(a, b) {
+    if (this.showIndividualPrices) {
+      return b.highAlch - a.highAlch;
+    }
+
+    return b.quantity * b.highAlch - a.quantity * a.highAlch;
   }
 
-  static compareOnGePrice(a, b) {
-    return b.gePrice - a.gePrice;
+  compareOnGePrice(a, b) {
+    if (this.showIndividualPrices) {
+      return b.gePrice - a.gePrice;
+    }
+
+    return b.quantity * b.gePrice - a.quantity * a.gePrice;
   }
 
   handleUpdatedItems() {
@@ -106,7 +112,7 @@ export class InventoryPager extends BaseElement {
     }
   }
 
-  maybeRenderPage(pageNumber) {
+  maybeRenderPage(pageNumber, forceRender = false) {
     const previousPageItems = this.pageItems;
 
     const items = Object.values(groupData.groupItems).filter((item) => item.visible);
@@ -118,10 +124,12 @@ export class InventoryPager extends BaseElement {
     }
     const newPageItems = this.getPage(this.currentPage, items);
 
-    if (this.pageUpdated(previousPageItems, newPageItems)) {
+    if (forceRender || this.pageUpdated(previousPageItems, newPageItems)) {
       this.pageItems = newPageItems;
       this.renderPage(newPageItems);
     }
+
+    this.updateGeValue();
   }
 
   pageUpdated(previous, current) {
@@ -153,10 +161,26 @@ export class InventoryPager extends BaseElement {
   renderPage(page) {
     let items = "";
     for (const item of page) {
-      items += `<inventory-item item-id="${item.id}"></inventory-item>`;
+      items += `
+<inventory-item item-id="${item.id}"
+                ${this.showIndividualPrices ? "individual-prices" : ""}>
+</inventory-item>
+`;
     }
 
     this.pageTarget.innerHTML = items;
+  }
+
+  updateGeValue() {
+    let totalGeValue = 0;
+    for (const item of Object.values(groupData.groupItems)) {
+      if (item.visible) {
+        const gePrice = item.gePrice;
+        totalGeValue += item.quantity * gePrice;
+      }
+    }
+
+    this.totalGeValue.innerHTML = totalGeValue.toLocaleString();
   }
 }
 customElements.define("inventory-pager", InventoryPager);

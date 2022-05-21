@@ -9,6 +9,7 @@ export class InventoryItem extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     const itemId = this.getAttribute("item-id");
+    this.showIndividualItemPrices = this.hasAttribute("individual-prices");
     this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
   }
 
@@ -35,6 +36,28 @@ export class InventoryItem extends BaseElement {
   handleUpdatedItem(item) {
     this.item = item;
     this.render();
+  }
+
+  get highAlch() {
+    const highAlch = this.item.highAlch;
+    if (highAlch === 0) return "N/A";
+
+    if (this.showIndividualItemPrices) {
+      return highAlch.toLocaleString() + "gp";
+    }
+
+    return (this.item.quantity * highAlch).toLocaleString() + "gp";
+  }
+
+  get gePrice() {
+    const gePrice = this.item.gePrice;
+    if (gePrice === 0) return "N/A";
+
+    if (this.showIndividualItemPrices) {
+      return gePrice.toLocaleString() + "gp";
+    }
+
+    return (this.item.quantity * gePrice).toLocaleString() + "gp";
   }
 }
 customElements.define("inventory-item", InventoryItem);

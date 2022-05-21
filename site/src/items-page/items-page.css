@@ -50,6 +50,15 @@
 .items-page__utility {
   margin-top: 8px;
   display: flex;
+  align-items: center;
+}
+
+.items-page__info-box input {
+  margin: 0 0.5em 0 0;
+}
+
+.items-page__info-box:first-child {
+  margin-left: 0;
 }
 
 .items-page__info-box {

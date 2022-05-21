@@ -3,12 +3,18 @@
   <inventory-pager></inventory-pager>
 </div>
 <div class="items-page__utility">
-  <select class="items-page__sort">
-    <option value="totalquantity">Sort: Total Quantity</option>
-    <option value="highalch">Sort: High Alch</option>
-    <option value="geprice">Sort: GE Price</option>
-  </select>
+  <div class="items-page__info-box">
+    <select class="items-page__sort">
+      <option value="totalquantity">Sort: Total Quantity</option>
+      <option value="highalch">Sort: High Alch</option>
+      <option value="geprice">Sort: GE Price</option>
+    </select>
+  </div>
   <span class="items-page__info-box"><span class="items-page__item-count">0</span>&nbsp;items</span>
   <span class="items-page__info-box">GE Value:&nbsp;<span class="items-page__total-ge-price">0</span>gp</span>
+  <div class="items-page__info-box">
+    <input type="checkbox" id="items-page__individual-items" />
+    <label for="items-page__individual-items">Show individual item prices</label>
+  </div>
 </div>
 <section class="items-page__list"></section>
