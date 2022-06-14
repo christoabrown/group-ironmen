@@ -16,8 +16,10 @@ export class SearchElement extends BaseElement {
 Some special filtering can be done by entering any of:
 <ul>
   <li>Player name to only show their items.</li>
-  <li>"shared" to show items in shared storage.</li>
+  <li>'shared' to show items in shared storage.</li>
   <li>Item ID</li>
+  <li>| to search multiple items (i.e., ruby | sapphire | diamond)</li>
+  <li>Double quotes "s to do exact searches (i.e., "ruby" will show ruby but not ruby necklace)</li>
 </ul>
 `
       );
