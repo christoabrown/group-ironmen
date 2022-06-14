@@ -67,7 +67,7 @@ class Api {
     this.groupToken = undefined;
     groupData.members = new Map();
     groupData.groupItems = {};
-    groupData.filter = "";
+    groupData.filters = [""];
     if (this.getGroupInterval) {
       window.clearInterval(this.getGroupInterval);
     }
