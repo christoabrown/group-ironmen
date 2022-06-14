@@ -141,8 +141,8 @@ class GroupData {
 
     for (const filter of filters) {
       // Exact search
-      if (filter.startsWith("\"") && filter.endsWith("\"")) {
-        return this.isExactItem(item, filter);
+      if (filter.startsWith("\"") && filter.endsWith("\"") && this.isExactItem(item, filter)) {
+        return true;
       // Normal item search
       } else if (filter.length === 0 || item.name.toLowerCase().includes(filter) || item.id.toString() === filter) {
         return true;
