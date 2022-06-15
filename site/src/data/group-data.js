@@ -7,7 +7,8 @@ class GroupData {
   constructor() {
     this.members = new Map();
     this.groupItems = {};
-    this.filters = [""];
+    this.textFilters = [""];
+    this.playerFilter = "@ALL";
   }
 
   update(groupData) {
@@ -86,7 +87,7 @@ class GroupData {
           this.groupItems[item.id] = groupItem;
 
           if (applyFilter) {
-            groupItem.visible = this.shouldItemBeVisible(groupItem, this.filters);
+            groupItem.visible = this.shouldItemBeVisible(groupItem, this.textFilters, this.playerFilter);
           }
 
           pubsub.publish(`item-update:${item.id}`, groupItem);
@@ -122,12 +123,12 @@ class GroupData {
       if (trimmedFilter.length !== 0) {
         resultFilters.push(trimmedFilter);
       }
-    })
+    });
     return resultFilters;
   }
 
   isExactItem(item, filter) {
-    const [_, filterWord, ...rest] = filter.split("\"");
+    const [_, filterWord, ...rest] = filter.split('"');
 
     // Normal item search
     if (item.name.toLowerCase() === filterWord || item.id.toString() === filterWord) {
@@ -136,35 +137,43 @@ class GroupData {
     return false;
   }
 
-  shouldItemBeVisible(item, filters) {
-    if (!item || !item.quantities) return false;
-
-    for (const filter of filters) {
+  passesTextFilter(item, textFilters) {
+    for (const filter of textFilters) {
       // Exact search
-      if (filter.startsWith("\"") && filter.endsWith("\"") && this.isExactItem(item, filter)) {
+      if (filter.startsWith('"') && filter.endsWith('"') && this.isExactItem(item, filter)) {
         return true;
-      // Normal item search
+        // Normal item search
       } else if (filter.length === 0 || item.name.toLowerCase().includes(filter) || item.id.toString() === filter) {
         return true;
-      // Shared storage search
-      } else if ("shared".includes(filter) && item.quantities["@SHARED"] > 0) {
-        return true;
-      // User search
-      } else {
-        for (const [playerName, quantity] of Object.entries(item.quantities)) {
-          if (quantity > 0 && playerName.toLowerCase() === filter) return true;
-        }
       }
     }
     return false;
   }
 
-  applyItemFilter(filter) {
-    const filters = this.convertFilterToFilterList(filter);
-    this.filters = filters;
+  passesPlayerFilter(item, playerFilter) {
+    return playerFilter === "@ALL" || item.quantities[playerFilter] === undefined || item.quantities[playerFilter] > 0;
+  }
+
+  shouldItemBeVisible(item, textFilters, playerFilter) {
+    if (!item || !item.quantities) return false;
+
+    return this.passesTextFilter(item, textFilters) && this.passesPlayerFilter(item, playerFilter);
+  }
+
+  applyTextFilter(textFilter) {
+    const textFilters = this.convertFilterToFilterList(textFilter);
+    this.textFilters = textFilters;
     const items = Object.values(this.groupItems);
     for (const item of items) {
-      item.visible = this.shouldItemBeVisible(item, filters);
+      item.visible = this.shouldItemBeVisible(item, textFilters, this.playerFilter);
+    }
+  }
+
+  applyPlayerFilter(playerFilter) {
+    this.playerFilter = playerFilter;
+    const items = Object.values(this.groupItems);
+    for (const item of items) {
+      item.visible = this.shouldItemBeVisible(item, this.textFilters, playerFilter);
     }
   }
 

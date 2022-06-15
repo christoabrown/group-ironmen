@@ -10,32 +10,51 @@ export class InventoryItem extends BaseElement {
     super.connectedCallback();
     const itemId = this.getAttribute("item-id");
     this.showIndividualItemPrices = this.hasAttribute("individual-prices");
+    this.playerFilter = this.getAttribute("player-filter");
     this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
   }
 
   html() {
     const item = this.item;
     let playerHtml = "";
-    const totalQuantity = item.quantity;
+    const totalQuantity = this.quantity;
 
-    for (const [playerName, quantity] of Object.entries(item.quantities)) {
-      if (quantity === 0) continue;
-      const quantityPercent = Math.round((quantity / totalQuantity) * 100);
-      playerHtml += `
+    if (this.playerFilter) {
+      playerHtml = this.playerHtml(this.playerFilter);
+    } else {
+      for (const [playerName, quantity] of Object.entries(item.quantities)) {
+        if (quantity === 0) continue;
+        playerHtml += this.playerHtml(playerName);
+      }
+    }
+
+    return `{{inventory-item.html}}`;
+  }
+
+  playerHtml(playerName) {
+    const quantity = this.item.quantities[playerName];
+    const totalQuantity = this.quantity;
+    const quantityPercent = Math.round((quantity / totalQuantity) * 100);
+    return `
 <span class="${quantity === 0 ? "inventory-item__no-quantity" : ""}">${playerName}</span>
 <span>${quantity.toLocaleString()}</span>
 <div class="inventory-item__quantity-bar"
      style="transform: scaleX(${quantityPercent}%); background: hsl(${quantityPercent}, 100%, 40%);">
 </div>
 `;
-    }
-
-    return `{{inventory-item.html}}`;
   }
 
   handleUpdatedItem(item) {
     this.item = item;
     this.render();
+  }
+
+  get quantity() {
+    if (this.playerFilter) {
+      return this.item.quantities[this.playerFilter];
+    }
+
+    return this.item.quantity;
   }
 
   get highAlch() {
@@ -46,7 +65,7 @@ export class InventoryItem extends BaseElement {
       return highAlch.toLocaleString() + "gp";
     }
 
-    return (this.item.quantity * highAlch).toLocaleString() + "gp";
+    return (this.quantity * highAlch).toLocaleString() + "gp";
   }
 
   get gePrice() {
@@ -57,7 +76,7 @@ export class InventoryItem extends BaseElement {
       return gePrice.toLocaleString() + "gp";
     }
 
-    return (this.item.quantity * gePrice).toLocaleString() + "gp";
+    return (this.quantity * gePrice).toLocaleString() + "gp";
   }
 }
 customElements.define("inventory-item", InventoryItem);
