@@ -12,7 +12,7 @@ pub enum ApiError {
     #[from(ignore)]
     UpdateGroupMemberError(tokio_postgres::error::Error),
     #[from(ignore)]
-    GetGroupIdError(tokio_postgres::error::Error),
+    GetGroupError(tokio_postgres::error::Error),
     #[from(ignore)]
     AddMemberError(tokio_postgres::error::Error),
     #[from(ignore)]
@@ -48,7 +48,7 @@ impl ResponseError for ApiError {
                 handle_pg_error(err, "UpdateGroupMemberError")
             }
             ApiError::PGError(ref err) => handle_pg_error(err, "PGError"),
-            ApiError::GetGroupIdError(ref err) => handle_pg_error(err, "GetGroupIdError"),
+            ApiError::GetGroupError(ref err) => handle_pg_error(err, "GetGroupError"),
             ApiError::AddMemberError(ref err) => handle_pg_error(err, "AddMemberError"),
             ApiError::GetGroupDataError(ref err) => handle_pg_error(err, "GetGroupDataError"),
             ApiError::IsMemberInGroupError(ref err) => handle_pg_error(err, "IsMemberInGroupError"),

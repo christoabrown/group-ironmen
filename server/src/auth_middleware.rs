@@ -38,6 +38,7 @@ where
 
 pub struct AuthenticationResult {
     pub group_id: i64,
+    pub version: i32,
     pub crypter: Crypter,
 }
 type AuthenticationInfo = Rc<AuthenticationResult>;
@@ -117,21 +118,24 @@ where
                 let client = match db_pool.get().await {
                     Ok(client) => client,
                     Err(_) => {
+                        // log::error!("{}", err);
                         return Ok(
                             req.error_response(actix_web::error::ErrorInternalServerError(""))
                         );
                     }
                 };
 
-                let group_id = match db::get_group_id(&client, &group_name, &token).await {
-                    Ok(group_id) => group_id,
+                let group = match db::get_group(&client, &group_name, &token).await {
+                    Ok(group) => group,
                     Err(_) => {
+                        // log::error!("{}", err);
                         return Ok(req.error_response(actix_web::error::ErrorUnauthorized("")));
                     }
                 };
 
                 let authentication_result = AuthenticationResult {
-                    group_id: group_id,
+                    group_id: group.0,
+                    version: group.1,
                     crypter: Crypter::new(token, group_name),
                 };
                 req.extensions_mut()

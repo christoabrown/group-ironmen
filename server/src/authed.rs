@@ -2,7 +2,7 @@ use crate::auth_middleware::Authenticated;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{
-    AmIInGroupRequest, GroupData, GroupMember, QueryInfo, RenameGroupMember, SHARED_MEMBER,
+    AmIInGroupRequest, GroupMember, QueryInfo, RenameGroupMember, StoredGroupData, SHARED_MEMBER,
 };
 use crate::validators::valid_name;
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
@@ -84,18 +84,13 @@ pub async fn update_group_member(
     group_member: web::Json<GroupMember>,
     db_pool: web::Data<Pool>,
 ) -> Result<HttpResponse, Error> {
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    db::migrate_group(&mut client, auth.group_id, auth.version, &auth.crypter).await?;
     let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
     if !in_group {
         return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
     }
-    db::update_group_member(
-        &client,
-        auth.group_id,
-        group_member.into_inner(),
-        &auth.crypter,
-    )
-    .await?;
+    db::update_group_member(&client, auth.group_id, group_member.into_inner()).await?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -104,7 +99,7 @@ pub async fn get_group_data(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
     query_info: web::Query<QueryInfo>,
-) -> Result<web::Json<GroupData>, Error> {
+) -> Result<web::Json<StoredGroupData>, Error> {
     let from_time = query_info
         .from_time
         .as_ref()
@@ -114,9 +109,9 @@ pub async fn get_group_data(
     let timestamp = from_time
         .parse::<DateTime<Utc>>()
         .map_err(|_| actix_web::error::ErrorBadRequest("unable to parse from_time"))?;
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let group_members =
-        db::get_group_data(&client, auth.group_id, &timestamp, &auth.crypter).await?;
+    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    db::migrate_group(&mut client, auth.group_id, auth.version, &auth.crypter).await?;
+    let group_members = db::get_group_data(&client, auth.group_id, &timestamp).await?;
     Ok(web::Json(group_members))
 }
 
@@ -133,7 +128,7 @@ pub async fn am_i_in_group(
 ) -> Result<HttpResponse, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let in_group: bool = db::is_member_in_group(&client, auth.group_id, &q.member_name).await?;
-    println!("{}", q.member_name);
+
     if !in_group {
         return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
     }

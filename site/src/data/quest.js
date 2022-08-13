@@ -3,8 +3,8 @@ import { pubsub } from "./pubsub";
 
 export const QuestState = {
   NOT_STARTED: "NOT_STARTED",
-  IN_PROGRESS: "IN_PROGRESS",
   FINISHED: "FINISHED",
+  IN_PROGRESS: "IN_PROGRESS",
 };
 
 export class Quest {
@@ -93,11 +93,17 @@ export class Quest {
 
   static randomQuestStates() {
     if (!Quest.questData) return;
-    const result = {};
+    const result = [];
     const states = Object.keys(QuestState);
+    let amount = 0;
     for (const questId of Object.keys(Quest.questData)) {
-      result[questId] = states[Math.floor(Math.random() * states.length)];
+      amount = Math.max(parseInt(questId), amount);
     }
+
+    for (let i = 0; i < amount; ++i) {
+      result.push(Math.floor(Math.random() * states.length));
+    }
+
     return result;
   }
 }

@@ -22,7 +22,6 @@ actix-service = "2.0.2"
 chrono = { version = "0.4.19", features = ["serde"] }
 actix-cors = "0.6.1"
 aes-gcm = "0.9.4"
-rand = "0.8.5"
 blake2 = "0.10.4"
 data-encoding = { version = "2.3.2", features = ["alloc"] }
 lazy_static = "1.4.0"

@@ -91,13 +91,13 @@ export class Item {
     const keys = Object.keys(Item.itemDetails);
     const key = keys[(keys.length * Math.random()) << 0];
     const item = Item.itemDetails[key];
-    return { id: item.id, quantity: quantity ? quantity : Math.round(Math.random() * 100000 + 1) };
+    return [item.id, quantity ? quantity : Math.round(Math.random() * 100000 + 1)];
   }
 
   static randomItems(count, quantity) {
     let result = [];
     for (let i = 0; i < count; ++i) {
-      result.push(Item.randomItem(quantity));
+      result.push(...Item.randomItem(quantity));
     }
     return result;
   }

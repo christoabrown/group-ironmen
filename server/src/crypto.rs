@@ -3,8 +3,7 @@ use crate::models::EncryptedData;
 use aes_gcm::aead::{Aead, NewAead};
 use blake2::{Blake2s256, Digest};
 use data_encoding::HEXLOWER;
-use rand::RngCore;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
 
 pub const SECRET: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/secret"));
 pub type Key = aes_gcm::Key<<aes_gcm::Aes256Gcm as aes_gcm::aead::NewAead>::KeySize>;
@@ -36,24 +35,6 @@ impl Crypter {
         let key = key(token, salt);
 
         Self(aes_gcm::Aes256Gcm::new(&key))
-    }
-
-    pub fn encrypt<T>(&self, value: T) -> Result<EncryptedData, ApiError>
-    where
-        T: Serialize,
-    {
-        let plaintext = serde_json::to_vec(&value)?;
-
-        let mut random_bytes = [0_u8; 12];
-        rand::thread_rng().fill_bytes(&mut random_bytes);
-        let nonce = aes_gcm::Nonce::from_slice(&random_bytes);
-
-        let ciphertext = self.0.encrypt(nonce, plaintext.as_slice())?;
-
-        Ok(EncryptedData {
-            nonce: random_bytes,
-            ciphertext,
-        })
     }
 
     pub fn decrypt<T>(&self, encrypted_data: EncryptedData) -> Result<T, ApiError>

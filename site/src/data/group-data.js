@@ -2,6 +2,8 @@ import { pubsub } from "./pubsub";
 import { MemberData } from "./member-data";
 import quickselect from "../quick-select";
 import { Item } from "./item";
+import { SkillName } from "./skill";
+import { QuestState } from "./quest";
 
 class GroupData {
   constructor() {
@@ -12,6 +14,7 @@ class GroupData {
   }
 
   update(groupData) {
+    this.transformFromStorage(groupData);
     groupData.sort((a, b) => a.name.localeCompare(b.name));
     let membersUpdated = false;
     const removedMembers = new Set(this.members.keys());
@@ -207,6 +210,87 @@ class GroupData {
           yield item;
         }
       }
+    }
+  }
+
+  transformItemsFromStorage(items) {
+    if (items === undefined || items === null) return;
+
+    let result = [];
+    for (let i = 0; i < items.length; i += 2) {
+      result.push({
+        id: items[i],
+        quantity: items[i + 1],
+      });
+    }
+    return result;
+  }
+
+  transformSkillsFromStorage(skills) {
+    if (skills === undefined || skills === null) return;
+
+    let result = {};
+    let i = 0;
+    for (const skillName of Object.keys(SkillName)) {
+      result[skillName] = skills[i++];
+    }
+    return result;
+  }
+
+  transformStatsFromStorage(stats) {
+    if (stats === undefined || stats === null) return;
+
+    return {
+      hitpoints: {
+        current: stats[0],
+        max: stats[1],
+      },
+      prayer: {
+        current: stats[2],
+        max: stats[3],
+      },
+      energy: {
+        current: stats[4],
+        max: stats[5],
+      },
+      world: stats[6],
+    };
+  }
+
+  transformCoordinatesFromStorage(coordinates) {
+    if (coordinates === undefined || coordinates === null) return;
+
+    return {
+      x: coordinates[0],
+      y: coordinates[1],
+      plane: coordinates[2],
+    };
+  }
+
+  transformQuestsFromStorage(quests) {
+    if (quests === undefined || quests === null) return;
+
+    const result = {};
+    const questStates = Object.keys(QuestState);
+    for (let i = 0; i < quests.length; ++i) {
+      const questState = quests[i];
+      const questId = i.toString();
+      result[questId] = questStates[questState];
+    }
+    return result;
+  }
+
+  transformFromStorage(groupData) {
+    for (const memberData of groupData) {
+      memberData.inventory = this.transformItemsFromStorage(memberData.inventory);
+      memberData.bank = this.transformItemsFromStorage(memberData.bank);
+      memberData.equipment = this.transformItemsFromStorage(memberData.equipment);
+      memberData.rune_pouch = this.transformItemsFromStorage(memberData.rune_pouch);
+      memberData.seed_vault = this.transformItemsFromStorage(memberData.seed_vault);
+      memberData.skills = this.transformSkillsFromStorage(memberData.skills);
+      memberData.stats = this.transformStatsFromStorage(memberData.stats);
+      memberData.coordinates = this.transformCoordinatesFromStorage(memberData.coordinates);
+      memberData.quests = this.transformQuestsFromStorage(memberData.quests);
     }
   }
 }
