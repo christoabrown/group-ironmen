@@ -2,11 +2,11 @@ use crate::crypto::{token_hash, Crypter};
 use crate::error::ApiError;
 use crate::models::{
     serialize_coordinates, serialize_item_slice, serialize_quests, serialize_skills,
-    serialize_stats, Bank, CreateGroup, GroupData, GroupMember, Item, StoredGroupData,
-    StoredGroupMember, SHARED_MEMBER,
+    serialize_stats, AggregateSkillData, Bank, CreateGroup, GroupData, GroupMember, GroupSkillData,
+    Item, MemberSkillData, StoredGroupData, StoredGroupMember, SHARED_MEMBER,
 };
 use chrono::{DateTime, Utc};
-use deadpool_postgres::Client;
+use deadpool_postgres::{Client, Transaction};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use tokio_postgres::Row;
@@ -455,6 +455,171 @@ FROM groupironman.members_encrypted WHERE group_id=$1
     Ok(result)
 }
 
+pub enum AggregatePeriod {
+    Day,
+    Month,
+    Year,
+}
+async fn aggregate_skills_for_period(
+    transaction: &Transaction<'_>,
+    period: AggregatePeriod,
+    last_aggregation: &DateTime<Utc>,
+) -> Result<(), ApiError> {
+    let s = format!(
+        r#"
+INSERT INTO groupironman.skills_{} (member_id, time, skills)
+SELECT member_id, date_trunc('{}', skills_last_update), skills FROM groupironman.members
+WHERE skills_last_update IS NOT NULL AND skills IS NOT NULL AND skills_last_update >= $1
+ON CONFLICT (member_id, time)
+DO UPDATE SET skills=excluded.skills;
+"#,
+        match period {
+            AggregatePeriod::Day => "day",
+            AggregatePeriod::Month => "month",
+            AggregatePeriod::Year => "year",
+        },
+        match period {
+            AggregatePeriod::Day => "hour",
+            AggregatePeriod::Month => "day",
+            AggregatePeriod::Year => "month",
+        }
+    );
+    let aggregate_stmt = transaction.prepare_cached(&s).await?;
+    transaction
+        .execute(&aggregate_stmt, &[&last_aggregation])
+        .await?;
+
+    Ok(())
+}
+
+async fn apply_skills_retention_for_period(
+    transaction: &Transaction<'_>,
+    period: AggregatePeriod,
+    last_aggregation: &DateTime<Utc>,
+) -> Result<(), ApiError> {
+    let s = format!(
+        r#"
+DELETE FROM groupironman.skills_{} WHERE time < ($1::timestamptz - interval '{}')
+"#,
+        match period {
+            AggregatePeriod::Day => "day",
+            AggregatePeriod::Month => "month",
+            AggregatePeriod::Year => "year",
+        },
+        match period {
+            AggregatePeriod::Day => "1 day",
+            AggregatePeriod::Month => "1 month",
+            AggregatePeriod::Year => "1 year",
+        }
+    );
+    let delete_old_rows_stmt = transaction.prepare_cached(&s).await?;
+    transaction
+        .execute(&delete_old_rows_stmt, &[&last_aggregation])
+        .await?;
+
+    Ok(())
+}
+
+pub async fn get_last_skills_aggregation(client: &Client) -> Result<DateTime<Utc>, ApiError> {
+    let last_aggregation_stmt = client
+        .prepare_cached(
+            r#"
+SELECT last_aggregation FROM groupironman.aggregation_info WHERE type='skills'"#,
+        )
+        .await?;
+    let last_aggregation: DateTime<Utc> = client
+        .query_one(&last_aggregation_stmt, &[])
+        .await?
+        .try_get(0)?;
+
+    Ok(last_aggregation)
+}
+
+pub async fn aggregate_skills(client: &mut Client) -> Result<(), ApiError> {
+    let last_aggregation = get_last_skills_aggregation(&client).await?;
+
+    let transaction = client.transaction().await?;
+    let update_last_aggregation_stmt = transaction
+        .prepare_cached(
+            r#"
+UPDATE groupironman.aggregation_info SET last_aggregation=NOW() WHERE type='skills'"#,
+        )
+        .await?;
+    transaction
+        .execute(&update_last_aggregation_stmt, &[])
+        .await?;
+
+    aggregate_skills_for_period(&transaction, AggregatePeriod::Day, &last_aggregation).await?;
+    aggregate_skills_for_period(&transaction, AggregatePeriod::Month, &last_aggregation).await?;
+    aggregate_skills_for_period(&transaction, AggregatePeriod::Year, &last_aggregation).await?;
+    transaction.commit().await?;
+
+    Ok(())
+}
+
+pub async fn apply_skills_retention(client: &mut Client) -> Result<(), ApiError> {
+    let last_aggregation = get_last_skills_aggregation(&client).await?;
+
+    let transaction = client.transaction().await?;
+    apply_skills_retention_for_period(&transaction, AggregatePeriod::Day, &last_aggregation)
+        .await?;
+    apply_skills_retention_for_period(&transaction, AggregatePeriod::Month, &last_aggregation)
+        .await?;
+    apply_skills_retention_for_period(&transaction, AggregatePeriod::Year, &last_aggregation)
+        .await?;
+    transaction.commit().await?;
+
+    Ok(())
+}
+
+pub async fn get_skills_for_period(
+    client: &Client,
+    group_id: i64,
+    period: AggregatePeriod,
+) -> Result<GroupSkillData, ApiError> {
+    let s = format!(
+        r#"
+SELECT member_name, time, s.skills
+FROM groupironman.skills_{} s
+INNER JOIN groupironman.members m ON m.member_id=s.member_id
+WHERE m.group_id=$1
+"#,
+        match period {
+            AggregatePeriod::Day => "day",
+            AggregatePeriod::Month => "month",
+            AggregatePeriod::Year => "year",
+        }
+    );
+    let get_skills_stmt = client.prepare_cached(&s).await?;
+    let rows = client
+        .query(&get_skills_stmt, &[&group_id])
+        .await
+        .map_err(ApiError::GetSkillsDataError)?;
+
+    let mut member_data = HashMap::new();
+    for row in rows {
+        let member_name: String = row.try_get("member_name")?;
+        let skill_data = AggregateSkillData {
+            time: row.try_get("time")?,
+            data: row.try_get("skills")?,
+        };
+
+        if !member_data.contains_key(&member_name) {
+            member_data.insert(
+                member_name.clone(),
+                MemberSkillData {
+                    name: member_name,
+                    skill_data: vec![skill_data],
+                },
+            );
+        } else if let Some(member_skill_data) = member_data.get_mut(&member_name) {
+            member_skill_data.skill_data.push(skill_data);
+        }
+    }
+
+    Ok(member_data.into_values().collect())
+}
+
 pub async fn migrate_group(
     client: &mut Client,
     group_id: i64,
@@ -696,6 +861,44 @@ CREATE TABLE IF NOT EXISTS groupironman.members (
     client.execute(r#"
 CREATE UNIQUE INDEX IF NOT EXISTS members_groupid_name_idx ON groupironman.members (group_id, member_name);
 "#, &[]).await?;
+
+    let periods = vec!["day", "month", "year"];
+    for period in periods {
+        let create_skills_aggregate = format!(
+            r#"
+CREATE TABLE IF NOT EXISTS groupironman.skills_{} (
+    member_id BIGSERIAL REFERENCES groupironman.members(member_id),
+    time TIMESTAMPTZ,
+    skills INTEGER[24],
+
+    PRIMARY KEY (member_id, time)
+);
+"#,
+            period
+        );
+        client.execute(&create_skills_aggregate, &[]).await?;
+    }
+
+    client
+        .execute(
+            r#"
+CREATE TABLE IF NOT EXISTS groupironman.aggregation_info (
+    type TEXT PRIMARY KEY,
+    last_aggregation TIMESTAMPTZ NOT NULL DEFAULT TIMESTAMP WITH TIME ZONE 'epoch'
+);
+"#,
+            &[],
+        )
+        .await?;
+    client
+        .execute(
+            r#"
+INSERT INTO groupironman.aggregation_info (type) VALUES ('skills')
+ON CONFLICT (type) DO NOTHING
+"#,
+            &[],
+        )
+        .await?;
 
     Ok(())
 }

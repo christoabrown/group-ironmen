@@ -203,7 +203,18 @@ pub struct StoredGroupMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
 }
-pub type StoredGroupData = std::vec::Vec<StoredGroupMember>;
+pub type StoredGroupData = Vec<StoredGroupMember>;
+#[derive(Serialize)]
+pub struct AggregateSkillData {
+    pub time: DateTime<Utc>,
+    pub data: Vec<i32>,
+}
+#[derive(Serialize)]
+pub struct MemberSkillData {
+    pub name: String,
+    pub skill_data: Vec<AggregateSkillData>,
+}
+pub type GroupSkillData = Vec<MemberSkillData>;
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateGroup {
@@ -215,11 +226,6 @@ pub struct CreateGroup {
 }
 fn default_token() -> String {
     uuid::Uuid::new_v4().to_hyphenated().to_string()
-}
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct QueryInfo {
-    pub from_time: Option<String>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

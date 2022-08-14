@@ -16,8 +16,34 @@ mod config {
     pub use ::config::{ConfigError, File};
     use serde::Deserialize;
     #[derive(Deserialize)]
+    pub enum LogLevel {
+        Info,
+        Warn,
+        Error,
+    }
+    impl LogLevel {
+        pub fn to_string(&self) -> &'static str {
+            match self {
+                LogLevel::Info => "info",
+                LogLevel::Warn => "warn",
+                LogLevel::Error => "error",
+            }
+        }
+    }
+    #[derive(Deserialize)]
+    pub struct LoggerConfig {
+        pub level: LogLevel,
+    }
+    #[derive(Deserialize)]
     pub struct Config {
         pub pg: deadpool_postgres::Config,
+        #[serde(default = "default_logger_config")]
+        pub logger: LoggerConfig,
+    }
+    fn default_logger_config() -> LoggerConfig {
+        LoggerConfig {
+            level: LogLevel::Info,
+        }
     }
     impl Config {
         pub fn from_env() -> Result<Self, ConfigError> {
@@ -33,12 +59,15 @@ mod config {
 async fn main() -> std::io::Result<()> {
     let config = crate::config::Config::from_env().unwrap();
     let pool = config.pg.create_pool(None, NoTls).unwrap();
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    env_logger::init_from_env(
+        env_logger::Env::new().default_filter_or(config.logger.level.to_string()),
+    );
 
     let mut client = pool.get().await.unwrap();
     db::update_schema(&mut client).await.unwrap();
 
     unauthed::start_ge_updater();
+    unauthed::start_skills_aggregator(pool.clone());
 
     HttpServer::new(move || {
         let unauthed_scope = web::scope("/api")
@@ -52,7 +81,8 @@ async fn main() -> std::io::Result<()> {
             .service(authed::delete_group_member)
             .service(authed::rename_group_member)
             .service(authed::am_i_logged_in)
-            .service(authed::am_i_in_group);
+            .service(authed::am_i_in_group)
+            .service(authed::get_skill_data);
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
             .allow_any_origin()

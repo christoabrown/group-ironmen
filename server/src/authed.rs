@@ -2,12 +2,14 @@ use crate::auth_middleware::Authenticated;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{
-    AmIInGroupRequest, GroupMember, QueryInfo, RenameGroupMember, StoredGroupData, SHARED_MEMBER,
+    AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember, StoredGroupData,
+    SHARED_MEMBER,
 };
 use crate::validators::valid_name;
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
+use serde::Deserialize;
 
 #[post("/add-group-member")]
 pub async fn add_group_member(
@@ -94,25 +96,52 @@ pub async fn update_group_member(
     Ok(HttpResponse::Ok().finish())
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GetGroupDataQuery {
+    pub from_time: DateTime<Utc>,
+}
 #[get("/get-group-data")]
 pub async fn get_group_data(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
-    query_info: web::Query<QueryInfo>,
+    query: web::Query<GetGroupDataQuery>,
 ) -> Result<web::Json<StoredGroupData>, Error> {
-    let from_time = query_info
-        .from_time
-        .as_ref()
-        .ok_or(actix_web::error::ErrorBadRequest(
-            "from_time missing from query parameters",
-        ))?;
-    let timestamp = from_time
-        .parse::<DateTime<Utc>>()
-        .map_err(|_| actix_web::error::ErrorBadRequest("unable to parse from_time"))?;
+    let from_time = query.from_time;
     let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     db::migrate_group(&mut client, auth.group_id, auth.version, &auth.crypter).await?;
-    let group_members = db::get_group_data(&client, auth.group_id, &timestamp).await?;
+    let group_members = db::get_group_data(&client, auth.group_id, &from_time).await?;
     Ok(web::Json(group_members))
+}
+
+#[derive(Deserialize)]
+pub enum SkillDataPeriod {
+    Day,
+    Week,
+    Month,
+    Year,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GetSkillDataQuery {
+    pub period: SkillDataPeriod,
+}
+#[get("/get-skill-data")]
+pub async fn get_skill_data(
+    auth: Authenticated,
+    db_pool: web::Data<Pool>,
+    query: web::Query<GetSkillDataQuery>,
+) -> Result<web::Json<GroupSkillData>, Error> {
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let aggregate_period = match query.period {
+        SkillDataPeriod::Day => db::AggregatePeriod::Day,
+        SkillDataPeriod::Week => db::AggregatePeriod::Month,
+        SkillDataPeriod::Month => db::AggregatePeriod::Month,
+        SkillDataPeriod::Year => db::AggregatePeriod::Year,
+    };
+    let group_skill_data =
+        db::get_skills_for_period(&client, auth.group_id, aggregate_period).await?;
+    Ok(web::Json(group_skill_data))
 }
 
 #[get("/am-i-logged-in")]

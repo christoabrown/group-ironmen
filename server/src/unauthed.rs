@@ -76,6 +76,38 @@ pub fn start_ge_updater() {
     });
 }
 
+pub fn start_skills_aggregator(db_pool: Pool) {
+    task::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(3600));
+
+        loop {
+            interval.tick().await;
+            log::info!("Running skill aggregator");
+
+            match db_pool.get().await {
+                Ok(mut client) => {
+                    match db::aggregate_skills(&mut client).await {
+                        Ok(_) => (),
+                        Err(err) => {
+                            log::error!("Failed to aggregate skills: {}", err);
+                        }
+                    }
+
+                    match db::apply_skills_retention(&mut client).await {
+                        Ok(_) => (),
+                        Err(err) => {
+                            log::error!("Failed to apply skills retention: {}", err);
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!("Failed to get db client: {}", err);
+                }
+            }
+        }
+    });
+}
+
 #[get("/ge-prices")]
 pub async fn get_ge_prices() -> Result<HttpResponse, Error> {
     let ge_prices_opt = GE_PRICES.load();
