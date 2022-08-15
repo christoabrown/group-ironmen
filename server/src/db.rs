@@ -499,7 +499,10 @@ async fn apply_skills_retention_for_period(
 ) -> Result<(), ApiError> {
     let s = format!(
         r#"
-DELETE FROM groupironman.skills_{} WHERE time < ($1::timestamptz - interval '{}')
+DELETE FROM groupironman.skills_{0}
+WHERE time < ($1::timestamptz - interval '{1}') AND (member_id, time) NOT IN (
+  SELECT member_id, max(time) FROM groupironman.skills_{0} WHERE time < ($1::timestamptz - interval '{1}') GROUP BY member_id
+)
 "#,
         match period {
             AggregatePeriod::Day => "day",
