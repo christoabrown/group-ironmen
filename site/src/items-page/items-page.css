@@ -56,18 +56,3 @@
 .items-page__info-box input {
   margin: 0 0.5em 0 0;
 }
-
-.items-page__info-box:first-child {
-  margin-left: 0;
-}
-
-.items-page__info-box {
-  display: flex;
-  align-items: center;
-  font-size: 0.8em;
-  background: var(--elevated);
-  border: 1px solid var(--light-border);
-  border-radius: 2px;
-  padding: 0.4em;
-  margin-left: 8px;
-}

@@ -4,7 +4,7 @@ import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 export class BaseElement extends HTMLElement {
   constructor() {
     super();
-    this.eventUnbinders = [];
+    this.eventUnbinders = new Set();
     this.eventListeners = new Map();
   }
 
@@ -41,10 +41,10 @@ export class BaseElement extends HTMLElement {
   }
 
   unbindEvents() {
-    for (const eventUnbinder of this.eventUnbinders) {
+    this.eventUnbinders.forEach((eventUnbinder) => {
       eventUnbinder();
-    }
-    this.eventUnbinders = [];
+    });
+    this.eventUnbinders = new Set();
     this.eventListeners = new Map();
   }
 
@@ -53,13 +53,26 @@ export class BaseElement extends HTMLElement {
     if (!this.eventListeners.get(subject).has(eventName)) {
       this.eventListeners.get(subject).add(eventName);
       subject.addEventListener(eventName, handler);
-      this.eventUnbinders.push(() => subject.removeEventListener(eventName, handler));
+      this.eventUnbinders.add(() => subject.removeEventListener(eventName, handler));
     }
   }
 
   subscribe(dataName, handler) {
     pubsub.subscribe(dataName, handler);
-    this.eventUnbinders.push(() => pubsub.unsubscribe(dataName, handler));
+    this.eventUnbinders.add(() => pubsub.unsubscribe(dataName, handler));
+  }
+
+  subscribeOnce(dataName, _handler) {
+    let handler = (...args) => {
+      if (this.eventUnbinders.has(unbinder)) {
+        this.eventUnbinders.delete(unbinder);
+        unbinder();
+      }
+      _handler(...args);
+    };
+    let unbinder = () => pubsub.unsubscribe(dataName, handler);
+    this.eventUnbinders.add(unbinder);
+    pubsub.subscribe(dataName, handler);
   }
 
   html() {

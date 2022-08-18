@@ -39,3 +39,5 @@ import "./social-links/social-links.js";
 import "./rune-pouch/rune-pouch.js";
 import "./stat-bar/stat-bar.js";
 import "./player-interacting/player-interacting.js";
+import "./skills-graphs/skills-graphs.js";
+import "./skill-graph/skill-graph.js";

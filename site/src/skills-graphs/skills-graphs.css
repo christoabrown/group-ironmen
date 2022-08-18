@@ -1,0 +1,23 @@
+skills-graphs {
+  display: block;
+}
+
+.skills-graphs__chart-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: 1em;
+  min-height: 500px;
+}
+
+.skills-graphs__control-container {
+  display: flex;
+  align-items: flex-end;
+}
+
+.skills-graphs__loader {
+  position: absolute;
+}

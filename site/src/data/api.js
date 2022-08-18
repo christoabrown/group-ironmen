@@ -36,6 +36,10 @@ class Api {
     return `${this.baseUrl}/ge-prices`;
   }
 
+  get skillDataUrl() {
+    return `${this.baseUrl}/group/${this.groupName}/get-skill-data`;
+  }
+
   setCredentials(groupName, groupToken) {
     this.groupName = groupName;
     this.groupToken = groupToken;
@@ -79,6 +83,7 @@ class Api {
     if (this.exampleDataEnabled) {
       const newGroupData = exampleData.getGroupData();
       groupData.update(newGroupData);
+      pubsub.publish("get-group-data", groupData);
     } else {
       const response = await fetch(`${this.getGroupDataUrl}?from_time=${nextCheck}`, {
         headers: {
@@ -162,6 +167,20 @@ class Api {
   async getGePrices() {
     const response = await fetch(this.gePricesUrl);
     return response;
+  }
+
+  async getSkillData(period) {
+    if (this.exampleDataEnabled) {
+      const skillData = exampleData.getSkillData(period, groupData);
+      return skillData;
+    } else {
+      const response = await fetch(`${this.skillDataUrl}?period=${period}`, {
+        headers: {
+          Authorization: this.groupToken,
+        },
+      });
+      return response.json();
+    }
   }
 }
 

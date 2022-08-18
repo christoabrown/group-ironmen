@@ -11,10 +11,13 @@
   --card-text-color: #333333;
 
   --link-color: #52351e;
+  --link-hover: #715e47;
   --button-color: #715e47;
   --black: #0a0908;
 
   --invalid: #a20202;
+
+  --graph-grid-border: rgba(0, 0, 0, 0.1);
 }
 
 :root.dark-mode {
@@ -23,7 +26,9 @@
   --card-background: rgb(39, 39, 39);
   --card-text-color: white;
   --link-color: #bbdefb;
+  --link-hover: #84aed1;
   --button-color: #212121;
+  --graph-grid-border: rgba(255, 255, 255, 0.05);
 }
 
 html,
@@ -56,12 +61,16 @@ body {
   src: url("/fonts/RuneScape-Chat-07.ttf");
 }
 
-.authed-section button {
+.men-text-button {
   background: none;
   color: var(--link-color);
   padding: 0;
   border: none;
   border-radius: 0;
+}
+
+.men-text-button:hover {
+  color: var(--link-hover);
 }
 
 .authed-section__main-content {
@@ -72,8 +81,7 @@ body {
 
 button {
   cursor: pointer;
-  font-family: "Inter var", ui-sans-serif, system-ui, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 button.men-button {
@@ -82,9 +90,14 @@ button.men-button {
   color: var(--button-color);
   padding: 0.5em 1em;
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: 400;
   border: none;
   box-sizing: border-box;
+  line-height: 1.2;
+}
+
+button.men-button:hover {
+  background: rgb(200, 200, 200);
 }
 
 button.men-button.small {
@@ -185,4 +198,40 @@ ul {
   margin: 0;
   padding: 0;
   padding-left: 1em;
+}
+
+.men-control-container {
+  display: flex;
+  align-items: center;
+  font-size: 0.8em;
+  background: var(--elevated);
+  border: 1px solid var(--light-border);
+  border-radius: 2px;
+  padding: 0.4em;
+  margin-left: 8px;
+}
+
+.men-control-container:hover {
+  background: var(--light-border);
+}
+
+.men-control-container:first-child {
+  margin-left: 0;
+}
+
+.men-control-container button {
+  color: var(--primary-text);
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1.2em;
+}
+
+.men-control-container input {
+  margin: 0 0.5em 0 0;
 }

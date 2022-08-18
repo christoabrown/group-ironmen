@@ -5,7 +5,7 @@ import { Item } from "./item";
 import { SkillName } from "./skill";
 import { QuestState } from "./quest";
 
-class GroupData {
+export class GroupData {
   constructor() {
     this.members = new Map();
     this.groupItems = {};
@@ -213,7 +213,7 @@ class GroupData {
     }
   }
 
-  transformItemsFromStorage(items) {
+  static transformItemsFromStorage(items) {
     if (items === undefined || items === null) return;
 
     let result = [];
@@ -226,7 +226,7 @@ class GroupData {
     return result;
   }
 
-  transformSkillsFromStorage(skills) {
+  static transformSkillsFromStorage(skills) {
     if (skills === undefined || skills === null) return;
 
     let result = {};
@@ -237,7 +237,7 @@ class GroupData {
     return result;
   }
 
-  transformStatsFromStorage(stats) {
+  static transformStatsFromStorage(stats) {
     if (stats === undefined || stats === null) return;
 
     return {
@@ -257,7 +257,7 @@ class GroupData {
     };
   }
 
-  transformCoordinatesFromStorage(coordinates) {
+  static transformCoordinatesFromStorage(coordinates) {
     if (coordinates === undefined || coordinates === null) return;
 
     return {
@@ -267,7 +267,7 @@ class GroupData {
     };
   }
 
-  transformQuestsFromStorage(quests) {
+  static transformQuestsFromStorage(quests) {
     if (quests === undefined || quests === null) return;
 
     const result = {};
@@ -282,15 +282,15 @@ class GroupData {
 
   transformFromStorage(groupData) {
     for (const memberData of groupData) {
-      memberData.inventory = this.transformItemsFromStorage(memberData.inventory);
-      memberData.bank = this.transformItemsFromStorage(memberData.bank);
-      memberData.equipment = this.transformItemsFromStorage(memberData.equipment);
-      memberData.rune_pouch = this.transformItemsFromStorage(memberData.rune_pouch);
-      memberData.seed_vault = this.transformItemsFromStorage(memberData.seed_vault);
-      memberData.skills = this.transformSkillsFromStorage(memberData.skills);
-      memberData.stats = this.transformStatsFromStorage(memberData.stats);
-      memberData.coordinates = this.transformCoordinatesFromStorage(memberData.coordinates);
-      memberData.quests = this.transformQuestsFromStorage(memberData.quests);
+      memberData.inventory = GroupData.transformItemsFromStorage(memberData.inventory);
+      memberData.bank = GroupData.transformItemsFromStorage(memberData.bank);
+      memberData.equipment = GroupData.transformItemsFromStorage(memberData.equipment);
+      memberData.rune_pouch = GroupData.transformItemsFromStorage(memberData.rune_pouch);
+      memberData.seed_vault = GroupData.transformItemsFromStorage(memberData.seed_vault);
+      memberData.skills = GroupData.transformSkillsFromStorage(memberData.skills);
+      memberData.stats = GroupData.transformStatsFromStorage(memberData.stats);
+      memberData.coordinates = GroupData.transformCoordinatesFromStorage(memberData.coordinates);
+      memberData.quests = GroupData.transformQuestsFromStorage(memberData.quests);
     }
   }
 }

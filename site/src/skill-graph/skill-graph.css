@@ -1,0 +1,56 @@
+skill-graph {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.skill-graph__skill-image {
+  position: absolute;
+  height: 50%;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin: auto;
+  transform: translateY(-50%);
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  opacity: 0.2;
+  z-index: 0;
+  filter: drop-shadow(0 0 3px #aaaaaa);
+}
+
+.skill-graph__top {
+  position: relative;
+}
+
+.skill-graph__container {
+  position: relative;
+  height: max(40vh, 300px);
+  z-index: 1;
+}
+
+.skill-graph__table-container {
+  padding: 1em 2em 0 2em;
+}
+
+.skill-graph__table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.skill-graph__table-container tr {
+  border-bottom: 1px solid var(--graph-grid-border);
+}
+
+.skill-graph__table-container tr:hover {
+  border-bottom: 1px solid var(--link-color);
+}
+
+.skill-graph__table-container td {
+  padding: 4px;
+}
+
+.skill-graph__xp-change-data {
+  text-align: end;
+}

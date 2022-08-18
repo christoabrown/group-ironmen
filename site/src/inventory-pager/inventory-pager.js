@@ -6,7 +6,7 @@ import quickselect from "../quick-select";
 export class InventoryPager extends BaseElement {
   constructor() {
     super();
-    this.pageLimit = 50;
+    this.pageLimit = 200;
     this.currentPage = 1;
     this.numberOfItems = 0;
     this.compare = this.compareOnQuantity.bind(this);
@@ -35,7 +35,7 @@ export class InventoryPager extends BaseElement {
     const numberOfPages = this.numberOfPages;
     for (let i = 0; i < numberOfPages; ++i) {
       const active = i === this.currentPage - 1 ? "active" : "";
-      pageButtonsHtml += `<button class="${active} inventory-pager__button">${i + 1}</button>`;
+      pageButtonsHtml += `<button class="${active} inventory-pager__button men-text-button">${i + 1}</button>`;
     }
     return `{{inventory-pager.html}}`;
   }
@@ -83,13 +83,12 @@ export class InventoryPager extends BaseElement {
 
   handleClick(evt) {
     const target = evt.target;
-    if (target.className.trim() !== "inventory-pager__button") {
-      return;
+    if (target.classList.contains("inventory-pager__button")) {
+      const pageNumber = parseInt(target.innerText);
+      this.currentPage = pageNumber;
+      this.maybeRenderPage(pageNumber);
+      this.render();
     }
-    const pageNumber = parseInt(target.innerText);
-    this.currentPage = pageNumber;
-    this.maybeRenderPage(pageNumber);
-    this.render();
   }
 
   compareOnQuantity(a, b) {

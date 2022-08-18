@@ -2,6 +2,8 @@ import { Item } from "./item";
 import { SkillName } from "./skill";
 import { Quest } from "./quest";
 import { utility } from "../utility";
+import { SkillGraph } from "../skill-graph/skill-graph";
+import { GroupData } from "./group-data";
 
 class ExampleData {
   constructor() {
@@ -297,6 +299,43 @@ class ExampleData {
     this.currentSeersVillageCoordinate = (this.currentSeersVillageCoordinate + 1) % this.seersVillageAgility.length;
     const coordinate = this.seersVillageAgility[this.currentSeersVillageCoordinate];
     this.members["group alt two"].coordinates = coordinate;
+  }
+
+  getSkillData(period, groupData) {
+    const dates = SkillGraph.datesForPeriod(period);
+    const result = [];
+    const skillNames = Object.values(SkillName);
+    skillNames.sort((a, b) => a.localeCompare(b));
+
+    for (const member of groupData.members.values()) {
+      if (!member.skills) continue;
+      const skillData = [];
+      let s = skillNames.map((skillName) => member.skills[skillName].xp);
+
+      for (const date of dates) {
+        skillData.push({
+          time: date.toISOString(),
+          data: s,
+        });
+        s = s.map((x) => (Math.random() > 0.9 ? Math.round(x + Math.random() * 10000) : x));
+      }
+
+      const transformed = GroupData.transformSkillsFromStorage(s);
+      for (const [skillName, xp] of Object.entries(transformed)) {
+        member.skills[skillName].xp = xp;
+      }
+
+      if (this.members[member.name].skills) {
+        this.members[member.name].skills = s;
+      }
+
+      result.push({
+        name: member.name,
+        skill_data: skillData,
+      });
+    }
+
+    return result;
   }
 }
 
