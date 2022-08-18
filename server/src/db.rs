@@ -78,18 +78,62 @@ pub async fn add_group_member(
     Ok(())
 }
 
+pub async fn delete_skills_data_for_member(
+    transaction: &Transaction<'_>,
+    period: AggregatePeriod,
+    member_id: i64,
+) -> Result<(), ApiError> {
+    let s = format!(
+        r#"
+DELETE FROM groupironman.skills_{} WHERE member_id=$1
+"#,
+        match period {
+            AggregatePeriod::Day => "day",
+            AggregatePeriod::Month => "month",
+            AggregatePeriod::Year => "year",
+        }
+    );
+    let delete_skills_data_stmt = transaction.prepare_cached(&s).await?;
+    transaction
+        .execute(&delete_skills_data_stmt, &[&member_id])
+        .await?;
+
+    Ok(())
+}
+
 pub async fn delete_group_member(
-    client: &Client,
+    client: &mut Client,
     group_id: i64,
     member_name: &str,
 ) -> Result<(), ApiError> {
-    let stmt = client
+    let transaction = client.transaction().await?;
+    let get_member_id_stmt = transaction
+        .prepare_cached(
+            "SELECT member_id FROM groupironman.members WHERE group_id=$1 AND member_name=$2",
+        )
+        .await?;
+    let member_id: i64 = transaction
+        .query_one(&get_member_id_stmt, &[&group_id, &member_name])
+        .await
+        .map_err(ApiError::DeleteGroupMemberError)?
+        .try_get(0)?;
+    delete_skills_data_for_member(&transaction, AggregatePeriod::Day, member_id).await?;
+    delete_skills_data_for_member(&transaction, AggregatePeriod::Month, member_id).await?;
+    delete_skills_data_for_member(&transaction, AggregatePeriod::Year, member_id).await?;
+
+    let stmt = transaction
         .prepare_cached("DELETE FROM groupironman.members WHERE group_id=$1 AND member_name=$2")
         .await?;
-    client
+    transaction
         .execute(&stmt, &[&group_id, &member_name])
         .await
         .map_err(ApiError::DeleteGroupMemberError)?;
+
+    transaction
+        .commit()
+        .await
+        .map_err(ApiError::DeleteGroupMemberError)?;
+
     Ok(())
 }
 

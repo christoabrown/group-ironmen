@@ -45,8 +45,8 @@ pub async fn delete_group_member(
         );
     }
 
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::delete_group_member(&client, auth.group_id, &group_member.name).await?;
+    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    db::delete_group_member(&mut client, auth.group_id, &group_member.name).await?;
     Ok(HttpResponse::Ok().finish())
 }
 
