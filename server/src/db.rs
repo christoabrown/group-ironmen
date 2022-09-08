@@ -890,7 +890,7 @@ CREATE TABLE IF NOT EXISTS groupironman.members (
   equipment INTEGER[28],
 
   rune_pouch_last_update TIMESTAMPTZ,
-  rune_pouch INTEGER[6],
+  rune_pouch INTEGER[8],
 
   bank_last_update TIMESTAMPTZ,
   bank INTEGER[],

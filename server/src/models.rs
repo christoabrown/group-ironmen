@@ -140,7 +140,7 @@ fn default_last_updated() -> DateTime<Utc> {
 
 pub type Inventory = [Item; 28];
 pub type Equipment = [Item; 14];
-pub type RunePouch = [Item; 3];
+pub type RunePouch = [Item; 4];
 
 pub type Bank = std::vec::Vec<Item>;
 pub type SeedVault = std::vec::Vec<Item>;
