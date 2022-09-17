@@ -34,6 +34,9 @@ export class PlayerInventory extends BaseElement {
       itemEl.style.gridRow = `${row + 1} / ${row + 1}`;
       itemEl.setAttribute("player-name", this.playerName);
       itemEl.setAttribute("inventory-type", "inventory");
+      if (item.isRunePouch()) {
+        itemEl.setAttribute("no-tooltip", "true");
+      }
       itemEl.item = item;
       items.appendChild(itemEl);
     }

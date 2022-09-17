@@ -102,7 +102,7 @@ export class WorldMap extends BaseElement {
     for (const member of members) {
       if (member.name === "@SHARED") continue;
       this.handleUpdatedMember(member);
-      playerButtons += `<button type="button">${member.name}</button>`;
+      playerButtons += `<button type="button" class="men-button">${member.name}</button>`;
     }
 
     if (this.playerButtons) {

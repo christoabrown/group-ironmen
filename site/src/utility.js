@@ -24,6 +24,14 @@ class Utility {
     return quantity;
   }
 
+  formatVeryShortQuantity(quantity) {
+    if (quantity >= 1000 && quantity < 100000) {
+      return Math.floor(quantity / 1000) + "K";
+    }
+
+    return this.formatShortQuantity(quantity);
+  }
+
   removeArticles(str) {
     const articles = ["a", "the", "an"];
     const words = str.split(" ");

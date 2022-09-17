@@ -30,6 +30,10 @@ export class Item {
     return utility.formatShortQuantity(this.quantity);
   }
 
+  get veryShortQuantity() {
+    return utility.formatVeryShortQuantity(this.quantity);
+  }
+
   get name() {
     return Item.itemDetails[this.id].name;
   }
@@ -50,10 +54,14 @@ export class Item {
     return this.id > 0;
   }
 
+  isRunePouch() {
+    return this.quantity === 1 && (this.id === 12791 || this.id === 27281);
+  }
+
   static parseItemData(data) {
     const result = [];
     for (let i = 0; i < data.length; ++i) {
-      if (data[i].id === 0) {
+      if (data[i].id <= 0) {
         result.push(new Item(0, 0));
         continue;
       }
