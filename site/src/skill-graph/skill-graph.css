@@ -54,3 +54,18 @@ skill-graph {
 .skill-graph__xp-change-data {
   text-align: end;
 }
+
+.skill-graph__overall-skill-change {
+  font-size: 14px;
+  filter: opacity(85%);
+}
+
+.skill-graph__overall-skill-change > td:first-child {
+  display: flex;
+  align-items: center;
+}
+
+.skill-graph__overall-skill-change img {
+  margin-right: 0.5em;
+  width: 1.25em;
+}

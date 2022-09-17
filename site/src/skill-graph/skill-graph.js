@@ -1,7 +1,7 @@
 /* global Chart */
 import { BaseElement } from "../base-element/base-element";
 import { utility } from "../utility";
-import { Skill } from "../data/skill";
+import { Skill, SkillName } from "../data/skill";
 
 export class SkillGraph extends BaseElement {
   constructor() {
@@ -20,11 +20,11 @@ export class SkillGraph extends BaseElement {
     this.tableContainer = this.querySelector(".skill-graph__table-container");
     this.ctx = this.querySelector("canvas").getContext("2d");
     this.dataSetColors = [
-      { line: "rgb(142, 68, 173)", bar: "rgba(142, 68, 173, 0.5)" },
-      { line: "rgb(41, 128, 185)", bar: "rgba(41, 128, 185, 0.5)" },
-      { line: "rgb(39, 174, 96)", bar: "rgba(39, 174, 96, 0.5)" },
-      { line: "rgb(243, 156, 18)", bar: "rgba(243, 156, 18, 0.5)" },
-      { line: "rgb(192, 57, 43)", bar: "rgba(192, 57, 43, 0.5)" },
+      { line: "rgb(192, 57, 43)" },
+      { line: "rgb(243, 156, 18)" },
+      { line: "rgb(39, 174, 96)" },
+      { line: "rgb(41, 128, 185)" },
+      { line: "rgb(142, 68, 173)" },
     ];
 
     this.intersectionObserver = new IntersectionObserver((entries) => {
@@ -49,37 +49,78 @@ export class SkillGraph extends BaseElement {
     if (!this.isConnected) return;
     this.currentGroupData = groupData;
     this.dates = SkillGraph.datesForPeriod(this.period);
-    const dataSets = this.dataSets();
+    const dataSets = this.dataSets(this.skillName);
 
     this.createChart(dataSets);
     this.createTable(dataSets);
   }
 
-  createTable(dataSets) {
-    let totalXpGain = 0;
-    const tableData = {};
-    for (let i = 0; i < dataSets.length; ++i) {
-      const lineDataSet = dataSets[i];
-      if (lineDataSet.type !== "line") continue;
+  tableDataForDataSet(dataSet) {
+    let xpGain = dataSet.data[dataSet.data.length - 1];
+    if (isNaN(xpGain)) xpGain = 0;
+    return {
+      xpGain,
+      color: dataSet.backgroundColor,
+    };
+  }
 
-      let xpGain = lineDataSet.changeData.reduce((a, b) => a + b, 0);
-      if (isNaN(xpGain)) xpGain = 0;
-      totalXpGain += xpGain;
-      tableData[lineDataSet.label] = {
-        xpGain,
-        color: lineDataSet.barColor,
-      };
+  createTable(dataSets) {
+    const dataSetsSkills = {
+      [this.skillName]: dataSets,
+    };
+
+    const skillNames = Object.values(SkillName)
+      .filter((x) => x !== SkillName.Overall)
+      .sort((a, b) => {
+        return a.localeCompare(b);
+      });
+    if (this.skillName === SkillName.Overall) {
+      for (const skillName of skillNames) {
+        dataSetsSkills[skillName] = this.dataSets(skillName);
+      }
     }
+
+    const tableData = {};
+    for (const [skillName, dataSets] of Object.entries(dataSetsSkills)) {
+      let totalXpGain = 0;
+      for (const dataSet of dataSets) {
+        if (!tableData[dataSet.label]) {
+          tableData[dataSet.label] = {};
+        }
+        tableData[dataSet.label][skillName] = this.tableDataForDataSet(dataSet);
+        totalXpGain += tableData[dataSet.label][skillName].xpGain;
+        tableData[dataSet.label][skillName].totalXpGain = totalXpGain;
+      }
+    }
+
+    const row = (cls, label, data, totalXpGain) => {
+      const xpGainPercent = Math.round((data.xpGain / totalXpGain) * 100);
+      const skillIcon = Skill.getIcon(label);
+      const skillImg = skillIcon.length ? `<img src="${Skill.getIcon(label)}" />` : "";
+      return `
+<tr class="${cls}" style="background: linear-gradient(90deg, ${
+        data.color
+      } ${xpGainPercent}%, transparent ${xpGainPercent}%)">
+  <td>${skillImg}${label}</td>
+  <td class="skill-graph__xp-change-data">${data.xpGain > 0 ? "+" : ""}${data.xpGain.toLocaleString()}</td>
+</tr>
+`;
+    };
 
     let tableRows = [];
     for (const [name, x] of Object.entries(tableData)) {
-      const xpGainPercent = Math.round((x.xpGain / totalXpGain) * 100);
-      tableRows.push(`
-<tr style="background: linear-gradient(90deg, ${x.color} ${xpGainPercent}%, transparent ${xpGainPercent}%)">
-  <td>${name}</td>
-  <td class="skill-graph__xp-change-data">${x.xpGain > 0 ? "+" : ""}${x.xpGain.toLocaleString()}</td>
-</tr>
-`);
+      const totalXpGain = x[this.skillName].totalXpGain;
+      tableRows.push(row("", name, x[this.skillName], totalXpGain));
+
+      if (this.skillName === SkillName.Overall) {
+        for (const skillName of skillNames) {
+          const s = x[skillName];
+
+          if (s.xpGain > 0) {
+            tableRows.push(row("skill-graph__overall-skill-change", skillName, s, x[this.skillName].xpGain));
+          }
+        }
+      }
     }
     this.tableContainer.innerHTML = `
 <table>
@@ -90,6 +131,31 @@ export class SkillGraph extends BaseElement {
 
   createChart(dataSets) {
     if (this.chart) this.chart.destroy();
+
+    let min = Number.MAX_SAFE_INTEGER;
+    let max = 0;
+    for (let i = 0; i < dataSets.length; ++i) {
+      min = Math.min(min, dataSets[i].data[0]);
+      max = Math.max(max, dataSets[i].data[dataSets[i].data.length - 1]);
+    }
+
+    const scales = {
+      x: {
+        grid: {
+          drawTicks: false,
+        },
+      },
+      y: {
+        type: "linear",
+        min,
+        max: max + 1,
+        title: {
+          display: true,
+          text: "XP Gain",
+        },
+      },
+    };
+
     this.chart = new Chart(this.ctx, {
       type: "line",
       options: {
@@ -100,18 +166,13 @@ export class SkillGraph extends BaseElement {
           padding: 0,
         },
         plugins: {
-          legend: {
-            labels: {
-              filter: (label) => !!label.text,
-            },
-          },
           tooltip: {
-            filter: (tooltip) => tooltip.dataset.type === "line",
             callbacks: {
               label: (tooltip) => {
                 const xpChange = tooltip.dataset.changeData[tooltip.dataIndex];
                 const xpChangeString = `${xpChange > 0 ? "+" : ""}${xpChange.toLocaleString()}`;
-                return `${tooltip.dataset.label}: ${tooltip.formattedValue} (${xpChangeString})`;
+                const totalXp = tooltip.dataset.totalXpData[tooltip.dataIndex] || 0;
+                return `${tooltip.dataset.label}: ${totalXp.toLocaleString()} (${xpChangeString})`;
               },
             },
           },
@@ -124,40 +185,7 @@ export class SkillGraph extends BaseElement {
           intersect: false,
           mode: "index",
         },
-        scales: {
-          x: {
-            grid: {
-              drawTicks: false,
-            },
-          },
-          y: {
-            type: "linear",
-            position: "left",
-            display: true,
-            ticks: {
-              callback: (value) => {
-                return utility.formatShortQuantity(value);
-              },
-            },
-            grid: {
-              drawTicks: true,
-            },
-          },
-          xpChange: {
-            type: "linear",
-            position: "right",
-            display: false,
-            ticks: {
-              beginAtZero: true,
-              callback: (value) => {
-                return utility.formatShortQuantity(value);
-              },
-            },
-            grid: {
-              drawOnChartArea: false,
-            },
-          },
-        },
+        scales,
       },
       data: {
         labels: this.labelsForPeriod(this.period, this.dates),
@@ -166,17 +194,21 @@ export class SkillGraph extends BaseElement {
     });
   }
 
-  dataSets() {
+  dataSets(skillName) {
     let result = [];
     for (let i = 0; i < this.skillDataForGroup.length; ++i) {
       const playerSkillData = this.skillDataForGroup[i];
-      const [stateData, changeData] = this.dataForPlayer(playerSkillData, this.dates);
+      const [totalXpData, changeData, cumulativeChangeData] = this.dataForPlayer(
+        playerSkillData,
+        this.dates,
+        skillName
+      );
       const color = this.dataSetColors[i];
 
       result.push({
         type: "line",
         label: playerSkillData.name,
-        data: stateData,
+        data: cumulativeChangeData,
         borderColor: color.line,
         backgroundColor: color.line,
         pointBorderWidth: 0,
@@ -185,36 +217,34 @@ export class SkillGraph extends BaseElement {
         pointRadius: 0,
         borderWidth: 2,
         changeData,
-        barColor: color.bar,
-      });
-      result.push({
-        type: "bar",
-        data: changeData,
-        borderColor: color.bar,
-        backgroundColor: color.bar,
-        borderWidth: 0,
-        yAxisID: "xpChange",
+        totalXpData,
       });
     }
 
-    // NOTE: Sort the data sets so lines will draw on top of the bars
-    result.sort((a, b) => (a.type === "line" ? -1 : 1));
     return result;
   }
 
-  dataForPlayer(playerSkillData, dates) {
+  dataForPlayer(playerSkillData, dates, skillName) {
     const latestSkillData = this.currentGroupData.members.get(playerSkillData.name).skills;
-    const completeTimeSeries = this.generateCompleteTimeSeries(playerSkillData.skill_data, latestSkillData);
+    const completeTimeSeries = this.generateCompleteTimeSeries(playerSkillData.skill_data, latestSkillData, skillName);
     const changeData = [0];
+    const cumulativeChangeData = [0];
 
+    let s = 0;
     for (let i = 1; i < completeTimeSeries.length; ++i) {
       const previous = completeTimeSeries[i - 1];
       const current = completeTimeSeries[i];
-      if (previous === undefined || current === undefined) changeData.push(0);
-      else changeData.push(current - previous);
+      if (previous === undefined || current === undefined) {
+        changeData.push(0);
+        cumulativeChangeData.push(s);
+      } else {
+        changeData.push(current - previous);
+        s += current - previous;
+        cumulativeChangeData.push(s);
+      }
     }
 
-    return [completeTimeSeries, changeData];
+    return [completeTimeSeries, changeData, cumulativeChangeData];
   }
 
   generateCompleteTimeSeries(playerSkillData, currentSkillData, skillName) {
@@ -230,14 +260,14 @@ export class SkillGraph extends BaseElement {
       }
     }
 
-    let lastData = datesOutsideOfPeriod.length ? datesOutsideOfPeriod[0].data[this.skillName] : undefined;
+    let lastData = datesOutsideOfPeriod.length ? datesOutsideOfPeriod[0].data[skillName] : undefined;
     const result = [];
 
     for (let i = 0; i < this.dates.length; ++i) {
       const date = this.dates[i];
       const time = date.getTime();
       if (bucketedSkillData.has(time)) {
-        let data = bucketedSkillData.get(time)[this.skillName];
+        let data = bucketedSkillData.get(time)[skillName];
         result.push(data);
         lastData = data;
       } else {
@@ -245,7 +275,7 @@ export class SkillGraph extends BaseElement {
       }
     }
 
-    result[result.length - 1] = currentSkillData[this.skillName].xp;
+    result[result.length - 1] = currentSkillData[skillName].xp;
     return result;
   }
 

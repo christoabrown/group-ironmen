@@ -10,6 +10,11 @@ export class SkillsGraphs extends BaseElement {
   }
 
   html() {
+    const skillNames = Object.values(SkillName).sort((a, b) => {
+      if (a === "Overall") return -1;
+      if (b === "Overall") return 1;
+      return a.localeCompare(b);
+    });
     return `{{skills-graphs.html}}`;
   }
 
@@ -21,26 +26,34 @@ export class SkillsGraphs extends BaseElement {
     this.chartContainer = this.querySelector(".skills-graphs__chart-container");
     this.periodSelect = this.querySelector(".skills-graphs__period-select");
     this.refreshButton = this.querySelector(".skills-graphs__refresh");
+    this.skillSelect = this.querySelector(".skills-graphs__skill-select");
+    this.selectedSkill = this.skillSelect.value;
     this.eventListener(this.periodSelect, "change", this.handlePeriodChange.bind(this));
     this.eventListener(this.refreshButton, "click", this.handleRefreshClicked.bind(this));
+    this.eventListener(this.skillSelect, "change", this.handleSkillSelectChange.bind(this));
 
-    this.subscribeOnce("get-group-data", this.createCharts.bind(this));
+    this.subscribeOnce("get-group-data", this.createChart.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
   }
 
+  handleSkillSelectChange() {
+    this.selectedSkill = this.skillSelect.value;
+    this.subscribeOnce("get-group-data", this.createChart.bind(this));
+  }
+
   handlePeriodChange() {
     this.period = this.periodSelect.value;
-    this.subscribeOnce("get-group-data", this.createCharts.bind(this));
+    this.subscribeOnce("get-group-data", this.createChart.bind(this));
   }
 
   handleRefreshClicked() {
-    this.subscribeOnce("get-group-data", this.createCharts.bind(this));
+    this.subscribeOnce("get-group-data", this.createChart.bind(this));
   }
 
-  async createCharts() {
+  async createChart() {
     this.chartContainer.innerHTML = `<div class="skills-graphs__loader loader"></div>`;
 
     try {
@@ -54,25 +67,17 @@ export class SkillsGraphs extends BaseElement {
         playerSkillData.skill_data.sort((a, b) => b.time - a.time);
       });
 
-      const skillNames = Object.values(SkillName).sort((a, b) => {
-        if (a === "Overall") return -1;
-        if (b === "Overall") return 1;
-        return a.localeCompare(b);
-      });
       this.chartContainer.innerHTML = "";
-
       Chart.defaults.scale.grid.borderColor = "rgba(255, 255, 255, 0)";
       const style = getComputedStyle(document.body);
       Chart.defaults.color = style.getPropertyValue("--primary-text");
       Chart.defaults.scale.grid.color = style.getPropertyValue("--graph-grid-border");
 
-      for (const skillName of skillNames) {
-        const skillGraph = document.createElement("skill-graph");
-        skillGraph.skillDataForGroup = skillDataForGroup;
-        skillGraph.setAttribute("data-period", this.period);
-        skillGraph.setAttribute("skill-name", skillName);
-        this.chartContainer.appendChild(skillGraph);
-      }
+      const skillGraph = document.createElement("skill-graph");
+      skillGraph.skillDataForGroup = skillDataForGroup;
+      skillGraph.setAttribute("data-period", this.period);
+      skillGraph.setAttribute("skill-name", this.selectedSkill);
+      this.chartContainer.appendChild(skillGraph);
     } catch (err) {
       console.error(err);
       this.chartContainer.innerHTML = `Failed to load ${err}`;

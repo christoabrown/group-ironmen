@@ -9,6 +9,14 @@
   </div>
 
   <div class="men-control-container">
+    <select class="skills-graphs__skill-select">
+      ${skillNames.map((skillName) => `
+      <option value="${skillName}">${skillName}</option>
+      `).join('')}
+    </select>
+  </div>
+
+  <div class="men-control-container">
     <button class="skills-graphs__refresh">Refresh</button>
   </div>
 </div>

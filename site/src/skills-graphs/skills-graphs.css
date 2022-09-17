@@ -7,10 +7,6 @@ skills-graphs {
   height: 100%;
   position: relative;
   box-sizing: border-box;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-gap: 1em;
-  min-height: 500px;
 }
 
 .skills-graphs__control-container {
