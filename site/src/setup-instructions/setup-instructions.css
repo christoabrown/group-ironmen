@@ -37,4 +37,24 @@ setup-instructions {
   border: 1px solid var(--light-border);
   border-radius: 2px;
   padding: 0.25em 0.5em;
+  position: relative;
+}
+
+.setup__credential-hide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: #222;
+  color: white;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.setup__credential-hide:hover {
+  background: #444;
 }

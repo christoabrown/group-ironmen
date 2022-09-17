@@ -9,7 +9,10 @@
 
     <div class="setup__block">
       <h4>Group Token</h4>
-      <div class="setup__credential">${group.groupToken}</div>
+      <div class="setup__credential">
+        <div class="setup__credential-hide" onclick="this.remove()">Click to show</div>
+        ${group.groupToken}
+      </div>
     </div>
   </div>
 
