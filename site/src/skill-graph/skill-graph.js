@@ -89,6 +89,9 @@ export class SkillGraph extends BaseElement {
         }
         tableData[dataSet.label][skillName] = this.tableDataForDataSet(dataSet);
         totalXpGain += tableData[dataSet.label][skillName].xpGain;
+      }
+
+      for (const dataSet of dataSets) {
         tableData[dataSet.label][skillName].totalXpGain = totalXpGain;
       }
     }
