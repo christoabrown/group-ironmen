@@ -17,7 +17,6 @@ skill-graph {
   image-rendering: pixelated;
   opacity: 0.2;
   z-index: 0;
-  filter: drop-shadow(0 0 3px #aaaaaa);
 }
 
 .skill-graph__top {
@@ -28,6 +27,8 @@ skill-graph {
   position: relative;
   height: max(40vh, 300px);
   z-index: 1;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px;
 }
 
 .skill-graph__table-container {
@@ -37,6 +38,7 @@ skill-graph {
 .skill-graph__table-container table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 20px;
 }
 
 .skill-graph__table-container tr {
@@ -44,20 +46,15 @@ skill-graph {
 }
 
 .skill-graph__table-container tr:hover {
-  border-bottom: 1px solid var(--link-color);
+  border-bottom: 1px solid white;
 }
 
 .skill-graph__table-container td {
   padding: 4px;
 }
 
-.skill-graph__xp-change-data {
-  text-align: end;
-}
-
 .skill-graph__overall-skill-change {
-  font-size: 14px;
-  filter: opacity(85%);
+  font-size: 18px;
 }
 
 .skill-graph__overall-skill-change > td:first-child {

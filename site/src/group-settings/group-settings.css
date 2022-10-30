@@ -1,6 +1,10 @@
 group-settings {
-  display: block;
-  padding: 1em 3em;
+  display: flex;
+}
+
+.group-settings__container {
+  padding: 8px 12px;
+  min-width: 500px;
 }
 
 .group-settings__section-content {

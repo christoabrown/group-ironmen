@@ -47,6 +47,20 @@ class Utility {
     const now = new Date();
     return now.getTime() - lastUpdated.getTime();
   }
+
+  throttle(fn, interval) {
+    let pause = false;
+
+    return () => {
+      if (pause) return;
+      pause = true;
+
+      setTimeout(() => {
+        fn();
+        pause = false;
+      }, interval);
+    };
+  }
 }
 const utility = new Utility();
 

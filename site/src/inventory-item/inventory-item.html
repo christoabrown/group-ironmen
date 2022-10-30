@@ -1,7 +1,6 @@
 <div class="inventory-item__top">
-  <img class="inventory-item__picture" src="${item.imageUrl}" loading="lazy" />
   <div class="inventory-item__top-right">
-    <div class="inventory-item__name"><a href="${item.wikiLink}" target="_blank">${item.name}</a></div>
+    <div class="inventory-item__name"><a class="rstext" href="${item.wikiLink}" target="_blank">${item.name}</a></div>
     <div class="inventory-item__details">
       <span>Quantity</span>
       <span>${this.quantity.toLocaleString()}</span>
@@ -10,6 +9,10 @@
       <span>GE Price</span>
       <span>${this.gePrice}</span>
     </div>
+  </div>
+
+  <div class="inventory-item__picture-container">
+    <img class="inventory-item__picture" src="${item.imageUrl}" loading="lazy" />
   </div>
 </div>
 <div class="inventory-item__bottom">${playerHtml}</div>

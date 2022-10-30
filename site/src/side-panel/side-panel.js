@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { appearance } from "../appearance";
 
 export class SidePanel extends BaseElement {
   constructor() {
@@ -13,7 +12,6 @@ export class SidePanel extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.eventListener(this.querySelector(".side-panel__move"), "click", this.swapLayoutDirection.bind(this));
     this.sidePanels = this.querySelector(".side-panel__panels");
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
   }
@@ -28,18 +26,10 @@ export class SidePanel extends BaseElement {
       if (member.name === "@SHARED") {
         continue;
       }
-      playerPanels += `<player-panel player-name="${member.name}"></player-panel>`;
+      playerPanels += `<player-panel class="rsborder rsbackground" player-name="${member.name}"></player-panel>`;
     }
 
     this.sidePanels.innerHTML = playerPanels;
-  }
-
-  swapLayoutDirection() {
-    if (appearance.getLayout() === "row-reverse") {
-      appearance.setLayout("default");
-    } else {
-      appearance.setLayout("row-reverse");
-    }
   }
 }
 customElements.define("side-panel", SidePanel);

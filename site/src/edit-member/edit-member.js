@@ -2,6 +2,7 @@ import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { pubsub } from "../data/pubsub";
+import { confirmDialogManager } from "../confirm-dialog/confirm-dialog-manager";
 
 export class EditMember extends BaseElement {
   constructor() {
@@ -73,23 +74,30 @@ export class EditMember extends BaseElement {
     }
   }
 
-  async removeMember() {
+  removeMember() {
     this.hideError();
-    try {
-      loadingScreenManager.showLoadingScreen();
-      const result = await api.removeMember(this.member.name);
-      if (result.ok) {
-        api.restart();
-        await pubsub.waitUntilNextEvent("get-group-data", false);
-      } else {
-        const message = await result.text();
-        this.showError(`Failed to remove member ${message}`);
-      }
-    } catch (error) {
-      this.showError(`Failed to remove member ${error}`);
-    } finally {
-      loadingScreenManager.hideLoadingScreen();
-    }
+    confirmDialogManager.confirm({
+      headline: `Delete ${this.member.name}?`,
+      body: "All player data will be lost and cannot be recovered.",
+      yesCallback: async () => {
+        try {
+          loadingScreenManager.showLoadingScreen();
+          const result = await api.removeMember(this.member.name);
+          if (result.ok) {
+            api.restart();
+            await pubsub.waitUntilNextEvent("get-group-data", false);
+          } else {
+            const message = await result.text();
+            this.showError(`Failed to remove member ${message}`);
+          }
+        } catch (error) {
+          this.showError(`Failed to remove member ${error}`);
+        } finally {
+          loadingScreenManager.hideLoadingScreen();
+        }
+      },
+      noCallback: () => {},
+    });
   }
 
   async addMember() {

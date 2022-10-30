@@ -1,9 +1,7 @@
 total-level-box {
   display: flex;
-  font-family: "rssmall", sans-serif;
   font-size: 13px;
   color: yellow;
-  text-shadow: 1px 1px black;
   position: relative;
   justify-content: center;
   align-items: center;
@@ -21,4 +19,5 @@ total-level-box {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  line-height: 1em;
 }

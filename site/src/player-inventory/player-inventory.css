@@ -1,10 +1,10 @@
 player-inventory {
-  font-family: "rssmall", sans-serif;
+  --inventory-height: 254px;
   display: flex;
   justify-content: center;
   position: relative;
-  height: 260px;
   min-width: 190px;
+  height: var(--inventory-height);
 }
 
 player-inventory item-box:hover {
@@ -26,5 +26,5 @@ player-inventory item-box:hover {
   left: 50%;
   transform: translateX(-50%);
   width: 190px;
-  height: 254px;
+  height: var(--inventory-height);
 }

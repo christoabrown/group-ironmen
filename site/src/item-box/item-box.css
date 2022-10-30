@@ -1,6 +1,5 @@
 item-box {
   position: relative;
-  font-family: "rssmall", sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -21,7 +20,6 @@ item-box {
   left: 0;
   z-index: 1;
   color: yellow;
-  text-shadow: 1px 1px black;
   transform: translate(-10%, -20%);
   font-size: 14px;
 }

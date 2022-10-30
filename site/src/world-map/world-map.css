@@ -4,39 +4,8 @@ world-map {
 }
 
 .world-map__mouse-position {
-  text-shadow: 1px 1px var(--black);
   color: white;
   pointer-events: none;
-}
-
-.world-map__control-container {
-  position: absolute;
-  top: 15px;
-  left: 50px;
-  z-index: 500;
-}
-
-.world-map__plane-slider {
-  width: 150px;
-}
-
-.world-map__focus-player-buttons {
-}
-
-.world-map__focus-player-buttons button {
-  font-family: "rssmall", sans-serif;
-  color: var(--primary-text);
-  font-size: 16px;
-  cursor: pointer;
-  background: white;
-  color: var(--black);
-  margin-right: 4px;
-  border-radius: 2px;
-  padding: 0 0.25em;
-}
-
-.world-map__focus-player-buttons button:hover {
-  background: rgb(200, 200, 200);
 }
 
 .leaflet-tile {
@@ -50,16 +19,15 @@ world-map {
   border: transparent;
   box-shadow: none;
   color: yellow;
-  text-shadow: 1px 1px var(--black);
-  font-family: "rssmall";
   padding: 4px;
-  font-size: 16px;
+  font-size: 20px;
+  font-family: "rssmall";
 }
 
 .leaflet-tooltip.interacting-label {
   color: #b80606;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .leaflet-tooltip.player-label:before,

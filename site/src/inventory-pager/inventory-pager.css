@@ -6,6 +6,14 @@ inventory-pager {
   margin-bottom: 0.25em;
 }
 
+.inventory-pager__buttons {
+  display: flex;
+}
+
 .inventory-pager__buttons button {
-  padding: 0 0.25em;
+  padding: 4px 8px;
+}
+
+.inventory-pager__buttons button + button {
+  margin-left: 4px;
 }

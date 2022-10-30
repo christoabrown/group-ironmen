@@ -7,27 +7,7 @@ search-element {
 }
 
 .search-element__input {
-  padding: 1.2em;
-  padding-right: 2em;
   width: 100%;
-  display: flex;
-  align-items: center;
-  line-height: 1em;
-}
-
-.search-element__input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.search-element__reset {
-  position: absolute;
-  right: 1em;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.search-element__reset svg {
-  width: 0.75em;
-  height: 0.75em;
-  fill: var(--primary-text);
+  padding: 12px;
+  font-size: 20px;
 }

@@ -1,34 +1,13 @@
 :root {
-  --primary-text: #333333;
-
+  --primary-text: white;
   --elevated: rgba(255, 255, 255, 0.08);
   --light-border: rgba(255, 255, 255, 0.12);
   --darken: rgba(0, 0, 0, 0.2);
-
-  --background: #c0a886;
-
-  --card-background: #e2dbc8;
-  --card-text-color: #333333;
-
-  --link-color: #52351e;
-  --link-hover: #715e47;
-  --button-color: #715e47;
-  --black: #0a0908;
-
-  --invalid: #a20202;
-
-  --graph-grid-border: rgba(0, 0, 0, 0.1);
-}
-
-:root.dark-mode {
-  --primary-text: white;
   --background: #121212;
-  --card-background: rgb(39, 39, 39);
-  --card-text-color: white;
-  --link-color: #bbdefb;
-  --link-hover: #84aed1;
-  --button-color: #212121;
+  --black: #000000;
+  --invalid: #ee0d0d;
   --graph-grid-border: rgba(255, 255, 255, 0.05);
+  --orange: #ff981f;
 }
 
 html,
@@ -42,8 +21,8 @@ body {
   overflow: hidden;
   position: relative;
   font-size: 16px;
-  font-family: "Inter var", ui-sans-serif, system-ui, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family: "rssmall", ui-sans-serif, Arial, sans-serif;
+  text-shadow: 1px 1px var(--black);
 }
 
 .unauthed-section {
@@ -61,22 +40,15 @@ body {
   src: url("/fonts/RuneScape-Chat-07.ttf");
 }
 
-.men-text-button {
-  background: none;
-  color: var(--link-color);
-  padding: 0;
-  border: none;
-  border-radius: 0;
-}
-
-.men-text-button:hover {
-  color: var(--link-hover);
-}
-
 .authed-section__main-content {
   width: 100%;
   padding: 20px 8px;
   overflow-y: auto;
+  z-index: 1;
+}
+
+.authed-section__outlet {
+  pointer-events: auto;
 }
 
 button {
@@ -85,28 +57,30 @@ button {
 }
 
 button.men-button {
-  font-size: 1em;
-  background: white;
-  color: var(--button-color);
-  padding: 0.5em 1em;
-  border-radius: 4px;
+  font-size: 20px;
+  font-family: "rssmall";
+  color: var(--orange);
+  text-shadow: 1px 1px var(--black);
+  padding: 4px 8px;
   font-weight: 400;
-  border: none;
   box-sizing: border-box;
-  line-height: 1.2;
+  line-height: 1em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  border-image: url(/ui/border-button.png) 9 9 / 9px stretch;
+  border-style: solid;
+  border-radius: 4px;
+  background: #4d4336;
 }
 
 button.men-button:hover {
-  background: rgb(200, 200, 200);
+  background: rgb(66, 55, 38);
 }
 
 button.men-button.small {
   padding: 0.2em 0.4em;
-}
-
-button.men-button.delete {
-  background: #bf0f0f;
-  color: white;
 }
 
 button:disabled {
@@ -116,7 +90,7 @@ button:disabled {
 }
 
 button.active {
-  border-bottom: 2px solid;
+  outline: 1px solid rgb(200, 200, 200);
 }
 
 a {
@@ -124,17 +98,81 @@ a {
   text-decoration: none;
 }
 
+a:link {
+  text-decoration: none;
+}
+a:visited {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: none;
+}
+a:active {
+  text-decoration: none;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  display: none;
+}
+
+input[type="checkbox"] + label,
+input[type="radio"] + label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+input[type="checkbox"] + label::before,
+input[type="radio"] + label::before {
+  height: 16px;
+  width: 16px;
+  display: inline-block;
+  padding: 0;
+  padding-right: 4px;
+  content: "";
+}
+
+input[type="checkbox"] + label::before {
+  background: url("/ui/checkbox.png") no-repeat;
+}
+
+input[type="checkbox"]:checked + label::before {
+  background: url("/ui/checkbox-checked.png") no-repeat;
+}
+
+input[type="radio"] + label::before {
+  background: url("/ui/radio.png") no-repeat;
+}
+
+input[type="radio"]:checked + label::before {
+  background: url("/ui/radio-checked.png") no-repeat;
+}
+
+search-element.input-small input,
+input.input-small {
+  padding: 0 6px;
+}
+
 input {
+  color: var(--orange);
+  font-size: 16px;
+  padding: 5px;
+  background: #372e22;
+  border: none;
+  box-shadow: inset 3px 3px 3px #261d11;
   border-radius: 4px;
-  border: 1px solid var(--light-border);
-  background: var(--elevated);
-  color: var(--primary-text);
-  padding: 0 8px;
-  line-height: 2em;
+  line-height: 1em;
 }
 
 input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--orange);
+  opacity: 0.9;
+}
+
+input:focus-visible {
+  outline: 1px solid rgb(200, 200, 200);
+  border: none;
 }
 
 input.invalid {
@@ -143,21 +181,24 @@ input.invalid {
 
 .select-container {
   display: inline-flex;
-  color: var(--primary-text);
-  font-family: Arial;
   padding: 5px;
-  background: var(--elevated);
-  border: 1px solid var(--light-border);
-  border-radius: 2px;
   min-height: 1em;
 }
 
+input,
 select {
-  color: var(--primary-text);
+  font-family: "rssmall", ui-sans-serif, Arial, sans-serif;
+  font-size: 18px;
+  text-shadow: 1px 1px var(--black);
+}
+
+select {
+  color: var(--orange);
   border: none;
   background: none;
   padding: 0;
   margin: 0;
+  cursor: pointer;
 }
 
 select:focus,
@@ -168,10 +209,21 @@ select:focus-visible {
 
 option {
   color: initial;
+  text-shadow: none;
+}
+
+fieldset {
+  border: 1px solid var(--black);
 }
 
 h4 {
   margin: 0;
+}
+
+h3,
+h2,
+h4 {
+  text-shadow: 2px 2px var(--black);
 }
 
 h3 {
@@ -203,35 +255,70 @@ ul {
 .men-control-container {
   display: flex;
   align-items: center;
-  font-size: 0.8em;
-  background: var(--elevated);
-  border: 1px solid var(--light-border);
-  border-radius: 2px;
   padding: 0.4em;
   margin-left: 8px;
-}
-
-.men-control-container:hover {
-  background: var(--light-border);
 }
 
 .men-control-container:first-child {
   margin-left: 0;
 }
 
-.men-control-container button {
-  color: var(--primary-text);
-  border: none;
-  background: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  line-height: 1.2em;
-}
-
 .men-control-container input {
   margin: 0 0.5em 0 0;
+}
+
+#background-worldmap.interactable {
+  filter: none;
+}
+
+#background-worldmap.interactable .world-map__map {
+  pointer-events: auto;
+}
+
+#background-worldmap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 0;
+  height: 100%;
+  overflow: hidden;
+  filter: opacity(0.8) blur(2px);
+
+  transition: filter 0.5s;
+}
+
+#background-worldmap .world-map__map {
+  height: 100%;
+  pointer-events: none;
+}
+
+.rstext {
+  color: yellow;
+}
+
+.rsborder {
+  border-image: url(/ui/border.png) 32 32 / 32px round;
+  border-image-outset: 4px;
+  border-style: solid;
+  border-radius: 4px;
+}
+
+.rsborder-tiny {
+  border-image: url(/ui/border-tiny.png) 4 4 / 4px round;
+  border-style: solid;
+  border-radius: 4px;
+}
+
+.rsbackground {
+  background: url(/ui/297-0.png);
+  background-repeat: repeat;
+}
+
+.rsbackground-hover:hover {
+  background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), url(/ui/297-0.png);
+}
+
+.no-pointer-events {
+  pointer-events: none;
 }

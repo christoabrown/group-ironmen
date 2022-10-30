@@ -9,6 +9,7 @@ create-group {
   align-items: center;
   flex-direction: column;
   width: 500px;
+  padding: 8px 24px;
 }
 
 .create-group__step {
@@ -16,7 +17,7 @@ create-group {
 }
 
 .create-group__step + .create-group__step {
-  margin-top: 4em;
+  margin-top: 1em;
 }
 
 .create-group__name input {

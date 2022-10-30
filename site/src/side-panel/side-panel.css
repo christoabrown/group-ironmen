@@ -8,17 +8,16 @@ side-panel {
   overflow-x: hidden;
   box-sizing: border-box;
   padding: 20px 8px;
-  border-right: 1px solid var(--darken);
-  border-left: 1px solid var(--darken);
+  z-index: 1;
 }
 
 button.side-panel__move {
   width: 100%;
   padding: 0;
-  display: flex;
-  justify-content: center;
-  background: var(--elevated);
-  border: 1px solid var(--light-border);
-  margin: 0;
   margin-bottom: 4px;
+  pointer-events: auto;
+}
+
+.side-panel__panels {
+  pointer-events: auto;
 }

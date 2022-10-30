@@ -1,15 +1,17 @@
-<div class="setup__container">
+<div class="setup__container rsbackground rsborder">
   <div class="setup__block">
     <h3>The group's login</h3>
     <p>Only share these with your group. You can't recover it so keep it safe!</p>
     <div class="setup__block">
       <h4>Group Name</h4>
-      <div class="setup__credential">${group.groupName}</div>
+      <div class="setup__credential rsborder-tiny rsbackground">
+        ${group.groupName}
+      </div>
     </div>
 
     <div class="setup__block">
       <h4>Group Token</h4>
-      <div class="setup__credential">
+      <div class="setup__credential rsborder-tiny rsbackground">
         <div class="setup__credential-hide" onclick="this.remove()">Click to show</div>
         ${group.groupToken}
       </div>

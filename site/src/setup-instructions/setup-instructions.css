@@ -6,6 +6,7 @@ setup-instructions {
 
 .setup__container {
   max-width: 500px;
+  padding: 8px 24px;
 }
 
 .setup__block {
@@ -33,9 +34,6 @@ setup-instructions {
 }
 
 .setup__credential {
-  background: var(--elevated);
-  border: 1px solid var(--light-border);
-  border-radius: 2px;
   padding: 0.25em 0.5em;
   position: relative;
 }
