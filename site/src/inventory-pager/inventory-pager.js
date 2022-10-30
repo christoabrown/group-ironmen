@@ -35,7 +35,7 @@ export class InventoryPager extends BaseElement {
     const numberOfPages = this.numberOfPages;
     for (let i = 0; i < numberOfPages; ++i) {
       const active = i === this.currentPage - 1 ? "active" : "";
-      pageButtonsHtml += `<button class="${active} inventory-pager__button men-text-button">${i + 1}</button>`;
+      pageButtonsHtml += `<button class="${active} inventory-pager__button men-button">${i + 1}</button>`;
     }
     return `{{inventory-pager.html}}`;
   }
@@ -171,6 +171,7 @@ export class InventoryPager extends BaseElement {
     for (const item of page) {
       items += `
 <inventory-item item-id="${item.id}"
+                class="rsborder rsbackground"
                 ${this.showIndividualPrices ? "individual-prices" : ""}
                 ${groupData.playerFilter !== "@ALL" ? `player-filter="${groupData.playerFilter}"` : ""}>
 </inventory-item>

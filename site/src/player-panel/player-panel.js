@@ -33,12 +33,14 @@ export class PlayerPanel extends BaseElement {
       }
       this.querySelector(`button[data-component="${component}"]`).classList.add("player-panel__tab-active");
       this.activeComponent = component;
+      this.classList.add("expanded");
     } else if (this.activeComponent && this.activeComponent === component) {
       this.contentArea.innerHTML = "";
       this.querySelector(`button[data-component="${this.activeComponent}"]`).classList.remove(
         "player-panel__tab-active"
       );
       this.activeComponent = null;
+      this.classList.remove("expanded");
     }
   }
 }

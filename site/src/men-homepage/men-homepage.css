@@ -4,13 +4,11 @@ men-homepage {
   width: 100%;
   font-size: 16px;
   position: relative;
-  background: var(--black);
   height: 100%;
   color: white;
 }
 
 men-homepage social-links {
-  z-index: 20;
   position: absolute;
   top: 0;
   left: 0;
@@ -19,34 +17,17 @@ men-homepage social-links {
 }
 
 .men-homepage__container {
-  z-index: 10;
-  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
 }
 
 .men-homepage__header-container {
   position: relative;
 }
 
-men-homepage world-map {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 0;
-  height: 100%;
-  overflow: hidden;
-}
-
-men-homepage world-map .world-map__map {
-  height: 100%;
-  pointer-events: none;
-}
-
 .men-homepage__header {
-  text-align: center;
-  margin: 5em 0;
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -56,68 +37,7 @@ men-homepage world-map .world-map__map {
 .men-homepage__header h1 {
   text-shadow: 3px 3px var(--black);
   font-size: 8em;
-  font-family: "rssmall";
-}
-
-.men-homepage__header p {
-  text-shadow: 2px 2px var(--black);
-  font-size: 2em;
-}
-
-.men-homepage__header h1,
-.men-homepage__header p {
   margin: 0;
-}
-
-.men-homepage__features-container {
-  padding: 3em;
-  flex-grow: 1;
-}
-
-.men-homepage__features {
-  max-width: 1000px;
-  margin: auto;
-}
-
-.men-homepage__features h2 {
-  text-shadow: 2px 2px var(--black);
-  font-size: 3em;
-  margin: 0;
-  padding-bottom: 8px;
-  margin-bottom: 0.25em;
-  line-height: 0.8em;
-}
-
-.men-homepage__feature-cards {
-  align-items: flex-start;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.men-homepage__feature-card {
-  background: var(--card-background);
-  color: var(--card-text-color);
-  margin: 8px;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
-}
-
-.men-homepage__feature-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  max-height: 17em;
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.men-homepage__feature-card-top img {
-  max-width: 110%;
-  image-rendering: -webkit-optimize-contrast;
-}
-
-.men-homepage__feature-card-bottom {
-  transform: translateZ(1px);
-  padding: 0.8em;
 }
 
 .men-homepage__links {

@@ -2,6 +2,7 @@
 /* global WeakRef */
 import { BaseElement } from "../base-element/base-element";
 import { pubsub } from "../data/pubsub";
+import { utility } from "../utility";
 
 function cantor(x, y) {
   return ((x + y) * (x + y + 1)) / 2 + y;
@@ -23,8 +24,6 @@ export class WorldMap extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.planeSlider = this.querySelector(".world-map__plane-slider");
-    this.playerButtons = this.querySelector(".world-map__focus-player-buttons");
     this.loadMapDataFiles()
       .then(() => this.initMap())
       .then(() => this.initIcons())
@@ -32,17 +31,8 @@ export class WorldMap extends BaseElement {
         pubsub.publish("map-shown");
         this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
         this.subscribe("coordinates", this.handleUpdatedMember.bind(this));
-        this.eventListener(this, "click", this.handleFocusPlayer.bind(this));
-        if (this.planeSlider) {
-          this.eventListener(this.planeSlider, "input", this.handlePlaneSlider.bind(this));
-        }
 
-        if (!this.hasAttribute("no-auto-resize")) {
-          this.eventListener(window, "resize", this.handleResize.bind(this));
-          window.requestAnimationFrame(() => {
-            this.handleResize();
-          });
-        }
+        this.initialized = true;
       });
   }
 
@@ -70,43 +60,15 @@ export class WorldMap extends BaseElement {
     }
   }
 
-  handleFocusPlayer(event) {
-    const target = event.target;
-    const playerName = target.innerText;
-    this.followPlayer(playerName);
-  }
-
-  handlePlaneSlider(event) {
-    const plane = event.target.value;
-    this.showPlane(plane);
-  }
-
-  handleResize() {
-    const documentHeight = document.body.offsetHeight;
-    const mapElement = this.querySelector(".world-map__map");
-    const mapTop = mapElement.getBoundingClientRect().top;
-    const bottomPadding = 20;
-    mapElement.style.height = documentHeight - mapTop - bottomPadding + "px";
-    if (this.map) {
-      this.map.invalidateSize();
-    }
-  }
-
   handleUpdatedMembers(members) {
     for (const marker of this.playerMarkers.values()) {
       this.map.removeLayer(marker);
     }
     this.playerMarkers = new Map();
 
-    let playerButtons = "";
     for (const member of members) {
       if (member.name === "@SHARED") continue;
       this.handleUpdatedMember(member);
-      playerButtons += `<button type="button" class="men-button">${member.name}</button>`;
-    }
-
-    if (this.playerButtons) {
-      this.playerButtons.innerHTML = playerButtons;
     }
   }
 
@@ -159,18 +121,12 @@ export class WorldMap extends BaseElement {
       ? this.gamePositionToLatLong(this.startingLocation.x, this.startingLocation.y)
       : this.gamePositionToLatLong(3103, 3095);
     const startingZoom = this.startingZoom || 5;
-    const addControls = !this.hasAttribute("no-controls");
+    // const addControls = !this.hasAttribute("no-controls");
     const map = L.map(this.querySelector(".world-map__map"), {
       crs: CRSPixel,
-      attributionControl: addControls,
-      zoomControl: addControls,
-      boxZoom: addControls,
-      doubleClickZoom: addControls,
-      dragging: addControls,
-      zoomAnimation: addControls,
-      markerZoomAnimation: addControls,
-      keyboard: addControls,
-      scrollWheelZoom: addControls,
+      attributionControl: false,
+      zoomControl: false,
+      zoomSnap: 0,
     }).setView(startingLocation, startingZoom, { animate: false });
 
     this.map = map;
@@ -180,33 +136,31 @@ export class WorldMap extends BaseElement {
     }
     this.tileLayers[0].addTo(map);
 
-    if (addControls) {
-      map.on("mousedown", () => {
-        this.followingPlayer = null;
-      });
+    map.on("mousedown", () => {
+      this.followingPlayer = null;
+    });
 
-      const Position = L.Control.extend({
-        _container: null,
-        options: {
-          position: "bottomleft",
-        },
+    const Position = L.Control.extend({
+      _container: null,
+      options: {
+        position: "bottomleft",
+      },
 
-        onAdd: function (map) {
-          this._xy = L.DomUtil.create("div", "world-map__mouse-position");
-          return this._xy;
-        },
+      onAdd: function (map) {
+        this._xy = L.DomUtil.create("div", "world-map__mouse-position");
+        return this._xy;
+      },
 
-        updateHTML: function (x, y) {
-          this._xy.innerHTML = `(${x}, ${y})`;
-        },
-      });
-      this.position = new Position();
-      this.map.addControl(this.position);
-      this.map.addEventListener("mousemove", (event) => {
-        const [x, y] = this.latLongToGamePosition(event.latlng.lat, event.latlng.lng);
-        this.position.updateHTML(x, y);
-      });
-    }
+      updateHTML: function (x, y) {
+        this._xy.innerHTML = `(${x}, ${y})`;
+      },
+    });
+    this.position = new Position();
+    this.map.addControl(this.position);
+    this.map.addEventListener("mousemove", (event) => {
+      const [x, y] = this.latLongToGamePosition(event.latlng.lat, event.latlng.lng);
+      this.position.updateHTML(x, y);
+    });
   }
 
   async initIcons() {
@@ -236,18 +190,12 @@ export class WorldMap extends BaseElement {
         }
       }
     }
-    this.map.on("moveend", () => {
-      const mapBounds = this.map.getBounds();
-      for (const marker of WorldMap.locationMarkers) {
-        const shouldBeVisible = mapBounds.contains(marker.getLatLng());
-        const isVisible = this.map.hasLayer(marker);
-        if (shouldBeVisible && !isVisible) {
-          this.map.addLayer(marker);
-        } else if (!shouldBeVisible && isVisible) {
-          this.map.removeLayer(marker);
-        }
-      }
-    });
+    this.map.on(
+      "move",
+      utility.throttle(() => {
+        this.drawMapMarkersInBounds();
+      }, 250)
+    );
 
     this.playerIcon = L.icon({
       iconUrl: "/icons/3561-0.png",
@@ -260,6 +208,21 @@ export class WorldMap extends BaseElement {
       iconSize: [20, 20],
       iconAnchor: [20 / 2, 20 / 2],
     });
+
+    this.drawMapMarkersInBounds();
+  }
+
+  drawMapMarkersInBounds() {
+    const mapBounds = this.map.getBounds();
+    for (const marker of WorldMap.locationMarkers) {
+      const shouldBeVisible = mapBounds.contains(marker.getLatLng());
+      const isVisible = this.map.hasLayer(marker);
+      if (shouldBeVisible && !isVisible) {
+        this.map.addLayer(marker);
+      } else if (!shouldBeVisible && isVisible) {
+        this.map.removeLayer(marker);
+      }
+    }
   }
 
   latLongToGamePosition(lat, long) {
@@ -311,8 +274,8 @@ export class WorldMap extends BaseElement {
     }
   }
 
-  addInteractingMarker(x, y, name) {
-    if (typeof L === "undefined") return;
+  async addInteractingMarker(x, y, name) {
+    await this.waitUntilInitialized();
     const latlng = this.gamePositionToLatLong(x, y);
     const marker = new L.Marker(latlng, {
       icon: this.interactingIcon,
@@ -340,27 +303,33 @@ export class WorldMap extends BaseElement {
   panToPlayer(name) {
     const marker = this.playerMarkers.get(name);
     if (!marker) return;
-    this.setPlane(marker.plane + 1);
+    this.showPlane(marker.plane + 1);
     this.map.panTo(marker.getLatLng());
   }
 
   flyToPlayer(name) {
     const marker = this.playerMarkers.get(name);
     if (!marker) return;
-    this.setPlane(marker.plane + 1);
+    this.showPlane(marker.plane + 1);
     return new Promise((resolve) => {
       const duration = 0.25;
-      this.map.flyTo(marker.getLatLng(), 8, {
+      this.map.flyTo(marker.getLatLng(), 7, {
         duration,
       });
       setTimeout(() => resolve(true), duration * 1000);
     });
   }
 
+  async waitUntilInitialized() {
+    while (!this.initialized) {
+      await new Promise((resolve) => setTimeout(() => resolve(true), 100));
+    }
+  }
+
   async waitForLeaflet() {
     if (!WorldMap.leafletScriptTag) {
       WorldMap.leafletScriptTag = document.createElement("script");
-      WorldMap.leafletScriptTag.src = "https://unpkg.com/leaflet@1.8.0/dist/leaflet.js";
+      WorldMap.leafletScriptTag.src = "https://unpkg.com/leaflet@1.9.2/dist/leaflet.js";
       document.body.appendChild(WorldMap.leafletScriptTag);
     }
     while (typeof L !== "object") {
@@ -379,18 +348,9 @@ export class WorldMap extends BaseElement {
           const tileSize = this.getTileSize();
           tile.style.width = tileSize.x + tilePadding + "px";
           tile.style.height = tileSize.y + tilePadding + "px";
-          // tile.style.boxShadow = '0 0 1px rgba(0, 0, 0, 0.05)';
         },
       });
     }
-  }
-
-  setPlane(plane) {
-    if (this.planeSlider) {
-      this.querySelector(".world-map__plane-slider").value = plane;
-    }
-
-    this.showPlane(plane);
   }
 
   showPlane(plane) {
@@ -404,6 +364,16 @@ export class WorldMap extends BaseElement {
         this.tileLayers[i].remove();
       }
     }
+
+    this.currentPlane = plane;
+
+    this.dispatchEvent(
+      new CustomEvent("plane-changed", {
+        detail: {
+          plane,
+        },
+      })
+    );
   }
 }
 customElements.define("world-map", WorldMap);

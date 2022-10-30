@@ -12,18 +12,13 @@ export class StatBar extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.canvas = this.querySelector("canvas");
-    this.color = this.hexToRgb(this.getAttribute("bar-color"));
-    this.bgColor = this.darkenColor(this.color);
-    this.ctx = this.canvas.getContext("2d", { alpha: false });
-    this.resizeObserver = new ResizeObserver(this.handleContainerSizeChanged.bind(this));
-    this.resizeObserver.observe(this);
+    this.bar = this.querySelector(".stat-bar__current");
+    this.color = this.getAttribute("bar-color");
+    this.bgColor = this.darkenColor(this.hexToRgb(this.color));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.resizeObserver.disconnect();
-    this.resizeObserver = null;
   }
 
   hexToRgb(hex) {
@@ -52,26 +47,11 @@ export class StatBar extends BaseElement {
     };
   }
 
-  handleContainerSizeChanged() {
-    this.updateSize();
-  }
-
-  updateSize() {
-    const scaleX = this.clientWidth / this.canvas.width;
-    const scaleY = this.clientHeight / this.canvas.height;
-    this.canvas.style.transform = `scale(${scaleX}, ${scaleY})`;
-  }
-
   update(ratio) {
-    const width = Math.round(ratio * this.canvas.width);
-    if (width === this.lastDrawnWidth) return;
-    this.lastDrawnWidth = width;
-
-    this.ctx.fillStyle = `rgb(${this.bgColor.r}, ${this.bgColor.g}, ${this.bgColor.b})`;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    this.ctx.fillStyle = `rgb(${this.color.r}, ${this.color.g}, ${this.color.b})`;
-    this.ctx.fillRect(0, 0, width, this.canvas.height);
+    const x = ratio * 100;
+    // NOTE: Tried doing this using a canvas and a div with a scaled width, both of them would leave gaps between other
+    // bars. This does not leave gaps.
+    this.style.background = `linear-gradient(90deg, ${this.color}, ${x}%, rgb(${this.bgColor.r}, ${this.bgColor.g}, ${this.bgColor.b}) ${x}%)`;
   }
 }
 

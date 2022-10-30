@@ -1,0 +1,11 @@
+map-page {
+  display: flex;
+}
+
+.map-page__focus-player-buttons {
+  display: flex;
+}
+
+.map-page__focus-player-buttons > button + button {
+  margin-left: 6px;
+}

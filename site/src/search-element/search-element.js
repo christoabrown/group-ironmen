@@ -24,7 +24,6 @@ Some special filtering can be done by entering any of:
     }
     this.render();
     this.searchInput = this.querySelector(".search-element__input");
-    this.eventListener(this.querySelector(".search-element__reset"), "click", this.resetSearch.bind(this));
 
     if (this.hasAttribute("auto-focus")) {
       this.eventListener(document.body, "keydown", this.focusSearch.bind(this));
@@ -33,11 +32,6 @@ Some special filtering can be done by entering any of:
 
   html() {
     return `{{search-element.html}}`;
-  }
-
-  resetSearch() {
-    this.searchInput.value = "";
-    this.searchInput.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   focusSearch(evt) {

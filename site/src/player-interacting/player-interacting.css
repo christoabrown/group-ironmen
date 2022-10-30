@@ -11,7 +11,5 @@ player-interacting {
   overflow: hidden;
   text-overflow: ellipsis;
   transform: translateY(-50%);
-  font-family: "rssmall";
-  text-shadow: 1px 1px var(--black);
   max-width: 100%;
 }

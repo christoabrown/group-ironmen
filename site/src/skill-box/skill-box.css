@@ -25,10 +25,8 @@ skill-box {
 .skill-box__current-level,
 .skill-box__baseline-level {
   position: absolute;
-  font-family: "rssmall", sans-serif;
   font-size: 13px;
   color: yellow;
-  text-shadow: 1px 1px black;
 }
 
 .skill-box__baseline-level {

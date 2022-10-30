@@ -7,38 +7,31 @@ export class GroupSettings extends BaseElement {
   }
 
   html() {
+    const selectedPanelDockSide = appearance.getLayout();
     return `{{group-settings.html}}`;
   }
 
   connectedCallback() {
     super.connectedCallback();
-    this.theme = appearance.getTheme();
     this.render();
     this.memberSection = this.querySelector(".group-settings__members");
+    this.panelDockSide = this.querySelector(".group-settings__panels");
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
-    this.subscribe("theme", this.handleUpdatedTheme.bind(this));
-
-    this.eventListener(this.querySelector(".group-settings__theme-group"), "change", this.updateTheme.bind(this));
+    this.eventListener(this.panelDockSide, "change", this.handlePanelDockSideChange.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
   }
 
-  handleUpdatedTheme() {
-    this.theme = appearance.getTheme();
+  handlePanelDockSideChange() {
+    const side = this.querySelector(`input[name="panel-dock-side"]:checked`).value;
 
-    if (this.theme === "dark") {
-      this.querySelector("#group-settings__theme-dark").checked = true;
+    if (side === "right") {
+      appearance.setLayout("row-reverse");
     } else {
-      this.querySelector("#group-settings__theme-light").checked = true;
+      appearance.setLayout("row");
     }
-  }
-
-  updateTheme(event) {
-    const theme = event.target.value;
-    appearance.setTheme(theme);
-    this.theme = theme;
   }
 
   handleUpdatedMembers(members) {

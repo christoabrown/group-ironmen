@@ -32,13 +32,13 @@ export class PlayerStats extends BaseElement {
     super.disconnectedCallback();
   }
 
-  handleUpdatedStats(stats, memberData) {
+  handleUpdatedStats(stats, member) {
     this.updateStatBars(stats);
-    this.updateWorld(stats.world, memberData.inactive);
+    this.updateWorld(stats.world, member.inactive, member.lastUpdated);
   }
 
-  handleWentInactive(inactive) {
-    this.updateWorld(undefined, inactive);
+  handleWentInactive(inactive, member) {
+    this.updateWorld(undefined, inactive, member.lastUpdated);
   }
 
   handleWentActive(_, member) {
@@ -46,9 +46,9 @@ export class PlayerStats extends BaseElement {
     this.updateWorld(member.stats.world, false);
   }
 
-  updateWorld(world, isInactive) {
+  updateWorld(world, isInactive, lastUpdated) {
     if (isInactive) {
-      this.worldEl.innerText = `INACTIVE`;
+      this.worldEl.innerText = `${lastUpdated.toLocaleString()}`;
       if (!this.classList.contains("player-stats__inactive")) {
         this.classList.add("player-stats__inactive");
       }

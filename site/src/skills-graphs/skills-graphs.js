@@ -54,7 +54,10 @@ export class SkillsGraphs extends BaseElement {
   }
 
   async createChart() {
-    this.chartContainer.innerHTML = `<div class="skills-graphs__loader loader"></div>`;
+    const loader = document.createElement("div");
+    loader.classList.add("skills-graphs__loader");
+    loader.classList.add("loader");
+    this.chartContainer.appendChild(loader);
 
     try {
       const [skillDataForGroup] = await Promise.all([api.getSkillData(this.period), this.waitForChartjs()]);

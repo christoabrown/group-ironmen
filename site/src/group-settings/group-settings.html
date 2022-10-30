@@ -1,13 +1,18 @@
-<h3>Member settings</h3>
-<p>These <span class="emphasize">do</span> need to match the in-game names.</p>
-<div class="group-settings__section-content group-settings__members"></div>
+<div class="rsborder rsbackground group-settings__container">
+  <h3>Member settings</h3>
+  <p>These <span class="emphasize">do</span> need to match the in-game names.</p>
+  <div class="group-settings__section-content group-settings__members"></div>
 
-<div class="group-settings__theme-group">
-  <h3>Theme</h3>
-  <input type="radio" id="group-settings__theme-light" name="group-settings__theme" value="light" ${this.theme ==="dark"
-  ? '' : 'checked'}>
-  <label for="group-settings__theme-light">Light</label>
-  <input type="radio" id="group-settings__theme-dark" name="group-settings__theme" value="dark" ${this.theme === "dark"
-  ? 'checked' : ''}>
-  <label for="group-settings__theme-dark">Dark</label>
+  <h3>Appearance settings</h3>
+  <fieldset class="group-settings__panels">
+    <legend>Player panels</legend>
+    <div>
+      <input id="panel-dock__left" type="radio" value="left" name="panel-dock-side" ${selectedPanelDockSide !== 'row-reverse' ? 'checked' : ''} />
+      <label for="panel-dock__left">Dock panels to left</label>
+    </div>
+    <div>
+      <input id="panel-dock__right" type="radio" value="right" name="panel-dock-side" ${selectedPanelDockSide === 'row-reverse' ? 'checked' : ''}/>
+      <label for="panel-dock__right">Dock panels to right</labe>
+    </div>
+  </fieldset>
 </div>

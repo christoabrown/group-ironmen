@@ -12,7 +12,7 @@ export class DemoPage extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    storage.storeGroup("@EXAMPLE", "");
+    storage.storeGroup("@EXAMPLE", "00000000-0000-0000-0000-000000000000");
     window.history.pushState("", "", "/group");
   }
 

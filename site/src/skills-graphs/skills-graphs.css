@@ -7,11 +7,12 @@ skills-graphs {
   height: 100%;
   position: relative;
   box-sizing: border-box;
+  margin-top: 12px;
+  padding-bottom: 12px;
 }
 
 .skills-graphs__control-container {
   display: flex;
-  align-items: flex-end;
 }
 
 .skills-graphs__loader {

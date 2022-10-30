@@ -1,0 +1,31 @@
+confirm-dialog {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  backdrop-filter: blur(3px);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+confirm-dialog h2 {
+  padding: 0;
+  margin: 0;
+}
+
+.confirm-dialog__container {
+  width: 350px;
+  padding: 16px 24px;
+}
+
+.confirm-dialog__buttons {
+  display: flex;
+}
+
+.confirm-dialog__buttons > button + button {
+  margin-left: 8px;
+}

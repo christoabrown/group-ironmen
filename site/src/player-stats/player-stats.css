@@ -1,8 +1,6 @@
 player-stats {
   display: block;
   width: 100%;
-  font-family: "rssmall", sans-serif;
-  text-shadow: 1px 1px black;
   overflow: visible;
   white-space: nowrap;
   line-height: 1;

@@ -1,26 +1,22 @@
 inventory-item {
   display: flex;
-  background: var(--card-background);
   box-sizing: border-box;
   overflow: hidden;
   flex-direction: column;
   position: relative;
   transform: translate3d(0, 0, 1px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-  color: var(--card-text-color);
-  padding: 8px 12px;
+  color: var(--primary-text);
 }
 
 .inventory-item__top {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 2fr 1fr;
   align-items: center;
   transform: translateZ(1px);
-}
+  padding: 8px;
 
-.inventory-item__details,
-.inventory-item__bottom {
-  font-family: "rssmall";
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px;
 }
 
 .inventory-item__details {
@@ -44,7 +40,7 @@ inventory-item {
   align-items: center;
   white-space: nowrap;
   grid-gap: 0 8px;
-  margin-top: 8px;
+  padding: 8px;
 }
 
 .inventory-item__quantity-bar {
@@ -53,7 +49,15 @@ inventory-item {
   transform-origin: left;
 }
 
+.inventory-item__picture-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 45px;
+  height: 45px;
+  min-width: 50px;
+}
+
 .inventory-item__name {
-  text-decoration: underline;
-  color: var(--link-color);
+  font-size: 20px;
 }

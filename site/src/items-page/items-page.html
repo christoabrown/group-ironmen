@@ -1,23 +1,27 @@
 <div class="items-page__head">
-  <search-element class="items-page__search" placeholder="Search Items" auto-focus></search-element>
+  <search-element class="items-page__search" placeholder="Search" auto-focus></search-element>
   <inventory-pager></inventory-pager>
 </div>
 <div class="items-page__utility">
-  <div class="men-control-container">
+  <div class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
     <select class="items-page__sort">
       <option value="totalquantity">Sort: Total Quantity</option>
       <option value="highalch">Sort: High Alch</option>
       <option value="geprice">Sort: GE Price</option>
     </select>
   </div>
-  <span class="men-control-container"><span class="items-page__item-count">0</span>&nbsp;items</span>
-  <span class="men-control-container">GE Value:&nbsp;<span class="items-page__total-ge-price">0</span>gp</span>
-  <div class="men-control-container">
-    <input type="checkbox" id="items-page__individual-items" />
-    <label for="items-page__individual-items">Show individual item prices</label>
-  </div>
-  <div class="men-control-container">
+  <div class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
     <select class="items-page__player-filter"></select>
+  </div>
+  <span class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
+    <span class="items-page__item-count">0</span>&nbsp;items
+  </span>
+  <span class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
+    GE Value:&nbsp;<span class="items-page__total-ge-price">0</span>gp
+  </span>
+  <div class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
+    <input type="checkbox" id="items-page__individual-items" />
+    <label for="items-page__individual-items">Individual item price</label>
   </div>
 </div>
 <section class="items-page__list"></section>

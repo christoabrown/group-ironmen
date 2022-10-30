@@ -1,5 +1,7 @@
 <div class="skills-graphs__control-container">
-  <div class="men-control-container">
+  <button class="skills-graphs__refresh men-button">Refresh</button>
+
+  <div class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
     <select class="skills-graphs__period-select">
       <option value="Day">Period: 24 Hours</option>
       <option value="Week">Period: 7 Days</option>
@@ -8,16 +10,12 @@
     </select>
   </div>
 
-  <div class="men-control-container">
+  <div class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
     <select class="skills-graphs__skill-select">
       ${skillNames.map((skillName) => `
       <option value="${skillName}">${skillName}</option>
       `).join('')}
     </select>
   </div>
-
-  <div class="men-control-container">
-    <button class="skills-graphs__refresh">Refresh</button>
-  </div>
 </div>
-<div class="skills-graphs__chart-container"></div>
+<div class="skills-graphs__chart-container rsborder rsbackground"></div>

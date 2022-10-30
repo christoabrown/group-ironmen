@@ -23,7 +23,7 @@ export class PlayerSkills extends BaseElement {
 
   renderSkillBoxes() {
     const skillBoxes = document.createDocumentFragment();
-    [
+    const skills = [
       SkillName.Attack,
       SkillName.Hitpoints,
       SkillName.Mining,
@@ -47,10 +47,15 @@ export class PlayerSkills extends BaseElement {
       SkillName.Farming,
       SkillName.Construction,
       SkillName.Hunter,
-    ].forEach((skillName) => {
+    ];
+    let zindex = skills.length;
+    skills.forEach((skillName) => {
       const skillBox = document.createElement("skill-box");
       skillBox.setAttribute("player-name", this.playerName);
       skillBox.setAttribute("skill-name", skillName);
+
+      // NOTE: Setting the z-index so levels over 99 will draw on top of the next box and not get hidden behind it
+      skillBox.setAttribute("style", `z-index: ${zindex--}`);
       skillBoxes.appendChild(skillBox);
     });
 

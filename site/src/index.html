@@ -14,6 +14,11 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5" />
     <meta name="msapplication-TileColor" content="#da532c" />
     <meta name="theme-color" content="#ffffff" />
+
+    <link rel="preload" as="image" href="/ui/border-button.png">
+    <link rel="preload" as="image" href="/ui/border.png">
+    <link rel="preload" as="image" href="/ui/297-0.png">
+    <link rel="preload" as="image" href="/ui/border-tiny.png">
   </head>
   <body>
     <loading-screen></loading-screen>
@@ -80,6 +85,7 @@
       route-wrapper=".authed-section"
     ></app-route>
 
+    <world-map id="background-worldmap" no-auto-resize no-controls></world-map>
     <wrap-routes class="unauthed-section" route-path="">
       <template>
         <main class="unauthed-section__outlet"></main>
@@ -91,13 +97,14 @@
         <app-initializer></app-initializer>
         <side-panel></side-panel>
         <div class="authed-section__main-content">
-          <app-navigation></app-navigation>
+          <app-navigation class="rsborder-tiny rsbackground"></app-navigation>
           <div class="authed-section__outlet"></div>
         </div>
       </template>
     </wrap-routes>
 
     <rs-tooltip></rs-tooltip>
+    <confirm-dialog></confirm-dialog>
     <script async type="module" src="/app.js"></script>
     <app-route route-path="*" route-redirect="/"></app-route>
   </body>

@@ -20,11 +20,11 @@ export class SkillGraph extends BaseElement {
     this.tableContainer = this.querySelector(".skill-graph__table-container");
     this.ctx = this.querySelector("canvas").getContext("2d");
     this.dataSetColors = [
-      { line: "rgb(192, 57, 43)" },
-      { line: "rgb(243, 156, 18)" },
-      { line: "rgb(39, 174, 96)" },
-      { line: "rgb(41, 128, 185)" },
-      { line: "rgb(142, 68, 173)" },
+      { line: "#CC8B00" }, // yellow
+      { line: "#157145" }, // green
+      { line: "#336699" }, // blue
+      { line: "#CC3F0C" }, // red
+      { line: "#441151" }, // purple
     ];
 
     this.intersectionObserver = new IntersectionObserver((entries) => {
@@ -116,7 +116,8 @@ export class SkillGraph extends BaseElement {
       tableRows.push(row("", name, x[this.skillName], totalXpGain));
 
       if (this.skillName === SkillName.Overall) {
-        for (const skillName of skillNames) {
+        const skillNamesSortedByXpGain = [...skillNames].sort((a, b) => x[b].xpGain - x[a].xpGain);
+        for (const skillName of skillNamesSortedByXpGain) {
           const s = x[skillName];
 
           if (s.xpGain > 0) {

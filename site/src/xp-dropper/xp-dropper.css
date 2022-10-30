@@ -25,8 +25,6 @@ xp-dropper {
   height: max-content;
   animation: scroll 4s linear;
   animation-fill-mode: forwards;
-  font-family: "rssmall", sans-serif;
-  text-shadow: 1px 1px black;
   white-space: nowrap;
   display: flex;
   flex-direction: column;

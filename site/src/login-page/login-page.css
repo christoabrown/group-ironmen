@@ -10,6 +10,7 @@ login-page {
   flex-direction: column;
   align-items: center;
   margin-top: 15%;
+  padding: 8px 24px;
 }
 
 .login__container input,
