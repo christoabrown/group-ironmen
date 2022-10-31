@@ -12,6 +12,10 @@ export class BaseElement extends HTMLElement {
 
   disconnectedCallback() {
     this.unbindEvents();
+    if (this.showingTooltip) {
+      this.showingTooltip = false;
+      tooltipManager.hideTooltip();
+    }
   }
 
   enableTooltip() {

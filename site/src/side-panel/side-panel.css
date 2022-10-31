@@ -1,6 +1,7 @@
 side-panel {
   display: block;
-  height: 100%;
+  height: max-content;
+  max-height: 100%;
   width: 300px;
   max-width: 300px;
   min-width: 300px;
@@ -9,6 +10,7 @@ side-panel {
   box-sizing: border-box;
   padding: 20px 8px;
   z-index: 1;
+  pointer-events: auto;
 }
 
 button.side-panel__move {
