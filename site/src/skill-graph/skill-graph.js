@@ -23,7 +23,7 @@ export class SkillGraph extends BaseElement {
       { line: "#CC8B00" }, // yellow
       { line: "#157145" }, // green
       { line: "#336699" }, // blue
-      { line: "#CC3F0C" }, // red
+      { line: "#A41623" }, // red
       { line: "#441151" }, // purple
     ];
 

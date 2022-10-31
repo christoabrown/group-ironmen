@@ -28,17 +28,15 @@ export class WorldMap extends BaseElement {
       .then(() => this.initMap())
       .then(() => this.initIcons())
       .then(() => {
-        pubsub.publish("map-shown");
         this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
         this.subscribe("coordinates", this.handleUpdatedMember.bind(this));
-
+        this.currentPlane = 1;
         this.initialized = true;
       });
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    pubsub.unpublish("map-shown");
     this.map.remove();
   }
 

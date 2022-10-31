@@ -17,14 +17,18 @@ export class PlayerInteracting extends BaseElement {
 
     this.hitpointsBar = this.querySelector("stat-bar");
     this.name = this.querySelector(".player-interacting__name");
+    this.map = document.querySelector("#background-worldmap");
     const playerName = this.getAttribute("player-name");
-    this.subscribe(`interacting:${playerName}`, this.handleInteracting.bind(this));
-    this.subscribe("map-shown", this.handleMapShown.bind(this));
+
+    this.addMapMarker().then(() => {
+      this.subscribe(`interacting:${playerName}`, this.handleInteracting.bind(this));
+    });
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.hideTimeout);
+    this.map.map.removeLayer(this.marker);
   }
 
   handleInteracting(interacting) {
@@ -42,51 +46,19 @@ export class PlayerInteracting extends BaseElement {
     }
   }
 
-  handleMapShown() {
-    if (this.interacting) this.addMapMarker();
-  }
-
-  addMapMarker() {
-    if (!this.visible) return;
-    const map = this.map;
-    if (map) {
-      if (this.marker && map.map.hasLayer(this.marker)) {
-        this.marker.setLatLng(map.gamePositionToLatLong(this.interacting.location.x, this.interacting.location.y));
-        this.marker.getTooltip().setContent(this.interacting.name);
-      } else {
-        this.marker = map.addInteractingMarker(
-          this.interacting.location.x,
-          this.interacting.location.y,
-          this.interacting.name
-        );
-      }
-    }
-  }
-
-  removeMapMarker() {
-    const map = this.map;
-    if (map && this.marker) {
-      map.map.removeLayer(this.marker);
-    }
-    this.marker = null;
-  }
-
-  get map() {
-    return document.querySelector("world-map");
-  }
-
-  get visible() {
-    return this.style.visibility === "visible";
+  async addMapMarker() {
+    this.marker = await this.map.addInteractingMarker(0, 0, "");
   }
 
   hide() {
     this.style.visibility = "hidden";
-    this.removeMapMarker();
+    this.marker.setLatLng([-1000000, -1000000]);
   }
 
   show() {
     this.style.visibility = "visible";
-    this.addMapMarker();
+    this.marker.setLatLng(this.map.gamePositionToLatLong(this.interacting.location.x, this.interacting.location.y));
+    this.marker.getTooltip().setContent(this.interacting.name);
   }
 }
 
