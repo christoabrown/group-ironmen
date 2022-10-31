@@ -12,7 +12,19 @@
     </div>
     <div>
       <input id="panel-dock__right" type="radio" value="right" name="panel-dock-side" ${selectedPanelDockSide === 'row-reverse' ? 'checked' : ''}/>
-      <label for="panel-dock__right">Dock panels to right</labe>
+      <label for="panel-dock__right">Dock panels to right</label>
+    </div>
+  </fieldset>
+
+  <fieldset class="group-settings__style">
+    <legend>Style</legend>
+    <div>
+      <input id="style__light" type="radio" value="light" name="appearance-style" ${style !== 'dark' ? 'checked' : ''} />
+      <label for="style__light">Light</label>
+    </div>
+    <div>
+      <input id="style__dark" type="radio" value="dark" name="appearance-style" ${style === 'dark' ? 'checked' : ''}/>
+      <label for="style__dark">Dark (WIP)</label>
     </div>
   </fieldset>
 </div>

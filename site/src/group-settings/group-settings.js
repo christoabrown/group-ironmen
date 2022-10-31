@@ -8,6 +8,7 @@ export class GroupSettings extends BaseElement {
 
   html() {
     const selectedPanelDockSide = appearance.getLayout();
+    const style = appearance.getTheme();
     return `{{group-settings.html}}`;
   }
 
@@ -16,12 +17,19 @@ export class GroupSettings extends BaseElement {
     this.render();
     this.memberSection = this.querySelector(".group-settings__members");
     this.panelDockSide = this.querySelector(".group-settings__panels");
+    this.appearanceStyle = this.querySelector(".group-settings__style");
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.eventListener(this.panelDockSide, "change", this.handlePanelDockSideChange.bind(this));
+    this.eventListener(this.appearanceStyle, "change", this.handleStyleChange.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+  }
+
+  handleStyleChange() {
+    const style = this.querySelector(`input[name="appearance-style"]:checked`).value;
+    appearance.setTheme(style);
   }
 
   handlePanelDockSideChange() {

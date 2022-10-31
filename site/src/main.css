@@ -3,7 +3,7 @@
   --elevated: rgba(255, 255, 255, 0.08);
   --light-border: rgba(255, 255, 255, 0.12);
   --darken: rgba(0, 0, 0, 0.2);
-  --background: #121212;
+  --background: #000000;
   --black: #000000;
   --invalid: #ee0d0d;
   --graph-grid-border: rgba(255, 255, 255, 0.05);
@@ -268,7 +268,7 @@ ul {
 }
 
 #background-worldmap.interactable {
-  filter: none;
+  filter: none !important;
 }
 
 #background-worldmap.interactable .world-map__map {
@@ -283,9 +283,12 @@ ul {
   z-index: 0;
   height: 100%;
   overflow: hidden;
-  filter: opacity(0.8) blur(2px);
-
+  filter: opacity(0.8);
   transition: filter 0.5s;
+}
+
+.dark-mode #background-worldmap {
+  filter: opacity(0.15);
 }
 
 #background-worldmap .world-map__map {

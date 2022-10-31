@@ -20,6 +20,12 @@ export class AppInitializer extends BaseElement {
     super.connectedCallback();
 
     this.initializeApp();
+
+    const map = document.querySelector("#background-worldmap");
+    map.waitUntilInitialized().then(() => {
+      map.showPlane(1);
+      map.map.setView(map.gamePositionToLatLong(3103, 3095), 5);
+    });
   }
 
   disconnectedCallback() {
