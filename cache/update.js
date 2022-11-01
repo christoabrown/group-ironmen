@@ -5,6 +5,7 @@ const glob = require('glob');
 const nAsync = require('async');
 const path = require('path');
 const axios = require('axios');
+const sharp = require('sharp');
 
 const xmlParser = new xml2js.Parser();
 const xmlBuilder = new xml2js.Builder();
@@ -16,6 +17,7 @@ const cacheJarOutputDir = `${cacheProjectPath}/target`;
 const osrsCacheDirectory = './cache/cache';
 const siteItemDataPath = '../site/public/data/item_data.json';
 const siteItemImagesPath = '../site/public/icons/items';
+const siteMapImagesPath = '../site/public/map';
 
 function exec(command, options) {
   console.log(command);
@@ -46,9 +48,18 @@ async function setMainClassInCachePom(mainClass) {
 }
 
 function execRuneliteCache(params) {
-  const cacheJar = glob.sync(`${cacheJarOutputDir}/cache-*-jar-with-dependencies.jar`)[0];
-  const cmd = `java -jar ${cacheJar} -c ${osrsCacheDirectory} ${params}`;
+  const jars = glob.sync(`${cacheJarOutputDir}/cache-*-jar-with-dependencies.jar`);
+  let cacheJar = jars[0];
+  let cacheJarmtime = fs.statSync(cacheJar).mtime;
+  for (const jar of jars) {
+    const mtime = fs.statSync(jar).mtime;
+    if (mtime > cacheJarmtime) {
+      cacheJarmtime = mtime;
+      cacheJar = jar;
+    }
+  }
 
+  const cmd = `java -Xmx8g -jar ${cacheJar} ${params}`;
   exec(cmd);
 }
 
@@ -77,19 +88,38 @@ function buildCacheProject() {
   exec(`mvn install -Dmaven.test.skip=true -f pom.xml`, { cwd: cacheProjectPath });
 }
 
-(async () => {
+async function setupRunelite() {
   console.log('Step: Setting up runelite');
   if (!fs.existsSync(runelitePath)) {
     exec(`git clone "git@github.com:runelite/runelite.git"`);
   }
   exec(`git fetch origin master`, { cwd: runelitePath });
   exec(`git reset --hard origin/master`, { cwd: runelitePath });
+}
 
+async function dumpItemData() {
   console.log('\nStep: Unpacking item data from cache');
   await setMainClassInCachePom('net.runelite.cache.Cache');
   buildCacheProject();
-  execRuneliteCache('-items ./item-data');
+  execRuneliteCache(`-c ${osrsCacheDirectory} -items ./item-data`);
+}
 
+async function getNonAlchableItemNames() {
+  console.log('\nStep: Fetching unalchable items from wiki');
+  const nonAlchableItemNames = new Set();
+  let cmcontinue = '';
+  do {
+    const url = `https://oldschool.runescape.wiki/api.php?cmtitle=Category:Items_that_cannot_be_alchemised&action=query&list=categorymembers&format=json&cmlimit=500&cmcontinue=${cmcontinue}`;
+    const response = await axios.get(url);
+    const itemNames = response.data.query.categorymembers.map((member) => member.title).filter((title) => !title.startsWith('File:') && !title.startsWith('Category:'));
+    itemNames.forEach((name) => nonAlchableItemNames.add(name));
+    cmcontinue = response.data?.continue?.cmcontinue || null;
+  } while(cmcontinue);
+
+  return nonAlchableItemNames;
+}
+
+async function buildItemDataJson() {
   console.log('\nStep: Build item_data.json');
   const items = await readAllItemFiles();
   const includedItems = {};
@@ -123,16 +153,7 @@ function buildCacheProject() {
     }
   }
 
-  console.log('\nStep: Fetching unalchable items from wiki');
-  const nonAlchableItemNames = new Set();
-  let cmcontinue = '';
-  do {
-    const url = `https://oldschool.runescape.wiki/api.php?cmtitle=Category:Items_that_cannot_be_alchemised&action=query&list=categorymembers&format=json&cmlimit=500&cmcontinue=${cmcontinue}`;
-    const response = await axios.get(url);
-    const itemNames = response.data.query.categorymembers.map((member) => member.title).filter((title) => !title.startsWith('File:') && !title.startsWith('Category:'));
-    itemNames.forEach((name) => nonAlchableItemNames.add(name));
-    cmcontinue = response.data?.continue?.cmcontinue || null;
-  } while(cmcontinue);
+  const nonAlchableItemNames = await getNonAlchableItemNames();
 
   let itemsMadeNonAlchable = 0;
   for (const item of Object.values(includedItems)) {
@@ -156,6 +177,10 @@ function buildCacheProject() {
   console.log(`${itemsMadeNonAlchable} items were updated to be unalchable`);
   fs.writeFileSync('./item_data.json', JSON.stringify(includedItems));
 
+  return allIncludedItemIds;
+}
+
+async function dumpItemImages(allIncludedItemIds) {
   // TODO: Model 529 seems to be broken? It may be for deleted items. Ex: itemId=478 is the broken pickaxe
   // TODO: Zoom on holy symbol is incorrect
   console.log('\nStep: Extract item model images');
@@ -186,16 +211,165 @@ function buildCacheProject() {
     const itemSpriteFactory = fs.readFileSync('./ItemSpriteFactory.java', 'utf8');
     fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/item/ItemSpriteFactory.java`, itemSpriteFactory);
     buildCacheProject();
-    execRuneliteCache('-ids ./items_need_images.csv -output ./item-images');
-  }
+    execRuneliteCache(`-c ${osrsCacheDirectory} -ids ./items_need_images.csv -output ./item-images`);
 
+    const itemImages = glob.sync(`./item-images/*.png`);
+    let p = [];
+    for (const itemImage of itemImages) {
+      p.push(new Promise(async (resolve) => {
+        const itemImageData = await sharp(itemImage).webp({ lossless: true }).toBuffer();
+        fs.unlinkSync(itemImage);
+        await sharp(itemImageData).webp({ lossless: true, effort: 6 }).toFile(itemImage.replace(".png", ".webp")).then(resolve);
+      }));
+    }
+    await Promise.all(p);
+  }
+}
+
+async function convertXteasToRuneliteFormat() {
+  const xteas = JSON.parse(fs.readFileSync(`${osrsCacheDirectory}/../xteas.json`, 'utf8'));
+  let result = xteas.map((region) => ({
+    region: region.mapsquare,
+    keys: region.key
+  }));
+
+  const location = `${osrsCacheDirectory}/../xteas-runelite.json`;
+  fs.writeFileSync(location, JSON.stringify(result));
+
+  return location;
+}
+
+async function dumpMapData(xteasLocation) {
+  console.log('\nStep: Dumping map data');
+  const mapImageDumper = fs.readFileSync('./MapImageDumper.java', 'utf8');
+  fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/MapImageDumper.java`, mapImageDumper);
+  await setMainClassInCachePom('net.runelite.cache.MapImageDumper');
+  buildCacheProject();
+  execRuneliteCache(`--cachedir ${osrsCacheDirectory} --xteapath ${xteasLocation} --outputdir ./map-data`);
+}
+
+async function tilePlane(plane) {
+  fs.rmSync('./output_files', { recursive: true, force: true });
+  const planeImage = sharp(`./map-data/img-${plane}.png`, { limitInputPixels: false }).flip();
+  await planeImage.webp({ lossless: true }).tile({
+    size: 256,
+    depth: "one",
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+    skipBlanks: 0
+  }).toFile('output.dz');
+}
+
+async function outputTileImage(s, plane, x, y) {
+  return s.flatten({ background: '#000000' })
+    .webp({ lossless: true, alphaQuality: 0, effort: 6 })
+    .toFile(`./map-data/tiles/${plane}_${x}_${y}.webp`);
+}
+
+async function finalizePlaneTiles(plane, previousTiles) {
+  const tileImages = glob.sync('./output_files/0/*.webp');
+
+  let p = [];
+  for (const tileImage of tileImages) {
+    const filename = path.basename(tileImage, '.webp');
+    const [x, y] = filename.split('_').map((coord) => parseInt(coord, 10));
+
+    const finalX = x + 18;
+    const finalY = y + 19;
+
+    p.push(new Promise(async (resolve) => {
+      let s;
+      if (plane > 0) {
+        const backgroundPath = `./map-data/tiles/${plane-1}_${finalX}_${finalY}.webp`;
+        const backgroundExists = fs.existsSync(backgroundPath);
+
+        if (backgroundExists) {
+          const tile = await sharp(tileImage).flip().webp({ lossless: true }).toBuffer();
+          const background = await sharp(backgroundPath).linear(0.5).webp({ lossless: true }).toBuffer();
+          s = sharp(background)
+            .composite([
+              { input: tile }
+            ]);
+        }
+      }
+
+      if (!s) {
+        s = sharp(tileImage).flip();
+      }
+
+      previousTiles.add(`${plane}_${finalX}_${finalY}`);
+      outputTileImage(s, plane, finalX, finalY).then(resolve);
+    }));
+  }
+  await Promise.all(p);
+
+  // NOTE: This is just so the plane will have a darker version of the tile below it
+  // even if the plane does not have its own image for a tile.
+  if (plane > 0) {
+    p = [];
+    const belowTiles = [...previousTiles].filter(x => x.startsWith(plane - 1));
+    for (const belowTile of belowTiles) {
+      const [belowPlane, x, y] = belowTile.split('_');
+      const  lookup = `${plane}_${x}_${y}`;
+      if (!previousTiles.has(lookup)) {
+        const outputPath = `./map-data/tiles/${plane}_${x}_${y}.webp`;
+        if (fs.existsSync(outputPath) === true) {
+          throw new Error(`Filling tile ${outputPath} but it already exists!`);
+        }
+
+        const s = sharp(`./map-data/tiles/${belowTile}.webp`).linear(0.5);
+        previousTiles.add(lookup);
+        p.push(outputTileImage(s, plane, x, y));
+      }
+    }
+    await Promise.all(p);
+  }
+}
+
+async function generateMapTiles() {
+  console.log('\nStep: Generate map tiles');
+  fs.rmSync('./map-data/tiles', { recursive: true, force: true });
+  fs.mkdirSync('./map-data/tiles');
+
+  const previousTiles = new Set();
+  const planes = 4;
+  for (let i = 0; i < planes; ++i) {
+    console.log(`Tiling map plane ${i + 1}/${planes}`);
+    await tilePlane(i);
+    console.log(`Finalizing map plane ${i + 1}/${planes}`);
+    await finalizePlaneTiles(i, previousTiles);
+  }
+}
+
+function moveResults() {
   console.log('\nStep: Moving results to site');
   fs.renameSync('./item_data.json', siteItemDataPath);
-  const newImageFiles = glob.sync('./item-images/*.png');
+
+  const newImageFiles = glob.sync('./item-images/*.webp');
   for (const imageFile of newImageFiles) {
     const base = path.parse(imageFile).base;
     if (base) {
       fs.renameSync(imageFile, `${siteItemImagesPath}/${base}`);
     }
   }
+
+  const tileImageFiles = glob.sync("./map-data/tiles/*.webp");
+  for (const tileImage of tileImageFiles) {
+    const base = path.parse(tileImage).base;
+    if (base) {
+      fs.renameSync(tileImage, `${siteMapImagesPath}/${base}`);
+    }
+  }
+}
+
+(async () => {
+  await setupRunelite();
+  await dumpItemData();
+  const allIncludedItemIds = await buildItemDataJson();
+  await dumpItemImages(allIncludedItemIds);
+
+  const xteasLocation = await convertXteasToRuneliteFormat();
+  await dumpMapData(xteasLocation);
+  await generateMapTiles();
+
+  await moveResults();
 })();

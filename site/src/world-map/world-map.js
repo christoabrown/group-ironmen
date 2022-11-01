@@ -8,8 +8,6 @@ function cantor(x, y) {
   return ((x + y) * (x + y + 1)) / 2 + y;
 }
 
-let validCoordsInitialized = false;
-
 export class WorldMap extends BaseElement {
   constructor() {
     super();
@@ -24,8 +22,7 @@ export class WorldMap extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.loadMapDataFiles()
-      .then(() => this.initMap())
+    this.initMap()
       .then(() => this.initIcons())
       .then(() => {
         this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
@@ -38,24 +35,6 @@ export class WorldMap extends BaseElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.map.remove();
-  }
-
-  async loadMapDataFiles() {
-    if (this.mapDataFilesLoaded) return;
-    this.mapDataFilesLoaded = true;
-    const mapData = WorldMap.mapData || (await fetch("/data/map_data.json").then((f) => f.json()));
-    WorldMap.mapData = mapData;
-
-    this.iconDefs = mapData.icons;
-    this.iconLocations = mapData.locations;
-
-    this.validCoords = [new Set(), new Set(), new Set(), new Set()];
-    for (const region of mapData.regions) {
-      const plane = parseInt(region[0]);
-      const x = parseInt(region[1]);
-      const y = parseInt(region[2]);
-      this.validCoords[plane].add(cantor(x, y));
-    }
   }
 
   handleUpdatedMembers(members) {
@@ -93,9 +72,7 @@ export class WorldMap extends BaseElement {
     const _addTile = tileLayer._addTile;
     tileLayer._addTile = (coords, container) => {
       const invertedY = tileLayer._globalTileRange.max.y - coords.y;
-      if (coords.x >= 0 && invertedY >= 0 && this.validCoords[plane].has(cantor(coords.x, invertedY))) {
-        return _addTile.apply(tileLayer, [coords, container]);
-      }
+      return _addTile.apply(tileLayer, [coords, container]);
     };
     return tileLayer;
   }
@@ -119,7 +96,6 @@ export class WorldMap extends BaseElement {
       ? this.gamePositionToLatLong(this.startingLocation.x, this.startingLocation.y)
       : this.gamePositionToLatLong(3103, 3095);
     const startingZoom = this.startingZoom || 5;
-    // const addControls = !this.hasAttribute("no-controls");
     const map = L.map(this.querySelector(".world-map__map"), {
       crs: CRSPixel,
       attributionControl: false,
@@ -163,38 +139,6 @@ export class WorldMap extends BaseElement {
 
   async initIcons() {
     await this.waitForLeaflet();
-    if (WorldMap.icons === undefined) {
-      WorldMap.icons = {};
-      for (const [iconName, fileName] of Object.entries(this.iconDefs)) {
-        WorldMap.icons[iconName] = L.icon({
-          iconUrl: `/icons/${fileName}`,
-          iconSize: [15, 15],
-          iconAnchor: [7.5, 7.5],
-        });
-      }
-    }
-    if (WorldMap.locationMarkers === undefined) {
-      WorldMap.locationMarkers = [];
-      for (const [icon, coordinates] of Object.entries(this.iconLocations)) {
-        for (const coordinate of coordinates) {
-          const latlng = this.gamePositionToLatLong(coordinate[0], coordinate[1]);
-          WorldMap.locationMarkers.push(
-            L.marker(latlng, {
-              icon: WorldMap.icons[icon],
-              keyboard: false,
-              interactive: false,
-            })
-          );
-        }
-      }
-    }
-    this.map.on(
-      "move",
-      utility.throttle(() => {
-        this.drawMapMarkersInBounds();
-      }, 250)
-    );
-
     this.playerIcon = L.icon({
       iconUrl: "/icons/3561-0.png",
       iconSize: [27 / 1.5, 33 / 1.5],
@@ -206,21 +150,6 @@ export class WorldMap extends BaseElement {
       iconSize: [20, 20],
       iconAnchor: [20 / 2, 20 / 2],
     });
-
-    this.drawMapMarkersInBounds();
-  }
-
-  drawMapMarkersInBounds() {
-    const mapBounds = this.map.getBounds();
-    for (const marker of WorldMap.locationMarkers) {
-      const shouldBeVisible = mapBounds.contains(marker.getLatLng());
-      const isVisible = this.map.hasLayer(marker);
-      if (shouldBeVisible && !isVisible) {
-        this.map.addLayer(marker);
-      } else if (!shouldBeVisible && isVisible) {
-        this.map.removeLayer(marker);
-      }
-    }
   }
 
   latLongToGamePosition(lat, long) {

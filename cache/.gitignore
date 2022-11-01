@@ -6,3 +6,6 @@ item-images
 items_need_images.csv
 item_data.json
 cache
+map-data
+output_files
+output.dzi
