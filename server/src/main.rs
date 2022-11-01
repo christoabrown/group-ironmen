@@ -1,5 +1,6 @@
 mod auth_middleware;
 mod authed;
+mod config;
 mod crypto;
 mod db;
 mod error;
@@ -7,57 +8,15 @@ mod models;
 mod unauthed;
 mod validators;
 use crate::auth_middleware::AuthenticateMiddlewareFactory;
+use crate::config::Config;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
 use tokio_postgres::NoTls;
 
-mod config {
-    pub use ::config::{ConfigError, File};
-    use serde::Deserialize;
-    #[derive(Deserialize)]
-    pub enum LogLevel {
-        Info,
-        Warn,
-        Error,
-    }
-    impl LogLevel {
-        pub fn to_string(&self) -> &'static str {
-            match self {
-                LogLevel::Info => "info",
-                LogLevel::Warn => "warn",
-                LogLevel::Error => "error",
-            }
-        }
-    }
-    #[derive(Deserialize)]
-    pub struct LoggerConfig {
-        pub level: LogLevel,
-    }
-    #[derive(Deserialize)]
-    pub struct Config {
-        pub pg: deadpool_postgres::Config,
-        #[serde(default = "default_logger_config")]
-        pub logger: LoggerConfig,
-    }
-    fn default_logger_config() -> LoggerConfig {
-        LoggerConfig {
-            level: LogLevel::Info,
-        }
-    }
-    impl Config {
-        pub fn from_env() -> Result<Self, ConfigError> {
-            let cfg = ::config::Config::builder()
-                .add_source(File::with_name("config"))
-                .build()?;
-            cfg.try_deserialize()
-        }
-    }
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let config = crate::config::Config::from_env().unwrap();
+    let config = Config::from_env().unwrap();
     let pool = config.pg.create_pool(None, NoTls).unwrap();
     env_logger::init_from_env(
         env_logger::Env::new().default_filter_or(config.logger.level.to_string()),
@@ -72,7 +31,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let unauthed_scope = web::scope("/api")
             .service(unauthed::create_group)
-            .service(unauthed::get_ge_prices);
+            .service(unauthed::get_ge_prices)
+            .service(unauthed::captcha_enabled);
         let authed_scope = web::scope("/api/group/{group_name}")
             .wrap(AuthenticateMiddlewareFactory::new())
             .service(authed::update_group_member)
@@ -104,6 +64,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::PayloadConfig::new(100000))
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(config.clone()))
             .service(authed_scope)
             .service(unauthed_scope)
     })

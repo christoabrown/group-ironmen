@@ -40,6 +40,10 @@ class Api {
     return `${this.baseUrl}/group/${this.groupName}/get-skill-data`;
   }
 
+  get captchaEnabledUrl() {
+    return `${this.baseUrl}/captcha-enabled`;
+  }
+
   setCredentials(groupName, groupToken) {
     this.groupName = groupName;
     this.groupToken = groupToken;
@@ -105,9 +109,9 @@ class Api {
     }
   }
 
-  async createGroup(groupName, memberNames) {
+  async createGroup(groupName, memberNames, captchaResponse) {
     const response = await fetch(this.createGroupUrl, {
-      body: JSON.stringify({ name: groupName, member_names: memberNames }),
+      body: JSON.stringify({ name: groupName, member_names: memberNames, captcha_response: captchaResponse }),
       headers: {
         "Content-Type": "application/json",
       },
@@ -181,6 +185,11 @@ class Api {
       });
       return response.json();
     }
+  }
+
+  async getCaptchaEnabled() {
+    const response = await fetch(this.captchaEnabledUrl);
+    return response.json();
   }
 }
 

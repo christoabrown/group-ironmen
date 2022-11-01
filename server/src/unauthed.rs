@@ -1,6 +1,7 @@
+use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
-use crate::models::{CreateGroup, GEPrices, WikiGEPrices};
+use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
 use crate::validators::valid_name;
 use actix_web::{get, post, web, Error, HttpResponse};
 use arc_swap::{ArcSwap, ArcSwapAny};
@@ -119,12 +120,45 @@ pub async fn get_ge_prices() -> Result<HttpResponse, Error> {
         .body(res))
 }
 
+pub async fn verify_captcha(
+    response: &String,
+    secret: &String,
+) -> Result<CaptchaVerifyResponse, ApiError> {
+    let body = [("response", response), ("secret", secret)];
+
+    let res = HTTP_CLIENT
+        .post("https://hcaptcha.com/siteverify")
+        .form(&body)
+        .send()
+        .await
+        .map_err(ApiError::ReqwestError)?;
+    let captcha_verify_response = res
+        .json::<CaptchaVerifyResponse>()
+        .await
+        .map_err(ApiError::ReqwestError)?;
+
+    Ok(captcha_verify_response)
+}
+
 #[post("/create-group")]
 pub async fn create_group(
     create_group: web::Json<CreateGroup>,
     db_pool: web::Data<Pool>,
+    config: web::Data<Config>,
 ) -> Result<HttpResponse, Error> {
     let mut create_group_inner = create_group.into_inner();
+
+    if config.hcaptcha.enabled {
+        let captcha_verify_response = verify_captcha(
+            &create_group_inner.captcha_response,
+            &config.hcaptcha.secret,
+        )
+        .await?;
+        if !captcha_verify_response.success {
+            return Ok(HttpResponse::BadRequest().body("Captcha response verification failed"));
+        }
+    }
+
     create_group_inner.name = create_group_inner.name.trim().to_string();
     if !valid_name(&create_group_inner.name) {
         return Ok(HttpResponse::BadRequest().body("Provided group name is not valid"));
@@ -142,4 +176,9 @@ pub async fn create_group(
     let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     db::create_group(&mut client, &create_group_inner).await?;
     Ok(HttpResponse::Created().json(&create_group_inner))
+}
+
+#[get("captcha-enabled")]
+pub async fn captcha_enabled(config: web::Data<Config>) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().json(&config.hcaptcha))
 }

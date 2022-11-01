@@ -25,6 +25,8 @@
     <div class="create-group__member-inputs"></div>
   </div>
 
+  ${this.captchaEnabled ? `<div id="create-group__step-captcha" class="create-group__step h-captcha"></div>` : '' }
+
   <button type="button" class="create-group__submit men-button">Create group</button>
   <div class="create-group__server-error validation-error"></div>
 </div>

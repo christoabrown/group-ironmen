@@ -181,49 +181,28 @@ async function buildItemDataJson() {
 }
 
 async function dumpItemImages(allIncludedItemIds) {
-  // TODO: Model 529 seems to be broken? It may be for deleted items. Ex: itemId=478 is the broken pickaxe
   // TODO: Zoom on holy symbol is incorrect
   console.log('\nStep: Extract item model images');
-  const existingItemImageFiles = [...glob.sync(`${siteItemImagesPath}/*.webp`), ...glob.sync(`${siteItemImagesPath}/*.png`)];
-  const itemsThatAlreadyHaveAnImage = new Set();
-  for (const imageFile of existingItemImageFiles) {
-    const itemId = parseInt(path.parse(imageFile).name);
-    if (isNaN(itemId)) {
-      console.log(`Existing image has no item id: ${imageFile}`);
-    }
-    itemsThatAlreadyHaveAnImage.add(itemId);
-  }
 
-  const itemIdsThatDoNotHaveAnImage = new Set();
-  for (const itemId of allIncludedItemIds.values()) {
-    if (!itemsThatAlreadyHaveAnImage.has(itemId)) {
-      itemIdsThatDoNotHaveAnImage.add(itemId);
-    }
-  }
+  console.log(`Generating images for ${allIncludedItemIds.size} items`);
+  fs.writeFileSync('items_need_images.csv', Array.from(allIncludedItemIds.values()).join(','));
+  const imageDumperDriver = fs.readFileSync('./Cache.java', 'utf8');
+  fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/Cache.java`, imageDumperDriver);
+  const itemSpriteFactory = fs.readFileSync('./ItemSpriteFactory.java', 'utf8');
+  fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/item/ItemSpriteFactory.java`, itemSpriteFactory);
+  buildCacheProject();
+  execRuneliteCache(`-c ${osrsCacheDirectory} -ids ./items_need_images.csv -output ./item-images`);
 
-  if (itemIdsThatDoNotHaveAnImage.size === 0) {
-    console.log("Don't need to generate any new item images");
-  } else {
-    console.log(`Generating images for ${itemIdsThatDoNotHaveAnImage.size} items`);
-    fs.writeFileSync('items_need_images.csv', Array.from(itemIdsThatDoNotHaveAnImage.values()).join(','));
-    const imageDumperDriver = fs.readFileSync('./Cache.java', 'utf8');
-    fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/Cache.java`, imageDumperDriver);
-    const itemSpriteFactory = fs.readFileSync('./ItemSpriteFactory.java', 'utf8');
-    fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/item/ItemSpriteFactory.java`, itemSpriteFactory);
-    buildCacheProject();
-    execRuneliteCache(`-c ${osrsCacheDirectory} -ids ./items_need_images.csv -output ./item-images`);
-
-    const itemImages = glob.sync(`./item-images/*.png`);
-    let p = [];
-    for (const itemImage of itemImages) {
-      p.push(new Promise(async (resolve) => {
-        const itemImageData = await sharp(itemImage).webp({ lossless: true }).toBuffer();
-        fs.unlinkSync(itemImage);
-        await sharp(itemImageData).webp({ lossless: true, effort: 6 }).toFile(itemImage.replace(".png", ".webp")).then(resolve);
-      }));
-    }
-    await Promise.all(p);
+  const itemImages = glob.sync(`./item-images/*.png`);
+  let p = [];
+  for (const itemImage of itemImages) {
+    p.push(new Promise(async (resolve) => {
+      const itemImageData = await sharp(itemImage).webp({ lossless: true }).toBuffer();
+      fs.unlinkSync(itemImage);
+      await sharp(itemImageData).webp({ lossless: true, effort: 6 }).toFile(itemImage.replace(".png", ".webp")).then(resolve);
+    }));
   }
+  await Promise.all(p);
 }
 
 async function convertXteasToRuneliteFormat() {
@@ -367,9 +346,9 @@ function moveResults() {
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
 
-  const xteasLocation = await convertXteasToRuneliteFormat();
-  await dumpMapData(xteasLocation);
-  await generateMapTiles();
+  // const xteasLocation = await convertXteasToRuneliteFormat();
+  // await dumpMapData(xteasLocation);
+  // await generateMapTiles();
 
   await moveResults();
 })();

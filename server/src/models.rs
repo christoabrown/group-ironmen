@@ -220,6 +220,8 @@ pub type GroupSkillData = Vec<MemberSkillData>;
 pub struct CreateGroup {
     pub name: String,
     pub member_names: [String; 5],
+    #[serde(default)]
+    pub captcha_response: String,
     #[serde(default = "default_token")]
     #[serde(skip_deserializing)]
     pub token: String,
@@ -248,3 +250,9 @@ pub struct WikiGEPrices {
     pub data: std::collections::HashMap<i32, WikiGEPrice>,
 }
 pub type GEPrices = std::collections::HashMap<i32, i64>;
+#[derive(Deserialize)]
+pub struct CaptchaVerifyResponse {
+    pub success: bool,
+    #[serde(rename = "error-codes", default)]
+    pub error_codes: std::vec::Vec<String>,
+}
