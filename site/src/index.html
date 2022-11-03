@@ -83,6 +83,12 @@
       route-component="skills-graphs"
       route-outlet=".authed-section__outlet"
       route-wrapper=".authed-section"
+      ></app-route>
+    <app-route
+      route-path="/panels"
+      route-component="panels-page"
+      route-outlet=".authed-section__outlet"
+      route-wrapper=".authed-section"
     ></app-route>
 
     <world-map id="background-worldmap" no-auto-resize no-controls></world-map>
@@ -95,11 +101,11 @@
     <wrap-routes class="authed-section" route-path="/group">
       <template>
         <app-initializer></app-initializer>
-        <side-panel></side-panel>
         <div class="authed-section__main-content">
           <app-navigation class="rsborder-tiny rsbackground"></app-navigation>
           <div class="authed-section__outlet"></div>
         </div>
+        <side-panel></side-panel>
       </template>
     </wrap-routes>
 

@@ -15,7 +15,6 @@ export class XpDropper extends BaseElement {
     const playerName = this.getAttribute("player-name");
     this.render();
     this.subscribe(`xp:${playerName}`, this.handleNewXpDrops.bind(this));
-    this.height = this.offsetHeight;
   }
 
   disconnectedCallback() {
@@ -30,7 +29,7 @@ export class XpDropper extends BaseElement {
     const dropContainer = document.createElement("div");
     dropContainer.classList.add("xp-dropper__drop");
     dropContainer.innerHTML = dropsHtml;
-    dropContainer.style.paddingTop = this.height + "px";
+    dropContainer.style.paddingTop = this.offsetHeight + "px";
     dropContainer.addEventListener("animationend", () => dropContainer.remove());
     this.appendChild(dropContainer);
   }

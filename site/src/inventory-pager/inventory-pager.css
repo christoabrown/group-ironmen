@@ -1,5 +1,5 @@
 inventory-pager {
-  margin-left: 1em;
+  display: block;
 }
 
 .inventory-pager__label {
@@ -8,12 +8,11 @@ inventory-pager {
 
 .inventory-pager__buttons {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  column-gap: 4px;
 }
 
 .inventory-pager__buttons button {
   padding: 4px 8px;
-}
-
-.inventory-pager__buttons button + button {
-  margin-left: 4px;
 }

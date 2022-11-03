@@ -4,26 +4,41 @@ app-navigation {
   align-items: center;
   padding: 8px 16px;
   pointer-events: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.app-navigation__nav,
-.app-navigation__left,
-.app-navigation__right {
+.mobile {
+  display: none;
+}
+
+@media only screen and (max-width: 850px) {
+  .desktop {
+    display: none;
+  }
+
+  .mobile {
+    display: initial;
+  }
+}
+
+app-navigation .men-button img {
+  height: 24px;
+}
+.app-navigation__nav {
   display: flex;
   align-items: center;
+  column-gap: 6px;
+  justify-content: flex-start;
+  flex-grow: 1;
 }
 
-.app-navigation__nav {
-  justify-content: space-between;
+.app-navigation__separator {
   flex-grow: 1;
 }
 
 .app-navigation__nav men-link {
   margin: 0;
-}
-
-.app-navigation__nav men-link + men-link {
-  margin-left: 1em;
 }
 
 .app-navigation__group-name {

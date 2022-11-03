@@ -28,6 +28,8 @@ export class InventoryPager extends BaseElement {
     this.eventListener(this.showIndividualPricesInput, "change", this.handleIndividualPricesChange.bind(this));
     this.eventListener(this.playerFilter, "change", this.handlePlayerFilterChange.bind(this));
     this.subscribe("items-updated", this.handleUpdatedItems.bind(this));
+
+    this.searchElement.searchInput.value = groupData.textFilter;
   }
 
   html() {

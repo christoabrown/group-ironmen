@@ -36,6 +36,10 @@ class PubSub {
     this.mostRecentPublish.delete(dataName);
   }
 
+  getMostRecent(dataName) {
+    return this.mostRecentPublish.get(dataName);
+  }
+
   anyoneListening(dataName) {
     return this.subscribers.has(dataName) && this.subscribers.get(dataName).size > 0;
   }

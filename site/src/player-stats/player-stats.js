@@ -48,7 +48,8 @@ export class PlayerStats extends BaseElement {
 
   updateWorld(world, isInactive, lastUpdated) {
     if (isInactive) {
-      this.worldEl.innerText = `${lastUpdated.toLocaleString()}`;
+      const locale = Intl?.DateTimeFormat()?.resolvedOptions()?.locale || undefined;
+      this.worldEl.innerText = `${lastUpdated.toLocaleString(locale)}`;
       if (!this.classList.contains("player-stats__inactive")) {
         this.classList.add("player-stats__inactive");
       }
@@ -70,6 +71,7 @@ export class PlayerStats extends BaseElement {
     this.updateText(stats.prayer, "prayer");
 
     window.requestAnimationFrame(() => {
+      if (!this.isConnected) return;
       this.hitpointsBar.update(stats.hitpoints.current / stats.hitpoints.max);
       this.prayerBar.update(stats.prayer.current / stats.prayer.max);
       this.energyBar.update(stats.energy.current / stats.energy.max);

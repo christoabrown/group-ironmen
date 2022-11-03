@@ -22,6 +22,7 @@ export class WorldMap extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
+    ["mousedown", "touchstart"].forEach((evt) => this.eventListener(this, evt, this.stopFollowingPlayer.bind(this)));
     this.initMap()
       .then(() => this.initIcons())
       .then(() => {
@@ -109,10 +110,6 @@ export class WorldMap extends BaseElement {
       this.tileLayers.push(this.createMapPlaneLayer(i));
     }
     this.tileLayers[0].addTo(map);
-
-    map.on("mousedown", () => {
-      this.followingPlayer = null;
-    });
 
     const Position = L.Control.extend({
       _container: null,
@@ -218,6 +215,10 @@ export class WorldMap extends BaseElement {
       .openTooltip();
     marker.addTo(this.map);
     return marker;
+  }
+
+  stopFollowingPlayer() {
+    this.followingPlayer = null;
   }
 
   async followPlayer(name) {

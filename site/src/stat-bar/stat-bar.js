@@ -48,6 +48,7 @@ export class StatBar extends BaseElement {
   }
 
   update(ratio) {
+    if (!this.isConnected) return;
     const x = ratio * 100;
     // NOTE: Tried doing this using a canvas and a div with a scaled width, both of them would leave gaps between other
     // bars. This does not leave gaps.

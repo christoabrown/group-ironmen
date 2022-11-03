@@ -21,22 +21,13 @@ men-homepage social-links {
   justify-content: center;
   align-items: center;
   height: 100%;
-}
-
-.men-homepage__header-container {
-  position: relative;
-}
-
-.men-homepage__header {
-  display: flex;
+  width: 100%;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
 }
 
-.men-homepage__header h1 {
+.men-homepage__container h1 {
   text-shadow: 3px 3px var(--black);
-  font-size: 8em;
+  font-size: min(128px, 16vw);
   margin: 0;
 }
 

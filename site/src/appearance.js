@@ -24,9 +24,8 @@ class Appearance {
 
   updateLayout() {
     const layoutDirection = this.getLayout();
-    if (layoutDirection === "row-reverse")
-      document.querySelector(".authed-section").style.flexDirection = "row-reverse";
-    else document.querySelector(".authed-section").style.flexDirection = "row";
+    if (layoutDirection === "row-reverse") document.querySelector(".authed-section").style.flexDirection = "row";
+    else document.querySelector(".authed-section").style.flexDirection = "row-reverse";
   }
 
   setTheme(theme) {

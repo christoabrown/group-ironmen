@@ -4,7 +4,8 @@ group-settings {
 
 .group-settings__container {
   padding: 8px 12px;
-  min-width: 500px;
+  max-width: 500px;
+  width: 100%;
 }
 
 .group-settings__section-content {

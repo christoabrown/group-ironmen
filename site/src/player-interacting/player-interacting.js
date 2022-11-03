@@ -28,7 +28,10 @@ export class PlayerInteracting extends BaseElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.hideTimeout);
-    this.map.map.removeLayer(this.marker);
+
+    if (this.marker) {
+      this.map.map.removeLayer(this.marker);
+    }
   }
 
   handleInteracting(interacting) {

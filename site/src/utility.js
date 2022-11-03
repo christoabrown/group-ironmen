@@ -61,6 +61,11 @@ class Utility {
       }, interval);
     };
   }
+
+  setsEqual(a, b) {
+    if (!a || !b) return false;
+    return a.size === b.size && [...a].every((x) => b.has(x));
+  }
 }
 const utility = new Utility();
 

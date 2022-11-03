@@ -1,5 +1,10 @@
 map-page {
+  display: block;
+}
+
+.map-page__container {
   display: flex;
+  overflow-x: auto;
 }
 
 .map-page__focus-player-buttons {

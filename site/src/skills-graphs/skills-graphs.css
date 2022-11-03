@@ -13,6 +13,7 @@ skills-graphs {
 
 .skills-graphs__control-container {
   display: flex;
+  overflow-x: auto;
 }
 
 .skills-graphs__loader {

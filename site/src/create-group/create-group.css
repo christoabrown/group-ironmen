@@ -1,19 +1,16 @@
 create-group {
   display: flex;
   justify-content: center;
-  padding: 5em;
+  padding: 64px 12px;
+  box-sizing: border-box;
 }
 
 .create-group__steps {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-direction: column;
-  width: 500px;
   padding: 8px 24px;
-}
-
-.create-group__step {
-  width: 500px;
+  box-sizing: border-box;
 }
 
 .create-group__step + .create-group__step {

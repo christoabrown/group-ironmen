@@ -1,14 +1,15 @@
 import { pubsub } from "./pubsub";
 import { MemberData } from "./member-data";
-import quickselect from "../quick-select";
 import { Item } from "./item";
 import { SkillName } from "./skill";
 import { QuestState } from "./quest";
+import { utility } from "../utility";
 
 export class GroupData {
   constructor() {
     this.members = new Map();
     this.groupItems = {};
+    this.textFilter = "";
     this.textFilters = [""];
     this.playerFilter = "@ALL";
   }
@@ -16,7 +17,6 @@ export class GroupData {
   update(groupData) {
     this.transformFromStorage(groupData);
     groupData.sort((a, b) => a.name.localeCompare(b.name));
-    let membersUpdated = false;
     const removedMembers = new Set(this.members.keys());
 
     let updatedAttributes = new Set();
@@ -26,7 +26,6 @@ export class GroupData {
       removedMembers.delete(memberName);
       if (!this.members.has(memberName)) {
         this.members.set(memberName, new MemberData(memberName));
-        membersUpdated = true;
       }
 
       const member = this.members.get(memberName);
@@ -39,7 +38,6 @@ export class GroupData {
 
     for (const removedMember of removedMembers.values()) {
       this.members.delete(removedMember);
-      membersUpdated = true;
     }
 
     let anyItemUpdates = false;
@@ -106,6 +104,10 @@ export class GroupData {
       }
     }
 
+    const [lastMemberListPublished] = pubsub.getMostRecent("members-updated") || [];
+    const previousNames = lastMemberListPublished?.map((x) => x.name);
+    const currentNames = [...this.members.values()].map((x) => x.name);
+    const membersUpdated = !utility.setsEqual(new Set(currentNames), new Set(previousNames));
     if (membersUpdated) {
       pubsub.publish("members-updated", [...this.members.values()]);
     }
@@ -164,6 +166,7 @@ export class GroupData {
   }
 
   applyTextFilter(textFilter) {
+    this.textFilter = textFilter || "";
     const textFilters = this.convertFilterToFilterList(textFilter);
     this.textFilters = textFilters;
     const items = Object.values(this.groupItems);

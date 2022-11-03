@@ -1,12 +1,16 @@
 setup-instructions {
   display: flex;
   justify-content: center;
-  padding: 5em;
+  padding: 64px 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .setup__container {
   max-width: 500px;
   padding: 8px 24px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .setup__block {
@@ -17,10 +21,6 @@ setup-instructions {
 
 .setup__block {
   margin-bottom: 1em;
-}
-
-.setup__config {
-  display: flex;
 }
 
 .setup__config img {

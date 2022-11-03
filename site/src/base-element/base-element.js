@@ -31,6 +31,8 @@ export class BaseElement extends HTMLElement {
   }
 
   handleMouseOver(mouseEvent) {
+    if (mouseEvent.sourceCapabilities?.firesTouchEvents) return;
+
     const tooltipText = this.getAttribute("tooltip-text");
     if (tooltipText) {
       this.showingTooltip = true;
@@ -40,6 +42,8 @@ export class BaseElement extends HTMLElement {
   }
 
   handleMouseOut(mouseEvent) {
+    if (mouseEvent.sourceCapabilities?.firesTouchEvents) return;
+
     this.showingTooltip = false;
     tooltipManager.hideTooltip();
   }
@@ -53,6 +57,7 @@ export class BaseElement extends HTMLElement {
   }
 
   eventListener(subject, eventName, handler) {
+    if (!this.isConnected) return;
     if (!this.eventListeners.has(subject)) this.eventListeners.set(subject, new Set());
     if (!this.eventListeners.get(subject).has(eventName)) {
       this.eventListeners.get(subject).add(eventName);
@@ -62,6 +67,7 @@ export class BaseElement extends HTMLElement {
   }
 
   subscribe(dataName, handler) {
+    if (!this.isConnected) return;
     pubsub.subscribe(dataName, handler);
     this.eventUnbinders.add(() => pubsub.unsubscribe(dataName, handler));
   }
