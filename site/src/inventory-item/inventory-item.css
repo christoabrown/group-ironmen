@@ -6,6 +6,11 @@ inventory-item {
   position: relative;
   transform: translate3d(0, 0, 1px);
   color: var(--primary-text);
+  min-height: 250px;
+}
+
+inventory-item.rendered {
+  min-height: unset;
 }
 
 .inventory-item__top {

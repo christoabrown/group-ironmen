@@ -27,19 +27,11 @@ export class SkillGraph extends BaseElement {
       { line: "#441151" }, // purple
     ];
 
-    this.intersectionObserver = new IntersectionObserver((entries) => {
-      const self = entries.find((x) => x.target === this);
-      if (self && self.isIntersecting) {
-        this.intersectionObserver.disconnect();
-        this.subscribeOnce("get-group-data", this.create.bind(this));
-      }
-    }, {});
-    this.intersectionObserver.observe(this);
+    this.subscribeOnce("get-group-data", this.create.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.intersectionObserver.disconnect();
     if (this.chart) {
       this.chart.destroy();
     }
