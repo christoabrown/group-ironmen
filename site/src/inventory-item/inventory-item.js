@@ -11,21 +11,30 @@ export class InventoryItem extends BaseElement {
     const itemId = this.getAttribute("item-id");
     this.showIndividualItemPrices = this.hasAttribute("individual-prices");
     this.playerFilter = this.getAttribute("player-filter");
-    this.intersectionObserver = new IntersectionObserver((entries) => {
-      for (const x of entries) {
-        if (x.isIntersecting && x.target === this) {
-          this.intersectionObserver.disconnect();
-          this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
-          return;
+
+    const top = this.offsetTop;
+    const bottomOfPage = document.body.clientHeight;
+    if (top < bottomOfPage) {
+      this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
+    } else {
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+        for (const x of entries) {
+          if (x.isIntersecting && x.target === this) {
+            this.intersectionObserver.disconnect();
+            this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
+            return;
+          }
         }
-      }
-    }, {});
-    this.intersectionObserver.observe(this);
+      }, {});
+      this.intersectionObserver.observe(this);
+    }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.intersectionObserver.disconnect();
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
+    }
   }
 
   html() {
