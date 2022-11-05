@@ -32,5 +32,5 @@ services:
       POSTGRES_PASSWORD: ${PG_PASSWORD}
       POSTGRES_DB: ${PG_DB}
     volumes:
-      - ./pg-data:/var/lib/postrgresql/data # change the left-hand side of : to the path you prefer the DB to store the data in
+      - ./pg-data:/var/lib/postgresql/data # change the left-hand side of : to the path you prefer the DB to store the data in
       - ./server/src/sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql # change the left-hand side of the : to the path that contains the schema.sql
