@@ -2,14 +2,36 @@ skill-box {
   display: flex;
   position: relative;
   transform: translateZ(1px);
+  width: 62px;
+  height: 32px;
+}
+
+.skill-box__left {
+  background-image: url(/ui/174-0.png);
+}
+
+.dark-mode .skill-box__left {
+  background-image: url(/ui/174-0-dark.png);
+}
+
+.skill-box__right {
+  position: relative;
+  background-image: url(/ui/175-0.png);
+}
+
+.dark-mode .skill-box__right {
+  background-image: url(/ui/175-0-dark.png);
 }
 
 .skill-box__left,
 .skill-box__right {
-  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 31px;
+  height: 32px;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .skill-box__left,
@@ -18,15 +40,12 @@ skill-box {
   pointer-events: none;
 }
 
-.skill-box__icon {
-  position: absolute;
-}
-
 .skill-box__current-level,
 .skill-box__baseline-level {
   position: absolute;
   font-size: 13px;
   color: yellow;
+  text-shadow: 1px 1px var(--black);
 }
 
 .skill-box__baseline-level {

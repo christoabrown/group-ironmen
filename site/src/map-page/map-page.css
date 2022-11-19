@@ -5,6 +5,7 @@ map-page {
 .map-page__container {
   display: flex;
   overflow-x: auto;
+  padding: 0 4px;
 }
 
 .map-page__focus-player-buttons {

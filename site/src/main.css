@@ -77,8 +77,17 @@ button.men-button {
   background: #4d4336;
 }
 
+.dark-mode button.men-button {
+  border-image: url(/ui/border-button-dark.png) 9 9 / 9px stretch;
+  background: #282828;
+}
+
 button.men-button:hover {
   background: rgb(66, 55, 38);
+}
+
+.dark-mode button.men-button:hover {
+  background: #383838;
 }
 
 button.men-button.small {
@@ -167,6 +176,11 @@ input {
   box-shadow: inset 3px 3px 3px #261d11;
   border-radius: 4px;
   line-height: 1em;
+}
+
+.dark-mode input {
+  background: #282828;
+  box-shadow: inset 3px 3px 3px #161616;
 }
 
 input::placeholder {
@@ -305,10 +319,13 @@ ul {
 }
 
 .rsborder {
-  border-image: url(/ui/border.png) 32 32 / 32px round;
-  border-image-outset: 4px;
+  border-image: url(/ui/border.png) 32 32 / 32px / 4px round;
   border-style: solid;
   border-radius: 4px;
+}
+
+.dark-mode .rsborder {
+  border-image: url(/ui/border-dark.png) 32 32 / 32px / 4px round;
 }
 
 .rsborder-tiny {
@@ -317,13 +334,25 @@ ul {
   border-radius: 4px;
 }
 
+.dark-mode .rsborder-tiny {
+  border-image: url(/ui/border-tiny-dark.png) 4 4 / 4px round;
+}
+
 .rsbackground {
   background: url(/ui/297-0.png);
   background-repeat: repeat;
 }
 
+.dark-mode .rsbackground {
+  background: url(/ui/297-0-dark.png);
+}
+
 .rsbackground-hover:hover {
   background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), url(/ui/297-0.png);
+}
+
+.dark-mode .rsbackground-hover:hover {
+  background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), url(/ui/297-0-dark.png);
 }
 
 .no-pointer-events {

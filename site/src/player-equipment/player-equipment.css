@@ -20,6 +20,10 @@ player-equipment {
   height: 36px;
 }
 
+.dark-mode .equipment-slot {
+  background-image: url(/ui/170-0-dark.png);
+}
+
 .equipment-slot item-box {
   height: 32px;
 }

@@ -27,4 +27,11 @@ player-inventory item-box:hover {
   transform: translateX(-50%);
   width: 190px;
   height: var(--inventory-height);
+  background-image: url(/ui/inventory_background.png);
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.dark-mode .player-inventory__background {
+  background-image: url(/ui/inventory_background-dark.png);
 }

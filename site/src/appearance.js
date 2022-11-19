@@ -5,12 +5,10 @@ class Appearance {
     if (window.matchMedia) {
       window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
         this.updateTheme();
-        pubsub.publish("theme");
       });
     }
 
     this.updateLayout();
-    this.updateTheme();
   }
 
   setLayout(layout) {
@@ -34,23 +32,11 @@ class Appearance {
   }
 
   getTheme() {
-    let theme = localStorage.getItem("theme");
-
-    if (!theme && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      theme = "dark";
-    }
-
-    return theme;
+    return window.getTheme();
   }
 
   updateTheme() {
-    const theme = this.getTheme();
-
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark-mode");
-    } else {
-      document.documentElement.classList.remove("dark-mode");
-    }
+    window.updateTheme();
   }
 }
 

@@ -31,8 +31,6 @@ export class BaseElement extends HTMLElement {
   }
 
   handleMouseOver(mouseEvent) {
-    if (mouseEvent.sourceCapabilities?.firesTouchEvents) return;
-
     const tooltipText = this.getAttribute("tooltip-text");
     if (tooltipText) {
       this.showingTooltip = true;
@@ -42,8 +40,6 @@ export class BaseElement extends HTMLElement {
   }
 
   handleMouseOut(mouseEvent) {
-    if (mouseEvent.sourceCapabilities?.firesTouchEvents) return;
-
     this.showingTooltip = false;
     tooltipManager.hideTooltip();
   }

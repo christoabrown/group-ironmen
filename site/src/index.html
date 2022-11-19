@@ -15,10 +15,45 @@
     <meta name="msapplication-TileColor" content="#da532c" />
     <meta name="theme-color" content="#ffffff" />
 
-    <link rel="preload" as="image" href="/ui/border-button.png">
-    <link rel="preload" as="image" href="/ui/border.png">
-    <link rel="preload" as="image" href="/ui/297-0.png">
-    <link rel="preload" as="image" href="/ui/border-tiny.png">
+    <script>
+      window.getTheme = () => {
+        let theme = localStorage.getItem("theme");
+
+        if (!theme && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          theme = "dark";
+        }
+
+        return theme;
+      };
+
+      window.updateTheme = (preloadImages) => {
+        const theme = window.getTheme();
+        const darkMode = theme === "dark";
+        if (darkMode) {
+          document.documentElement.classList.add("dark-mode");
+        } else {
+          document.documentElement.classList.remove("dark-mode");
+        }
+
+        if (preloadImages) {
+          const preloadImages = [
+            "border-button",
+            "border",
+            "297-0",
+            "border-tiny"
+          ];
+          for (const preloadImage of preloadImages) {
+            const link = document.createElement('link');
+            link.setAttribute("rel", "preload");
+            link.setAttribute("as", "image");
+            link.setAttribute("href", `/ui/${preloadImage + (darkMode ? '-dark' : '')}.png`);
+            document.head.appendChild(link);
+          }
+        }
+      };
+
+      window.updateTheme(true);
+    </script>
   </head>
   <body>
     <loading-screen></loading-screen>
