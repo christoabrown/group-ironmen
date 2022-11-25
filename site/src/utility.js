@@ -66,6 +66,11 @@ class Utility {
     if (!a || !b) return false;
     return a.size === b.size && [...a].every((x) => b.has(x));
   }
+
+  isBitSet(n, offset) {
+    const mask = 1 << offset;
+    return (n & mask) !== 0;
+  }
 }
 const utility = new Utility();
 

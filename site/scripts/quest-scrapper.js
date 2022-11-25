@@ -12,12 +12,14 @@ for (const [questId, questName] of Object.entries(questsMapping)) {
 function getQuestTableData(table) {
   const rows = Array.from(table.querySelectorAll("tbody tr"));
   const result = [];
+  const ths = Array.from(table.querySelectorAll('th'));
+  const headers = ths.map((th) => th.textContent.trim());
   for (const row of rows) {
     const tds = Array.from(row.querySelectorAll('td'));
     if (tds.length === 0) continue;
-    const name = tds[1].textContent.trim();
-    const difficulty = tds[2].textContent.trim();
-    const points = tds[4].textContent.trim();
+    const name = tds[headers.indexOf('Name')].textContent.trim();
+    const difficulty = tds[headers.indexOf('Difficulty')].textContent.trim();
+    const points = tds[headers.indexOf('')]?.textContent.trim() || 0;
     result.push({
       name,
       difficulty,
@@ -37,16 +39,23 @@ async function run() {
     if (ths.length === 0) return false;
 
     const headerText = ths.map((th) => th.textContent.trim()).join('');
-    if (headerText === '#NameDifficultyLengthSeriesRelease date') return true;
+    if (headerText.endsWith('NameDifficultyLengthSeriesRelease date')) return true;
     return false;
   });
+
   const freeToPlayQuestTable = questTables[0];
   const memberQuestTable = questTables[1];
+  const miniQuestTable = questTables[2];
 
   const freeToPlayQuests = getQuestTableData(freeToPlayQuestTable);
   freeToPlayQuests.forEach((quest) => quest.member = false);
   const memberQuests = getQuestTableData(memberQuestTable);
   memberQuests.forEach((quest) => quest.member = true);
+  const miniQuests = getQuestTableData(miniQuestTable);
+  miniQuests.forEach((quest) => {
+    quest.member = true
+    quest.miniquest = true;
+  });
 
   const knownUnknownQuests = new Set([
     `Recipe for Disaster/Another Cook's Quest`,
@@ -61,7 +70,7 @@ async function run() {
     `Recipe for Disaster/Defeating the Culinaromancer`
   ]);
   const result = {};
-  for (const quest of [...freeToPlayQuests, ...memberQuests]) {
+  for (const quest of [...freeToPlayQuests, ...memberQuests, ...miniQuests]) {
     if (!questNameToIdMap.has(quest.name)) {
       if (!knownUnknownQuests.has(quest.name)) {
         console.error(`quest mapping is missing quest ${quest.name} from the wiki`);

@@ -14,7 +14,22 @@ export class StatBar extends BaseElement {
     this.render();
     this.bar = this.querySelector(".stat-bar__current");
     this.color = this.getAttribute("bar-color");
-    this.bgColor = this.darkenColor(this.hexToRgb(this.color));
+    this.bgColor = this.getAttribute("bar-bgcolor");
+
+    if (!this.bgColor && this.color.startsWith("#")) {
+      const darkened = this.darkenColor(this.hexToRgb(this.color));
+      this.bgColor = `rgb(${darkened.r}, ${darkened.g}, ${darkened.b})`;
+    }
+
+    if (this.color.startsWith("hsl")) {
+      const [hue, saturation, lightness] = this.color.match(/\d+/g).map(Number);
+      this.color = { hue, saturation, lightness };
+    }
+
+    const ratio = parseFloat(this.getAttribute("bar-ratio"), 10);
+    if (!isNaN(ratio)) {
+      this.update(ratio);
+    }
   }
 
   disconnectedCallback() {
@@ -47,12 +62,25 @@ export class StatBar extends BaseElement {
     };
   }
 
+  getColor(ratio) {
+    if (typeof this.color === "string") return this.color;
+
+    const color = { ...this.color };
+    color.hue = color.hue * ratio;
+    return `hsl(${Math.round(color.hue)}, ${color.saturation}%, ${color.lightness}%)`;
+  }
+
   update(ratio) {
     if (!this.isConnected) return;
     const x = ratio * 100;
+    const color = this.getColor(ratio);
     // NOTE: Tried doing this using a canvas and a div with a scaled width, both of them would leave gaps between other
     // bars. This does not leave gaps.
-    this.style.background = `linear-gradient(90deg, ${this.color}, ${x}%, rgb(${this.bgColor.r}, ${this.bgColor.g}, ${this.bgColor.b}) ${x}%)`;
+    if (ratio === 1) {
+      this.style.background = color;
+    } else {
+      this.style.background = `linear-gradient(90deg, ${color}, ${x}%, ${this.bgColor} ${x}%)`;
+    }
   }
 }
 

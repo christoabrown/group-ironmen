@@ -36,11 +36,11 @@ export class ConfirmDialog extends BaseElement {
       options.noCallback();
     });
 
-    this.style.display = "flex";
+    this.classList.add("dialog__visible");
   }
 
   hide() {
-    this.style.display = "none";
+    this.classList.remove("dialog__visible");
   }
 }
 

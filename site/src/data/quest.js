@@ -75,6 +75,7 @@ export class Quest {
     Quest.questData = await response.json();
     Quest.freeToPlayQuests = {};
     Quest.memberQuests = {};
+    Quest.lookupByName = new Map();
     let totalQuestPoints = 0;
     for (const [questId, questData] of Object.entries(Quest.questData)) {
       questData.sortName = utility.removeArticles(questData.name);
@@ -85,6 +86,7 @@ export class Quest {
       } else {
         Quest.memberQuests[questId] = questData;
       }
+      Quest.lookupByName.set(questData.name, questId);
     }
     Quest.totalPoints = totalQuestPoints;
 

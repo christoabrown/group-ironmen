@@ -6,6 +6,7 @@ import { storage } from "../data/storage";
 import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { exampleData } from "../data/example-data";
+import { AchievementDiary } from "../data/diaries";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -35,7 +36,7 @@ export class AppInitializer extends BaseElement {
 
   async initializeApp() {
     loadingScreenManager.showLoadingScreen();
-    await Promise.all([Item.loadItems(), Item.loadGePrices(), Quest.loadQuests()]);
+    await Promise.all([Item.loadItems(), Item.loadGePrices(), Quest.loadQuests(), AchievementDiary.loadDiaries()]);
     const group = storage.getGroup();
 
     if (group.groupName === "@EXAMPLE") {

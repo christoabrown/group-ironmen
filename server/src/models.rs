@@ -175,6 +175,7 @@ pub struct GroupMember {
     pub interacting: Option<Interacting>,
     pub seed_vault: Option<SeedVault>,
     pub deposited: Option<Bank>,
+    pub diary_vars: Option<Vec<i32>>,
 }
 pub type GroupData = std::vec::Vec<GroupMember>;
 #[derive(Serialize)]
@@ -200,6 +201,8 @@ pub struct StoredGroupMember {
     pub interacting: Option<Interacting>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed_vault: Option<Vec<i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diary_vars: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
 }

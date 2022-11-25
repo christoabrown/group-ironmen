@@ -40,10 +40,10 @@ for (let i = 1; i <= 126; ++i) {
 }
 
 export class Skill {
-  constructor(name, xp, overallLevel) {
+  constructor(name, xp) {
     this.name = SkillName[name];
     this.xp = xp;
-    this.overallLevel = overallLevel;
+    this.level = this.calculateLevel();
   }
 
   static getIcon(skillName) {
@@ -102,8 +102,8 @@ export class Skill {
     return Skill.getIcon(this.name);
   }
 
-  get level() {
-    if (this.name === SkillName.Overall) return this.overallLevel;
+  calculateLevel() {
+    if (this.name === SkillName.Overall) return this.level;
 
     for (let i = 1; i <= 126; ++i) {
       const start = levelLookup.get(i);
@@ -137,10 +137,7 @@ export class Skill {
       if (name !== SkillName.Overall) overallLevel += Math.min(99, skill.level);
     }
 
-    if (result[SkillName.Overall]) {
-      result[SkillName.Overall].overallLevel = overallLevel;
-    }
-
+    result[SkillName.Overall].level = overallLevel;
     return result;
   }
 }

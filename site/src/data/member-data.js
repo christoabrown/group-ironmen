@@ -1,8 +1,9 @@
-import { Quest } from "./quest";
+import { Quest, QuestState } from "./quest";
 import { Item } from "./item";
 import { Skill, SkillName } from "./skill";
 import { pubsub } from "./pubsub";
 import { utility } from "../utility";
+import { AchievementDiary } from "./diaries";
 
 export class MemberData {
   constructor(name) {
@@ -59,6 +60,7 @@ export class MemberData {
       updatedAttributes.add("skills");
 
       this.computeXpDrops(previousSkills);
+      this.computeCombatLevel();
     }
 
     if (memberData.inventory) {
@@ -99,6 +101,11 @@ export class MemberData {
       this.updateItemQuantitiesIn("seedVault");
       this.publishUpdate("seedVault");
       updatedAttributes.add("seedVault");
+    }
+
+    if (memberData.diary_vars) {
+      this.diaries = AchievementDiary.parseDiaryData(memberData.diary_vars);
+      this.publishUpdate("diaries");
     }
 
     return updatedAttributes;
@@ -164,5 +171,34 @@ export class MemberData {
     if (xpDrops.length > 0) {
       pubsub.publish(`xp:${this.name}`, xpDrops);
     }
+  }
+
+  computeCombatLevel() {
+    const s = 0.325;
+    const defence = Math.min(this.skills.Defence.level, 99);
+    const hitpoints = Math.min(this.skills.Hitpoints.level, 99);
+    const prayer = Math.min(this.skills.Prayer.level, 99);
+    const attack = Math.min(this.skills.Attack.level, 99);
+    const strength = Math.min(this.skills.Strength.level, 99);
+    const ranged = Math.min(this.skills.Ranged.level, 99);
+    const magic = Math.min(this.skills.Magic.level, 99);
+
+    const base = (defence + hitpoints + Math.floor(prayer / 2)) / 4;
+    const melee = s * (attack + strength);
+    const range = s * (Math.floor(ranged / 2) + ranged);
+    const mage = s * (Math.floor(magic / 2) + magic);
+
+    const combatLevel = Math.floor(base + Math.max(melee, range, mage));
+
+    if (combatLevel !== this.combatLevel) {
+      this.combatLevel = combatLevel;
+      this.publishUpdate("combatLevel");
+    }
+  }
+
+  hasQuestComplete(questName) {
+    const questId = Quest.lookupByName.get(questName);
+    const questComplete = this.quests[questId].state === QuestState.FINISHED;
+    return questComplete;
   }
 }
