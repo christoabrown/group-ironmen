@@ -22,7 +22,6 @@ const componentBuildPlugin = {
       const isComponent = components.has(componentName);
       let jsText = await fs.promises.readFile(args.path, 'utf8');
       if (isComponent) {
-        console.log(`Building component ${componentName}`);
         let htmlText = await fs.promises.readFile(`${componentDir}/${componentName}.html`, 'utf8');
         jsText = jsText.replace(`{{${componentName}.html}}`, htmlText);
       }
@@ -56,7 +55,6 @@ const htmlBuildPlugin = {
     const components = JSON.parse(fs.readFileSync('components.json', 'utf8'));
 
     build.onEnd(async () => {
-      console.log('Building index.html');
       let htmlFile = await fs.promises.readFile("src/index.html", "utf8");
 
       const cssFiles = ['src/main.css', ...components.map((component) => `./src/${component}/${component}.css`)];

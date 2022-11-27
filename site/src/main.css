@@ -390,7 +390,7 @@ ul {
 
 .dialog__container {
   padding: 16px 24px;
-  width: min(95%, max(66%, 400px));
+  width: min(95%, 1000px);
   max-height: 100%;
   display: flex;
   flex-direction: column;

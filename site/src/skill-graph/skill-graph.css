@@ -28,7 +28,6 @@ skill-graph {
   height: max(40vh, 300px);
   z-index: 1;
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px;
 }
 
 .skill-graph__table-container {

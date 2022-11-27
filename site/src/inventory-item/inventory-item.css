@@ -24,7 +24,6 @@ inventory-item.rendered {
   padding: 8px;
 
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px;
 }
 
 .inventory-item__details {

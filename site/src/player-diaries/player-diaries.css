@@ -1,3 +1,10 @@
+player-diaries {
+  display: block;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .player-diaries__title {
   margin: 0;
   text-align: center;
