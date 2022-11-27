@@ -167,7 +167,7 @@ pub async fn create_group(
     for i in 0..create_group_inner.member_names.len() {
         create_group_inner.member_names[i] = create_group_inner.member_names[i].trim().to_string();
         let member_name = &create_group_inner.member_names[i];
-        if !member_name.is_empty() && !valid_name(&member_name) {
+        if !member_name.is_empty() && !valid_name(member_name) {
             return Ok(HttpResponse::BadRequest()
                 .body(format!("Member name {} is not valid", member_name)));
         }

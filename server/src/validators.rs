@@ -69,5 +69,5 @@ pub fn valid_name(name: &str) -> bool {
     }
 
     let len = name.trim().len();
-    len >= 1 && len <= 16 && name.is_ascii() && !NAME_RE.is_match(name)
+    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name)
 }

@@ -292,13 +292,15 @@ pub async fn deposit_items(
     member_name: &str,
     deposited: Bank,
 ) -> Result<(), ApiError> {
-    if deposited.len() == 0 {
+    if deposited.is_empty() {
         return Ok(());
     }
 
-    let _get_bank_stmt =
-        "SELECT bank FROM groupironman.members WHERE group_id=$1 AND member_name=$2";
-    let get_bank_stmt = client.prepare_cached(&_get_bank_stmt).await?;
+    let get_bank_stmt = client
+        .prepare_cached(
+            "SELECT bank FROM groupironman.members WHERE group_id=$1 AND member_name=$2",
+        )
+        .await?;
     let row = client
         .query_one(&get_bank_stmt, &[&group_id, &member_name])
         .await
@@ -328,7 +330,7 @@ pub async fn deposit_items(
 
                 let item = Item {
                     id: *id,
-                    quantity: *deposited_map.get(&id).unwrap_or(&0),
+                    quantity: *deposited_map.get(id).unwrap_or(&0),
                 };
 
                 if item.quantity > 0 {
@@ -421,7 +423,7 @@ FROM groupironman.members WHERE group_id=$2
         let last_updated: Option<DateTime<Utc>> = row.try_get("last_updated").ok();
         let group_member = StoredGroupMember {
             name: member_name,
-            last_updated: last_updated,
+            last_updated,
             stats: row.try_get("stats").ok(),
             coordinates: row.try_get("coordinates").ok(),
             skills: row.try_get("skills").ok(),
@@ -589,7 +591,7 @@ SELECT last_aggregation FROM groupironman.aggregation_info WHERE type='skills'"#
 }
 
 pub async fn aggregate_skills(client: &mut Client) -> Result<(), ApiError> {
-    let last_aggregation = get_last_skills_aggregation(&client).await?;
+    let last_aggregation = get_last_skills_aggregation(client).await?;
 
     let transaction = client.transaction().await?;
     let update_last_aggregation_stmt = transaction
@@ -611,7 +613,7 @@ UPDATE groupironman.aggregation_info SET last_aggregation=NOW() WHERE type='skil
 }
 
 pub async fn apply_skills_retention(client: &mut Client) -> Result<(), ApiError> {
-    let last_aggregation = get_last_skills_aggregation(&client).await?;
+    let last_aggregation = get_last_skills_aggregation(client).await?;
 
     let transaction = client.transaction().await?;
     apply_skills_retention_for_period(&transaction, AggregatePeriod::Day, &last_aggregation)
@@ -680,7 +682,7 @@ pub async fn migrate_group(
     crypter: &Crypter,
 ) -> Result<(), ApiError> {
     if version == 1 {
-        let group_data = get_group_data_encrypted(&client, group_id, &crypter).await?;
+        let group_data = get_group_data_encrypted(client, group_id, crypter).await?;
 
         let transaction = client.transaction().await?;
         // NOTE: There should not be an existing group in this table yet, but just going to run this anyway

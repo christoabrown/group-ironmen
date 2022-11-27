@@ -125,7 +125,7 @@ where
                     }
                 };
 
-                let group = match db::get_group(&client, &group_name, &token).await {
+                let group = match db::get_group(&client, group_name, token).await {
                     Ok(group) => group,
                     Err(_) => {
                         // log::error!("{}", err);
