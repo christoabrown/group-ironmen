@@ -4,6 +4,7 @@ import { Quest } from "./quest";
 import { utility } from "../utility";
 import { SkillGraph } from "../skill-graph/skill-graph";
 import { GroupData } from "./group-data";
+import { AchievementDiary } from "./diaries";
 
 class ExampleData {
   constructor() {
@@ -179,6 +180,7 @@ class ExampleData {
         inventory: Item.randomItems(28),
         coordinates: [3029, 3000, 0],
         last_updated: "2022-01-23T01:34:06.104Z",
+        diary_vars: AchievementDiary.randomDiaries(),
       },
       "group alt two": {
         rune_pouch: [563, 1922, 561, 5, 554, 15194],
@@ -187,6 +189,7 @@ class ExampleData {
         stats: [55, 93, 13, 70, 75, 100, 330],
         skills: Object.values(SkillName).map(() => Math.floor(Math.random() * 14000000)),
         bank: [995, Math.floor(Math.random() * 5000000)],
+        diary_vars: AchievementDiary.randomDiaries(),
         inventory: [
           26382,
           1,
@@ -254,6 +257,7 @@ class ExampleData {
         equipment: Item.randomItems(14, 1),
         coordinates: [3103, 3025, 0],
         quests: Quest.randomQuestStates(),
+        diary_vars: AchievementDiary.randomDiaries(),
         interacting: {
           last_updated: "2050-01-01T00:00:00.000Z",
           name: "Goblin",

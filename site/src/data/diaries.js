@@ -6,6 +6,12 @@ export class AchievementDiary {
     this.completion = completion;
   }
 
+  static randomDiaries() {
+    // Does not give valid values for karamja easy, medium, hard. Just for example data
+    // so am ok with this.
+    return Array.from({ length: 62 }, () => Math.floor(Math.random() * 2 ** 32));
+  }
+
   static async loadDiaries() {
     const response = await fetch("/data/diary_data.json");
     AchievementDiary.diaries = await response.json();
