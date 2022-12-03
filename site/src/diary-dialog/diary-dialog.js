@@ -96,7 +96,8 @@ export class DiaryDialog extends BaseElement {
 
       const section = this.querySelector(`.diary-dialog__section[diary-tier="${tierName}"]`);
       const header = section.querySelector("h2");
-      header.innerText = `${header.innerText} - ${complete} / ${tasks.length}`;
+      const sectionLink = `https://oldschool.runescape.wiki/w/${this.diaryName.replace(/ /g, "_")}_Diary#${tierName}`;
+      header.innerHTML = `<a href="${sectionLink}" target="_blank">${header.innerText} - ${complete} / ${tasks.length}</a>`;
       if (complete === tasks.length) {
         section.classList.add("diary-dialog__tier-complete");
         ++completeTiers;

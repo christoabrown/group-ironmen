@@ -68,3 +68,7 @@ diary-dialog .dialog__container {
 .diary-dialog__diary-complete .diary-dialog__header h2 {
   color: rgb(0, 200, 0);
 }
+
+.diary-dialog__section h2 {
+  text-decoration: underline;
+}
