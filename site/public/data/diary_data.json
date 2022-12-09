@@ -3323,7 +3323,7 @@
       },
       { "task": "Kill a lava dragon and bury the bones on Lava Dragon Isle." },
       { "task": "Kill the Chaos Elemental." },
-      { "task": "Kill the Crazy archaeologist, Chaos Fanatic & Scorpia.Note: Completing any other task, including those from other diaries, will reset the progress for this task." },
+      { "task": "Kill the Crazy archaeologist, Chaos Fanatic & Scorpia." },
       {
         "task" : "Take the agility shortcut from Trollheim into the Wilderness.",
         "requirements" : {
@@ -3351,7 +3351,7 @@
       }
     ],
     "Elite": [
-      { "task": "Kill Callisto, Venenatis & Vet'ion.Note: Completing any other task, including those from other diaries, will reset the progress for this task." },
+      { "task": "Kill Callisto, Venenatis & Vet'ion." },
       {
         "task" : "Teleport to Ghorrock.",
         "requirements" : {

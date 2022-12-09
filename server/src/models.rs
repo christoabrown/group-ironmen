@@ -104,7 +104,7 @@ pub enum QuestState {
 }
 pub type Quests = std::collections::HashMap<String, QuestState>;
 lazy_static! {
-    static ref QUEST_IDS: Vec<String> = (0..180).map(|x| x.to_string()).collect();
+    static ref QUEST_IDS: Vec<String> = (0..=180).map(|x| x.to_string()).collect();
 }
 pub fn serialize_quests(quests: &Option<Quests>) -> Option<Vec<u8>> {
     match quests {
