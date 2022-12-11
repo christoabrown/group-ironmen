@@ -254,7 +254,7 @@ export class GroupData {
       },
       energy: {
         current: stats[4],
-        max: stats[5],
+        max: 10000,
       },
       world: stats[6],
     };
