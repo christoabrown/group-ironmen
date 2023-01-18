@@ -26,7 +26,6 @@ pub enum ApiError {
     #[from(ignore)]
     GetSkillsDataError(tokio_postgres::error::Error),
     GroupFullError,
-    AesError(aes_gcm::Error),
     ReqwestError(reqwest::Error),
 }
 impl std::error::Error for ApiError {}
@@ -64,10 +63,6 @@ impl ResponseError for ApiError {
             ApiError::SerdeJsonError(ref err) => {
                 log::error!("SerdeJsonError: {}", err);
                 HttpResponse::InternalServerError().body(format!("SerdeJsonError: {}", err))
-            }
-            ApiError::AesError(ref err) => {
-                log::error!("AesError: {}", err);
-                HttpResponse::InternalServerError().body(format!("AesError: {}", err))
             }
             ApiError::GroupFullError => HttpResponse::BadRequest()
                 .body("Group has already reached the maximum amount of players"),

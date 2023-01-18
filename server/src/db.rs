@@ -1,9 +1,9 @@
-use crate::crypto::{token_hash, Crypter};
+use crate::crypto::token_hash;
 use crate::error::ApiError;
 use crate::models::{
     serialize_coordinates, serialize_item_slice, serialize_quests, serialize_skills,
-    serialize_stats, AggregateSkillData, Bank, CreateGroup, GroupData, GroupMember, GroupSkillData,
-    Item, MemberSkillData, StoredGroupData, StoredGroupMember, SHARED_MEMBER,
+    serialize_stats, AggregateSkillData, Bank, CreateGroup, GroupMember, GroupSkillData, Item,
+    MemberSkillData, StoredGroupData, StoredGroupMember, SHARED_MEMBER,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -442,71 +442,6 @@ FROM groupironman.members WHERE group_id=$2
     Ok(result)
 }
 
-fn try_decrypt_json_column<T>(
-    row: &Row,
-    column: &str,
-    crypter: &Crypter,
-) -> Result<Option<T>, ApiError>
-where
-    T: Serialize + DeserializeOwned,
-{
-    match row.try_get(column) {
-        Ok(column_data) => match serde_json::from_str(column_data) {
-            Ok(encrypted_data) => {
-                let result: T = crypter.decrypt(encrypted_data)?;
-                Ok(Some(result))
-            }
-            Err(_) => Ok(None),
-        },
-        Err(_) => Ok(None),
-    }
-}
-
-pub async fn get_group_data_encrypted(
-    client: &Client,
-    group_id: i64,
-    crypter: &Crypter,
-) -> Result<GroupData, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            r#"
-SELECT member_name, stats, coordinates, skills, quests, inventory, equipment, bank, rune_pouch, interacting, seed_vault
-FROM groupironman.members_encrypted WHERE group_id=$1
-"#,
-        )
-        .await?;
-
-    let rows = client
-        .query(&stmt, &[&group_id])
-        .await
-        .map_err(ApiError::GetGroupDataError)?;
-    let mut result = vec![];
-
-    for row in rows {
-        let member_name = row.try_get("member_name")?;
-        let group_member = GroupMember {
-            name: member_name,
-            stats: try_decrypt_json_column(&row, "stats", crypter)?,
-            coordinates: try_decrypt_json_column(&row, "coordinates", crypter)?,
-            skills: try_decrypt_json_column(&row, "skills", crypter)?,
-            quests: try_decrypt_json_column(&row, "quests", crypter)?,
-            inventory: try_decrypt_json_column(&row, "inventory", crypter)?,
-            equipment: try_decrypt_json_column(&row, "equipment", crypter)?,
-            bank: try_decrypt_json_column(&row, "bank", crypter)?,
-            shared_bank: None,
-            rune_pouch: try_decrypt_json_column(&row, "rune_pouch", crypter)?,
-            interacting: try_decrypt_json_column(&row, "interacting", crypter)?,
-            seed_vault: try_decrypt_json_column(&row, "seed_vault", crypter)?,
-            deposited: None,
-            diary_vars: None,
-        };
-
-        result.push(group_member);
-    }
-
-    Ok(result)
-}
-
 pub enum AggregatePeriod {
     Day,
     Month,
@@ -673,111 +608,6 @@ WHERE m.group_id=$1
     }
 
     Ok(member_data.into_values().collect())
-}
-
-pub async fn migrate_group(
-    client: &mut Client,
-    group_id: i64,
-    version: i32,
-    crypter: &Crypter,
-) -> Result<(), ApiError> {
-    if version == 1 {
-        let group_data = get_group_data_encrypted(client, group_id, crypter).await?;
-
-        let transaction = client.transaction().await?;
-        // NOTE: There should not be an existing group in this table yet, but just going to run this anyway
-        // to make sure we are starting clean.
-        let delete_existing_group_stmt = transaction
-            .prepare_cached("DELETE FROM groupironman.members WHERE group_id=$1")
-            .await?;
-        transaction
-            .query(&delete_existing_group_stmt, &[&group_id])
-            .await?;
-        let create_member_stmt = transaction
-            .prepare_cached(
-                "INSERT INTO groupironman.members (group_id, member_name) VALUES($1, $2)",
-            )
-            .await?;
-        transaction
-            .execute(&create_member_stmt, &[&group_id, &SHARED_MEMBER])
-            .await?;
-        let migrate_timestamps_stmt = transaction
-            .prepare_cached(
-                r#"
-UPDATE groupironman.members AS v SET
-stats_last_update = s.stats_last_update,
-coordinates_last_update = s.coordinates_last_update,
-skills_last_update = s.skills_last_update,
-quests_last_update = s.quests_last_update,
-inventory_last_update = s.inventory_last_update,
-equipment_last_update = s.equipment_last_update,
-bank_last_update = s.bank_last_update,
-rune_pouch_last_update = s.rune_pouch_last_update,
-interacting_last_update = s.interacting_last_update,
-seed_vault_last_update = s.seed_vault_last_update
-FROM groupironman.members_encrypted AS s
-WHERE v.group_id=$1 AND v.member_name=$2 AND v.group_id=s.group_id AND v.member_name=s.member_name
-"#,
-            )
-            .await?;
-        let migrate_data_stmt = transaction.prepare_cached(r#"
-UPDATE groupironman.members SET
-stats=$1,coordinates=$2,skills=$3,quests=$4,inventory=$5,equipment=$6,bank=$7,rune_pouch=$8,interacting=$9,seed_vault=$10
-WHERE group_id=$11 AND member_name=$12
-"#).await?;
-        for group_member in group_data.into_iter() {
-            if !group_member.name.eq(SHARED_MEMBER) {
-                transaction
-                    .execute(&create_member_stmt, &[&group_id, &group_member.name])
-                    .await?;
-            }
-            transaction
-                .execute(&migrate_timestamps_stmt, &[&group_id, &group_member.name])
-                .await?;
-            transaction
-                .execute(
-                    &migrate_data_stmt,
-                    &[
-                        &group_member.stats.map(serialize_stats),
-                        &group_member.coordinates.map(serialize_coordinates),
-                        &group_member.skills.map(serialize_skills),
-                        &serialize_quests(&group_member.quests),
-                        &group_member
-                            .inventory
-                            .map(|x| serialize_item_slice(x.as_slice())),
-                        &group_member
-                            .equipment
-                            .map(|x| serialize_item_slice(x.as_slice())),
-                        &group_member
-                            .bank
-                            .map(|x| serialize_item_slice(x.as_slice())),
-                        &group_member
-                            .rune_pouch
-                            .map(|x| serialize_item_slice(x.as_slice())),
-                        &serialize_serde(&group_member.interacting)?,
-                        &group_member
-                            .seed_vault
-                            .map(|x| serialize_item_slice(x.as_slice())),
-                        &group_id,
-                        &group_member.name,
-                    ],
-                )
-                .await?;
-        }
-        let update_version_stmt = transaction
-            .prepare_cached(
-                r#"
-UPDATE groupironman.groups SET version=2 WHERE group_id=$1
-"#,
-            )
-            .await?;
-        transaction
-            .execute(&update_version_stmt, &[&group_id])
-            .await?;
-        transaction.commit().await?;
-    }
-
-    Ok(())
 }
 
 pub async fn update_schema(client: &mut Client) -> Result<(), ApiError> {

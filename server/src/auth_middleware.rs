@@ -1,4 +1,3 @@
-use crate::crypto::Crypter;
 use crate::db;
 use actix_web::{
     body::BoxBody,
@@ -39,7 +38,6 @@ where
 pub struct AuthenticationResult {
     pub group_id: i64,
     pub version: i32,
-    pub crypter: Crypter,
 }
 type AuthenticationInfo = Rc<AuthenticationResult>;
 pub struct Authenticated(AuthenticationInfo);
@@ -136,7 +134,6 @@ where
                 let authentication_result = AuthenticationResult {
                     group_id: group.0,
                     version: group.1,
-                    crypter: Crypter::new(token, group_name),
                 };
                 req.extensions_mut()
                     .insert::<AuthenticationInfo>(Rc::new(authentication_result));

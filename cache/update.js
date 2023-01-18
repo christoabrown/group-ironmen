@@ -346,9 +346,9 @@ function moveResults() {
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
 
-  // const xteasLocation = await convertXteasToRuneliteFormat();
-  // await dumpMapData(xteasLocation);
-  // await generateMapTiles();
+  const xteasLocation = await convertXteasToRuneliteFormat();
+  await dumpMapData(xteasLocation);
+  await generateMapTiles();
 
   await moveResults();
 })();

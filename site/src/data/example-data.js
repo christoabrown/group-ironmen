@@ -115,7 +115,6 @@ class ExampleData {
     this.intervals = [
       utility.callOnInterval(this.doHealthUpdate.bind(this), 3000),
       utility.callOnInterval(this.doXpDrop.bind(this), 2000),
-      utility.callOnInterval(this.doCoordinateUpdate.bind(this), 1000),
     ];
   }
 
@@ -130,46 +129,6 @@ class ExampleData {
   }
 
   reset() {
-    this.seersVillageAgility = [
-      [2729, 3489, 0],
-      [2729, 3489, 0],
-      [2729, 3488, 1],
-      [2729, 3491, 3],
-      [2725, 3491, 3],
-      [2721, 3494, 3],
-      [2719, 3495, 2],
-      [2713, 3494, 2],
-      [2710, 3493, 2],
-      [2710, 3490, 2],
-      [2710, 3489, 2],
-      [2710, 3487, 2],
-      [2710, 3483, 2],
-      [2710, 3483, 2],
-      [2710, 3481, 2],
-      [2710, 3478, 2],
-      [2710, 3474, 3],
-      [2710, 3472, 3],
-      [2707, 3472, 3],
-      [2704, 3472, 3],
-      [2702, 3470, 3],
-      [2702, 3465, 2],
-      [2702, 3464, 2],
-      [2702, 3464, 2],
-      [2704, 3464, 0],
-      [2704, 3463, 0],
-      [2708, 3463, 0],
-      [2712, 3463, 0],
-      [2715, 3463, 0],
-      [2718, 3464, 0],
-      [2718, 3469, 0],
-      [2722, 3473, 0],
-      [2725, 3478, 0],
-      [2727, 3481, 0],
-      [2728, 3486, 0],
-      [2729, 3488, 0],
-    ];
-    this.currentSeersVillageCoordinate = 0;
-
     this.members = {
       Zezima: {
         quests: Quest.randomQuestStates(),
@@ -185,7 +144,7 @@ class ExampleData {
       "group alt two": {
         rune_pouch: [563, 1922, 561, 5, 554, 15194],
         quests: Quest.randomQuestStates(),
-        coordinates: this.seersVillageAgility[this.currentSeersVillageCoordinate],
+        coordinates: [3129, 3100, 0],
         stats: [55, 93, 13, 70, 75, 100, 330],
         skills: Object.values(SkillName).map(() => Math.floor(Math.random() * 14000000)),
         bank: [995, Math.floor(Math.random() * 5000000)],
@@ -297,12 +256,6 @@ class ExampleData {
 
   doHealthUpdate() {
     this.members["group alt two"].stats = [Math.floor(Math.max(1, Math.random() * 93)), 93, 13, 70, 75, 100, 330];
-  }
-
-  doCoordinateUpdate() {
-    this.currentSeersVillageCoordinate = (this.currentSeersVillageCoordinate + 1) % this.seersVillageAgility.length;
-    const coordinate = this.seersVillageAgility[this.currentSeersVillageCoordinate];
-    this.members["group alt two"].coordinates = coordinate;
   }
 
   getSkillData(period, groupData) {

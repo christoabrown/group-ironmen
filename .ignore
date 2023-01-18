@@ -17,3 +17,4 @@ plugin/.idea
 plugin/buildSrc/build
 plugin/gradle
 plugin/group_ironman_plugin/build
+*.webp

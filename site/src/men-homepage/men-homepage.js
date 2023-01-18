@@ -18,10 +18,6 @@ export class MenHomepage extends BaseElement {
     api.exampleDataEnabled = true;
     api.enable();
     this.render();
-    this.worldMap = document.querySelector("#background-worldmap");
-    this.worldMap.startingLocation = { x: 2729, y: 3489 };
-    this.worldMap.startingZoom = 6;
-    this.worldMap.followingPlayer = "group alt two";
   }
 
   disconnectedCallback() {

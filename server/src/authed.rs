@@ -86,8 +86,7 @@ pub async fn update_group_member(
     group_member: web::Json<GroupMember>,
     db_pool: web::Data<Pool>,
 ) -> Result<HttpResponse, Error> {
-    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::migrate_group(&mut client, auth.group_id, auth.version, &auth.crypter).await?;
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
     if !in_group {
         return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
@@ -108,8 +107,7 @@ pub async fn get_group_data(
     query: web::Query<GetGroupDataQuery>,
 ) -> Result<web::Json<StoredGroupData>, Error> {
     let from_time = query.from_time;
-    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::migrate_group(&mut client, auth.group_id, auth.version, &auth.crypter).await?;
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let group_members = db::get_group_data(&client, auth.group_id, &from_time).await?;
     Ok(web::Json(group_members))
 }

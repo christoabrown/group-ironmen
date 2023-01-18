@@ -104,7 +104,12 @@ pub enum QuestState {
 }
 pub type Quests = std::collections::HashMap<String, QuestState>;
 lazy_static! {
-    static ref QUEST_IDS: Vec<String> = (0..=180).map(|x| x.to_string()).collect();
+    static ref QUEST_IDS: Vec<String> = {
+        let mut v: Vec<String> = (0..=180).map(|x| x.to_string()).collect();
+        v.push("2306".to_string()); // Into the Tombs
+        v.push("2338".to_string()); // Secrets of the North
+        v
+    };
 }
 pub fn serialize_quests(quests: &Option<Quests>) -> Option<Vec<u8>> {
     match quests {
@@ -177,7 +182,6 @@ pub struct GroupMember {
     pub deposited: Option<Bank>,
     pub diary_vars: Option<Vec<i32>>,
 }
-pub type GroupData = std::vec::Vec<GroupMember>;
 #[derive(Serialize)]
 pub struct StoredGroupMember {
     pub name: String,
@@ -231,12 +235,6 @@ pub struct CreateGroup {
 }
 fn default_token() -> String {
     uuid::Uuid::new_v4().to_hyphenated().to_string()
-}
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct EncryptedData {
-    pub nonce: [u8; 12],
-    pub ciphertext: std::vec::Vec<u8>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

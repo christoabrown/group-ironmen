@@ -273,11 +273,16 @@ export class GroupData {
   static transformQuestsFromStorage(quests) {
     if (quests === undefined || quests === null) return;
 
+    const runeliteQuestIdMap = new Map([
+      [181, "2306"], // Into the Tombs
+      [182, "2338"], // Secrets of the North
+    ]);
+
     const result = {};
     const questStates = Object.keys(QuestState);
     for (let i = 0; i < quests.length; ++i) {
       const questState = quests[i];
-      const questId = i.toString();
+      const questId = runeliteQuestIdMap.get(i) || i.toString();
       result[questId] = questStates[questState];
     }
     return result;
