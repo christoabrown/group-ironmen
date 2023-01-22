@@ -146,6 +146,7 @@ fn default_last_updated() -> DateTime<Utc> {
 pub type Inventory = [Item; 28];
 pub type Equipment = [Item; 14];
 pub type RunePouch = [Item; 4];
+pub type TackleBox = [Item; 32];
 
 pub type Bank = std::vec::Vec<Item>;
 pub type SeedVault = std::vec::Vec<Item>;
@@ -181,6 +182,7 @@ pub struct GroupMember {
     pub seed_vault: Option<SeedVault>,
     pub deposited: Option<Bank>,
     pub diary_vars: Option<Vec<i32>>,
+    pub tackle_box: Option<TackleBox>,
 }
 #[derive(Serialize)]
 pub struct StoredGroupMember {
@@ -207,6 +209,8 @@ pub struct StoredGroupMember {
     pub seed_vault: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diary_vars: Option<Vec<i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tackle_box: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
 }

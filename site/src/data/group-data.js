@@ -63,7 +63,8 @@ export class GroupData {
       updatedAttributes.has("bank") ||
       updatedAttributes.has("equipment") ||
       updatedAttributes.has("runePouch") ||
-      updatedAttributes.has("seedVault");
+      updatedAttributes.has("seedVault") ||
+      updatedAttributes.has("tackleBox");
 
     const encounteredItemIds = new Set();
     if (receivedItemData) {
@@ -295,6 +296,7 @@ export class GroupData {
       memberData.equipment = GroupData.transformItemsFromStorage(memberData.equipment);
       memberData.rune_pouch = GroupData.transformItemsFromStorage(memberData.rune_pouch);
       memberData.seed_vault = GroupData.transformItemsFromStorage(memberData.seed_vault);
+      memberData.tackle_box = GroupData.transformItemsFromStorage(memberData.tackle_box);
       memberData.skills = GroupData.transformSkillsFromStorage(memberData.skills);
       memberData.stats = GroupData.transformStatsFromStorage(memberData.stats);
       memberData.coordinates = GroupData.transformCoordinatesFromStorage(memberData.coordinates);
