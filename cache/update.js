@@ -6,6 +6,8 @@ const nAsync = require('async');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
+// NOTE: sharp will keep some files open and prevent them from being deleted
+sharp.cache(false);
 
 const xmlParser = new xml2js.Parser();
 const xmlBuilder = new xml2js.Builder();
@@ -28,6 +30,25 @@ function exec(command, options) {
   } catch (err) {
     console.log(err);
     process.exit(1);
+  }
+}
+
+async function retry(fn, skipLast) {
+  const attempts = 10;
+  for (let i = 0; i < attempts; ++i) {
+    try {
+      await fn();
+      return;
+    } catch (ex) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (i === (attempts - 1) && skipLast) {
+        console.error(ex);
+      }
+    }
+  }
+
+  if (!skipLast) {
+    fn();
   }
 }
 
@@ -228,7 +249,7 @@ async function dumpMapData(xteasLocation) {
 }
 
 async function tilePlane(plane) {
-  fs.rmSync('./output_files', { recursive: true, force: true });
+  await retry(() => fs.rmSync('./output_files', { recursive: true, force: true }));
   const planeImage = sharp(`./map-data/img-${plane}.png`, { limitInputPixels: false }).flip();
   await planeImage.webp({ lossless: true }).tile({
     size: 256,
@@ -247,7 +268,6 @@ async function outputTileImage(s, plane, x, y) {
 async function finalizePlaneTiles(plane, previousTiles) {
   const tileImages = glob.sync('./output_files/0/*.webp');
 
-  let p = [];
   for (const tileImage of tileImages) {
     const filename = path.basename(tileImage, '.webp');
     const [x, y] = filename.split('_').map((coord) => parseInt(coord, 10));
@@ -255,36 +275,32 @@ async function finalizePlaneTiles(plane, previousTiles) {
     const finalX = x + 18;
     const finalY = y + 19;
 
-    p.push(new Promise(async (resolve) => {
-      let s;
-      if (plane > 0) {
-        const backgroundPath = `./map-data/tiles/${plane-1}_${finalX}_${finalY}.webp`;
-        const backgroundExists = fs.existsSync(backgroundPath);
+    let s;
+    if (plane > 0) {
+      const backgroundPath = `./map-data/tiles/${plane-1}_${finalX}_${finalY}.webp`;
+      const backgroundExists = fs.existsSync(backgroundPath);
 
-        if (backgroundExists) {
-          const tile = await sharp(tileImage).flip().webp({ lossless: true }).toBuffer();
-          const background = await sharp(backgroundPath).linear(0.5).webp({ lossless: true }).toBuffer();
-          s = sharp(background)
-            .composite([
-              { input: tile }
-            ]);
-        }
+      if (backgroundExists) {
+        const tile = await sharp(tileImage).flip().webp({ lossless: true }).toBuffer();
+        const background = await sharp(backgroundPath).linear(0.5).webp({ lossless: true }).toBuffer();
+        s = sharp(background)
+          .composite([
+            { input: tile }
+          ]);
       }
+    }
 
-      if (!s) {
-        s = sharp(tileImage).flip();
-      }
+    if (!s) {
+      s = sharp(tileImage).flip();
+    }
 
-      previousTiles.add(`${plane}_${finalX}_${finalY}`);
-      outputTileImage(s, plane, finalX, finalY).then(resolve);
-    }));
+    previousTiles.add(`${plane}_${finalX}_${finalY}`);
+    await outputTileImage(s, plane, finalX, finalY);
   }
-  await Promise.all(p);
 
   // NOTE: This is just so the plane will have a darker version of the tile below it
   // even if the plane does not have its own image for a tile.
   if (plane > 0) {
-    p = [];
     const belowTiles = [...previousTiles].filter(x => x.startsWith(plane - 1));
     for (const belowTile of belowTiles) {
       const [belowPlane, x, y] = belowTile.split('_');
@@ -297,10 +313,9 @@ async function finalizePlaneTiles(plane, previousTiles) {
 
         const s = sharp(`./map-data/tiles/${belowTile}.webp`).linear(0.5);
         previousTiles.add(lookup);
-        p.push(outputTileImage(s, plane, x, y));
+        await outputTileImage(s, plane, x, y);
       }
     }
-    await Promise.all(p);
   }
 }
 
@@ -319,15 +334,15 @@ async function generateMapTiles() {
   }
 }
 
-function moveResults() {
+async function moveResults() {
   console.log('\nStep: Moving results to site');
-  fs.renameSync('./item_data.json', siteItemDataPath);
+  await retry(() => fs.renameSync('./item_data.json', siteItemDataPath), true);
 
   const newImageFiles = glob.sync('./item-images/*.webp');
   for (const imageFile of newImageFiles) {
     const base = path.parse(imageFile).base;
     if (base) {
-      fs.renameSync(imageFile, `${siteItemImagesPath}/${base}`);
+      await retry(() => fs.renameSync(imageFile, `${siteItemImagesPath}/${base}`), true);
     }
   }
 
@@ -335,7 +350,7 @@ function moveResults() {
   for (const tileImage of tileImageFiles) {
     const base = path.parse(tileImage).base;
     if (base) {
-      fs.renameSync(tileImage, `${siteMapImagesPath}/${base}`);
+      await retry(() => fs.renameSync(tileImage, `${siteMapImagesPath}/${base}`), true);
     }
   }
 }
