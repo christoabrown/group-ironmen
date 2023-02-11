@@ -331,7 +331,7 @@
         "task": "Cast Ice Barrage on another player within Castle Wars.",
         "requirements": {
           "quests": [
-            "Desert Treasure"
+            "Desert Treasure I"
           ],
           "skills": {
             "Magic": 94
@@ -533,7 +533,7 @@
         "task": "Slay a Dust Devil in the desert cave with a Slayer helmet equipped.",
         "requirements": {
           "quests": [
-            "Desert Treasure"
+            "Desert Treasure I"
           ],
           "skills": {
             "Slayer": 65,
@@ -546,7 +546,7 @@
         "task": "Activate Ancient Magicks at the altar in the Jaldraocht Pyramid.",
         "requirements": {
           "quests": [
-            "Desert Treasure"
+            "Desert Treasure I"
           ]
         }
       },
@@ -591,7 +591,7 @@
         "task": "Cast Ice Barrage against a foe in the Desert.",
         "requirements": {
           "quests": [
-            "Desert Treasure"
+            "Desert Treasure I"
           ],
           "skills": {
             "Magic": 94
@@ -1406,7 +1406,7 @@
       {
         "task" : "Kill a Shadow Hound in the Shadow dungeon.",
         "requirements" : {
-          "quests" : [ "Desert Treasure" ],
+          "quests" : [ "Desert Treasure I" ],
           "skills" : {
             "Thieving" : 53
           }
@@ -2483,7 +2483,7 @@
       {
         "task" : "Enter the Kharyrll portal in your POH.",
         "requirements" : {
-          "quests" : [ "Desert Treasure" ],
+          "quests" : [ "Desert Treasure I" ],
           "skills" : {
             "Construction" : 50,
             "Magic" : 66
@@ -2778,7 +2778,7 @@
       {
         "task" : "Teleport to Paddewwa.",
         "requirements" : {
-          "quests" : [ "Desert Treasure" ],
+          "quests" : [ "Desert Treasure I" ],
           "skills" : {
             "Magic" : 54
           }
@@ -3355,7 +3355,7 @@
       {
         "task" : "Teleport to Ghorrock.",
         "requirements" : {
-          "quests" : [ "Desert Treasure" ],
+          "quests" : [ "Desert Treasure I" ],
           "skills" : {
             "Magic" : 96
           }
