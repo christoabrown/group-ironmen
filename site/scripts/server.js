@@ -15,12 +15,6 @@ function getArgValue(arg) {
 }
 
 const backend = getArgValue('--backend');
-if (!backend) {
-  console.error('No backend argument provided to dev server');
-  process.exit(1);
-  return;
-}
-console.log(`Backend for api calls: ${backend}`);
 
 app.use(expressWinston.logger({
   transports: [
@@ -39,33 +33,40 @@ app.use(expressWinston.logger({
 app.use(compression());
 app.use(express.static('public'));
 app.use(express.static('.'));
-app.use('/api*', (req, res, next) => {
-  const forwardUrl = backend + req.originalUrl;
-  const headers = Object.assign({}, req.headers);
-  delete headers.host;
-  delete headers.referer;
-  axios({
-    method: req.method,
-    url: forwardUrl,
-    responseType: 'stream',
-    headers
-  }).then((response) => {
-    res.status(response.status);
-    res.set(response.headers);
-    response.data.pipe(res);
-  }).catch((error) => {
-    if (error.response) {
-      res.status(error.response.status);
-      res.set(error.response.headers);
-      error.response.data.pipe(res);
-    } else if (error.request) {
-      res.status(418).end();
-    } else {
-      console.error('Error', error.message);
-      res.status(418).end();
-    }
+
+if (backend) {
+  console.log(`Backend for api calls: ${backend}`);
+  app.use('/api*', (req, res, next) => {
+    const forwardUrl = backend + req.originalUrl;
+    const headers = Object.assign({}, req.headers);
+    delete headers.host;
+    delete headers.referer;
+    axios({
+      method: req.method,
+      url: forwardUrl,
+      responseType: 'stream',
+      headers
+    }).then((response) => {
+      res.status(response.status);
+      res.set(response.headers);
+      response.data.pipe(res);
+    }).catch((error) => {
+      if (error.response) {
+        res.status(error.response.status);
+        res.set(error.response.headers);
+        error.response.data.pipe(res);
+      } else if (error.request) {
+        res.status(418).end();
+      } else {
+        console.error('Error', error.message);
+        res.status(418).end();
+      }
+    });
   });
-});
+} else {
+  console.log("No backend supplied for api calls, not going to handle api requests");
+}
+
 app.get('*', function (request, response) {
   if (request.path.includes('/map') && request.path.includes('.png')) {
     response.sendStatus(404);
