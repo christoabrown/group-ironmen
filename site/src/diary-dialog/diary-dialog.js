@@ -17,13 +17,21 @@ export class DiaryDialog extends BaseElement {
     this.diaryName = this.getAttribute("diary-name");
     this.playerName = this.getAttribute("player-name");
     this.render();
+    this.background = this.querySelector(".dialog__visible");
 
     this.subscribeOnce(`diaries:${this.playerName}`, this.handleDiaries.bind(this));
     this.eventListener(this.querySelector(".diary-dialog__close"), "click", this.close.bind(this));
+    this.eventListener(this.background, "click", this.closeIfBackgroundClick.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+  }
+
+  closeIfBackgroundClick(evt) {
+    if (evt.target === this.background) {
+      this.close();
+    }
   }
 
   close() {

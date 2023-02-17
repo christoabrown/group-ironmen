@@ -4,6 +4,11 @@ diary-dialog h2 {
 
 diary-dialog .dialog__container {
   padding: 0;
+  cursor: auto;
+}
+
+.dialog__visible {
+  cursor: pointer;
 }
 
 .diary-dialog__scroll-container {
