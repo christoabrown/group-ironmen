@@ -52,12 +52,21 @@ export class BaseElement extends HTMLElement {
     this.eventListeners = new Map();
   }
 
-  eventListener(subject, eventName, handler) {
+  eventListener(subject, eventName, handler, options = {}) {
     if (!this.isConnected) return;
     if (!this.eventListeners.has(subject)) this.eventListeners.set(subject, new Set());
     if (!this.eventListeners.get(subject).has(eventName)) {
       this.eventListeners.get(subject).add(eventName);
-      subject.addEventListener(eventName, handler);
+      subject.addEventListener(
+        eventName,
+        handler,
+        Object.assign(
+          {
+            passive: true,
+          },
+          options
+        )
+      );
       this.eventUnbinders.add(() => subject.removeEventListener(eventName, handler));
     }
   }

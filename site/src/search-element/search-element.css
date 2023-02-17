@@ -1,7 +1,6 @@
 search-element {
   display: flex;
   position: relative;
-  width: 33%;
   min-width: 300px;
   max-width: 500px;
 }

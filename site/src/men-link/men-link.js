@@ -13,7 +13,7 @@ export class MenLink extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.eventListener(this.querySelector("a"), "click", this.navigate.bind(this));
+    this.eventListener(this.querySelector("a"), "click", this.navigate.bind(this), { passive: false });
   }
 
   disconnectedCallback() {
