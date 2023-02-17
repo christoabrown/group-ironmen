@@ -77,6 +77,8 @@ export class InventoryPager extends BaseElement {
       this.compare = this.compareOnHighAlch.bind(this);
     } else if (selectedSort === "geprice") {
       this.compare = this.compareOnGePrice.bind(this);
+    } else if (selectedSort === "alphabetical") {
+      this.compare = this.compareAlphabetical.bind(this);
     }
 
     this.maybeRenderPage(this.currentPage);
@@ -111,6 +113,10 @@ export class InventoryPager extends BaseElement {
     }
 
     return this.itemQuantity(b) * b.gePrice - this.itemQuantity(a) * a.gePrice;
+  }
+
+  compareAlphabetical(a, b) {
+    return a.name.localeCompare(b.name);
   }
 
   handleUpdatedItems() {
