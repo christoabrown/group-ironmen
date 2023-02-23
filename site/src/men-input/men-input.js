@@ -17,9 +17,9 @@ export class MenInput extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-
+    this.noTrim = this.hasAttribute("no-trim");
     this.input = this.querySelector("input");
-    const initialValue = this.getAttribute("input-value")?.trim();
+    const initialValue = this.trim(this.getAttribute("input-value"));
     if (initialValue) {
       this.input.value = initialValue;
     }
@@ -29,6 +29,11 @@ export class MenInput extends BaseElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+  }
+
+  trim(value) {
+    if (this.noTrim) return value;
+    return value?.trim();
   }
 
   handleBlurEvent() {
@@ -46,7 +51,7 @@ export class MenInput extends BaseElement {
   }
 
   get value() {
-    return this.input.value.trim();
+    return this.trim(this.input.value);
   }
 
   get valid() {
@@ -54,7 +59,7 @@ export class MenInput extends BaseElement {
   }
 
   updateValueAndValidity() {
-    this.input.value = this.input.value.trim();
+    this.input.value = this.trim(this.input.value);
     if (this.validators) {
       for (const validator of this.validators) {
         const invalidReason = validator(this.input.value);

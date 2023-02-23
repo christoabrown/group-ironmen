@@ -36,6 +36,7 @@ app.use(express.static('.'));
 
 if (backend) {
   console.log(`Backend for api calls: ${backend}`);
+  app.use(express.json());
   app.use('/api*', (req, res, next) => {
     const forwardUrl = backend + req.originalUrl;
     const headers = Object.assign({}, req.headers);
@@ -45,7 +46,8 @@ if (backend) {
       method: req.method,
       url: forwardUrl,
       responseType: 'stream',
-      headers
+      headers,
+      data: req.body
     }).then((response) => {
       res.status(response.status);
       res.set(response.headers);

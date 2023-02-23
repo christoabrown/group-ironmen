@@ -11,6 +11,7 @@ export class MemberNameInput extends MenInput {
     this.setAttribute("placeholder-text", "Player name");
     this.setAttribute("input-id", `member-name${this.memberNumber}`);
     this.setAttribute("input-label", `Name of member ${this.memberNumber}`);
+    this.setAttribute("no-trim", "true");
     this.validators = [
       (value) => {
         return !validCharacters(value) ? "Character name has some unsupported special characters." : null;
