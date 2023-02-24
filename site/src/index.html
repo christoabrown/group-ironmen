@@ -27,29 +27,13 @@
         return theme;
       };
 
-      window.updateTheme = (preloadImages) => {
+      window.updateTheme = () => {
         const theme = window.getTheme();
         const darkMode = theme === "dark";
         if (darkMode) {
           document.documentElement.classList.add("dark-mode");
         } else {
           document.documentElement.classList.remove("dark-mode");
-        }
-
-        if (preloadImages) {
-          const preloadImages = [
-            "border-button",
-            "border",
-            "297-0",
-            "border-tiny"
-          ];
-          for (const preloadImage of preloadImages) {
-            const link = document.createElement('link');
-            link.setAttribute("rel", "preload");
-            link.setAttribute("as", "image");
-            link.setAttribute("href", `/ui/${preloadImage + (darkMode ? '-dark' : '')}.png`);
-            document.head.appendChild(link);
-          }
         }
       };
 
@@ -147,7 +131,7 @@
 
     <rs-tooltip></rs-tooltip>
     <confirm-dialog class="dialog"></confirm-dialog>
-    <script async type="module" src="/app.js"></script>
+    <script>{{js}}</script>
     <app-route route-path="*" route-redirect="/"></app-route>
   </body>
 </html>

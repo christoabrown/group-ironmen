@@ -53,6 +53,17 @@ const htmlBuildPlugin = {
   name: "htmlBuild",
   setup(build) {
     const components = JSON.parse(fs.readFileSync('components.json', 'utf8'));
+    const imagesToInline = [
+      "/ui/border-button.png",
+      "/ui/border-button-dark.png",
+      "/ui/checkbox.png",
+      "/ui/border.png",
+      "/ui/border-dark.png",
+      "/ui/border-tiny.png",
+      "/ui/border-tiny-dark.png",
+      "/ui/297-0.png",
+      "/ui/297-0-dark.png"
+    ];
 
     build.onEnd(async () => {
       let htmlFile = await fs.promises.readFile("src/index.html", "utf8");
@@ -60,10 +71,19 @@ const htmlBuildPlugin = {
       const cssFiles = ['src/main.css', ...components.map((component) => `./src/${component}/${component}.css`)];
       const cssReadResults = await Promise.all(cssFiles.map((cssFile) => fs.promises.readFile(cssFile, "utf8")));
       let css = cssReadResults.join('');
+
+      for (imagePath of imagesToInline) {
+        const imageData = await fs.promises.readFile(`public/${imagePath}`, "base64");
+        css = css.replace(imagePath, `data:image/png;base64,${imageData}`);
+      }
+
       if (productionMode) {
         css = cleanCSSInstance.minify(css).styles;
       }
       htmlFile = htmlFile.replace("{{style}}", css);
+
+      const jsContent = await fs.promises.readFile('public/app.js', 'utf8');
+      htmlFile = htmlFile.replace("{{js}}", jsContent);
 
       await fs.promises.writeFile("public/index.html", htmlFile);
     });
@@ -89,11 +109,12 @@ const minifyJsPlugin = {
           keep_fnames: false,
           module: true,
           reserved: [],
-          toplevel: true,
+          toplevel: true
         },
         compress: {
           ecma: "2017"
-        }
+        },
+        module: true
       });
 
       await fs.promises.writeFile("public/app.js", result.code);
@@ -110,7 +131,7 @@ function build() {
     minify: false,
     format: 'esm',
     outfile: 'public/app.js',
-    plugins: [componentBuildPlugin, htmlBuildPlugin, minifyJsPlugin, buildLoggingPlugin]
+    plugins: [componentBuildPlugin, minifyJsPlugin, htmlBuildPlugin, buildLoggingPlugin]
   }).catch((error) => console.error(error));
 }
 

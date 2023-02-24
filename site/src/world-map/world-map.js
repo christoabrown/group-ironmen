@@ -258,6 +258,7 @@ export class WorldMap extends BaseElement {
     if (!WorldMap.leafletScriptTag) {
       WorldMap.leafletScriptTag = document.createElement("script");
       WorldMap.leafletScriptTag.src = "https://unpkg.com/leaflet@1.9.2/dist/leaflet.js";
+      WorldMap.leafletScriptTag.setAttribute("defer", "");
       document.body.appendChild(WorldMap.leafletScriptTag);
     }
     while (typeof L !== "object") {

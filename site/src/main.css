@@ -8,6 +8,9 @@
   --invalid: #ee0d0d;
   --graph-grid-border: rgba(255, 255, 255, 0.05);
   --orange: #ff981f;
+
+  --rsbackground: url(/ui/297-0.png);
+  --rsbackground-dark: url(/ui/297-0-dark.png);
 }
 
 html,
@@ -343,20 +346,20 @@ ul {
 }
 
 .rsbackground {
-  background: url(/ui/297-0.png);
+  background: var(--rsbackground);
   background-repeat: repeat;
 }
 
 .dark-mode .rsbackground {
-  background: url(/ui/297-0-dark.png);
+  background: var(--rsbackground-dark);
 }
 
 .rsbackground-hover:hover {
-  background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), url(/ui/297-0.png);
+  background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), var(--rsbackground);
 }
 
 .dark-mode .rsbackground-hover:hover {
-  background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), url(/ui/297-0-dark.png);
+  background: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1)), var(--rsbackground-dark);
 }
 
 .no-pointer-events {
