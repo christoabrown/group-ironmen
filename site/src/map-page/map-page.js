@@ -51,7 +51,7 @@ export class MapPage extends BaseElement {
     let playerButtons = "";
     for (const member of members) {
       if (member.name === "@SHARED") continue;
-      playerButtons += `<button type="button" class="men-button">${member.name}</button>`;
+      playerButtons += `<button type="button" class="men-button" player-name="${member.name}">${member.name}</button>`;
     }
 
     if (this.playerButtons) {
@@ -61,7 +61,7 @@ export class MapPage extends BaseElement {
 
   handleFocusPlayer(event) {
     const target = event.target;
-    const playerName = target.innerText;
+    const playerName = target.getAttribute("player-name");
     this.worldMap.followPlayer(playerName);
   }
 }
