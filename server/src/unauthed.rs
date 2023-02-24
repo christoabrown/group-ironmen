@@ -159,17 +159,20 @@ pub async fn create_group(
         }
     }
 
+    if create_group_inner.member_names.len() > 5 {
+        return Ok(HttpResponse::BadRequest().body("Too many member names provided"));
+    }
+
     create_group_inner.name = create_group_inner.name.trim().to_string();
     if !valid_name(&create_group_inner.name) {
         return Ok(HttpResponse::BadRequest().body("Provided group name is not valid"));
     }
 
-    for i in 0..create_group_inner.member_names.len() {
-        create_group_inner.member_names[i] = create_group_inner.member_names[i].trim().to_string();
-        let member_name = &create_group_inner.member_names[i];
-        if !member_name.is_empty() && !valid_name(member_name) {
+    create_group_inner.member_names.retain(|member_name| member_name.trim().len() > 0);
+    for member_name in &create_group_inner.member_names {
+        if !valid_name(&member_name) {
             return Ok(HttpResponse::BadRequest()
-                .body(format!("Member name {} is not valid", member_name)));
+                      .body(format!("Member name {} is not valid", member_name)));
         }
     }
 

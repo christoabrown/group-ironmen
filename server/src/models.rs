@@ -226,7 +226,7 @@ pub type GroupSkillData = Vec<MemberSkillData>;
 #[serde(deny_unknown_fields)]
 pub struct CreateGroup {
     pub name: String,
-    pub member_names: [String; 5],
+    pub member_names: Vec<String>,
     #[serde(default, skip_serializing)]
     pub captcha_response: String,
     #[serde(default = "default_token")]

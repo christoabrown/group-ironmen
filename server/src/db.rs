@@ -34,12 +34,10 @@ pub async fn create_group(client: &mut Client, create_group: &CreateGroup) -> Re
         .await
         .map_err(ApiError::GroupCreationError)?;
     for member_name in &create_group.member_names {
-        if !member_name.is_empty() {
-            transaction
-                .execute(&create_member_stmt, &[&group_id, &member_name])
-                .await
-                .map_err(ApiError::GroupCreationError)?;
-        }
+        transaction
+            .execute(&create_member_stmt, &[&group_id, &member_name])
+            .await
+            .map_err(ApiError::GroupCreationError)?;
     }
 
     transaction

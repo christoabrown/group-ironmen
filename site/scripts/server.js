@@ -39,6 +39,7 @@ if (backend) {
   app.use(express.json());
   app.use('/api*', (req, res, next) => {
     const forwardUrl = backend + req.originalUrl;
+    console.log(`Calling backend ${forwardUrl}`);
     const headers = Object.assign({}, req.headers);
     delete headers.host;
     delete headers.referer;

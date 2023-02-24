@@ -18,6 +18,8 @@ mod valid_name_tests {
             "MiXeD case-123",
             "0123456789",
             "underscore_name",
+            " space",
+            "space "
         ];
 
         for name in valid_names {
@@ -51,6 +53,7 @@ mod valid_name_tests {
             "~",
             "",
             " ",
+            "                 "
         ];
 
         for name in invalid_names {
@@ -68,6 +71,6 @@ pub fn valid_name(name: &str) -> bool {
         static ref NAME_RE: Regex = Regex::new("[^A-Za-z 0-9-_]").unwrap();
     }
 
-    let len = name.trim().len();
-    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name)
+    let len = name.len();
+    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && name.trim().len() > 0
 }
