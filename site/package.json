@@ -5,10 +5,10 @@
   "devDependencies": {
     "axios": "^0.26.1",
     "chokidar": "^3.5.3",
-    "clean-css": "^5.2.1",
+    "clean-css": "^5.3.2",
     "compression": "^1.7.4",
     "concurrently": "^6.2.2",
-    "esbuild": "^0.14.32",
+    "esbuild": "^0.17.10",
     "eslint": "^7.32.0",
     "express": "^4.17.1",
     "express-winston": "^4.2.0",
@@ -16,11 +16,11 @@
     "husky": "^7.0.2",
     "jsdom": "^17.0.0",
     "prettier": "^2.4.1",
-    "terser": "^5.12.1",
+    "terser": "^5.16.5",
     "winston": "^3.3.3"
   },
   "scripts": {
-    "bundle": "npm run clean && node build.js --prod && node scripts/hash.js",
+    "bundle": "npm run clean && node build.js --prod",
     "clean": "node scripts/clean.js",
     "start": "concurrently \"npm run watch\" \"npm run serve -- --backend https://groupiron.men\"",
     "start:local-api": "concurrently \"npm run watch\" \"npm run serve -- --backend http://localhost:8080\"",
