@@ -4,6 +4,7 @@ item-box {
   justify-content: center;
   align-items: center;
   image-rendering: -webkit-optimize-contrast;
+  image-rendering: optimizequality;
 }
 
 .item-box__image {

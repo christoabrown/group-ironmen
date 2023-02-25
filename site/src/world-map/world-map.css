@@ -8,7 +8,9 @@ world-map {
   pointer-events: none;
 }
 
-.leaflet-tile {
+.leaflet-tile-container img {
+  will-change: transform;
+  outline: 1px solid transparent;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }

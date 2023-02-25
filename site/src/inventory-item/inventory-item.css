@@ -35,10 +35,11 @@ inventory-item.rendered {
 }
 
 .inventory-item__picture {
-  width: 50px;
-  min-height: 45px;
-  min-width: 50px;
+  width: 63px;
+  min-height: 56px;
+  min-width: 63px;
   border: none;
+  image-rendering: optimizequality;
 }
 
 .inventory-item__bottom {

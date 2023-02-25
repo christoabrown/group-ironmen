@@ -273,7 +273,7 @@ export class WorldMap extends BaseElement {
       L.GridLayer.include({
         _initTile: function (tile) {
           originalInitTile.call(this, tile);
-          const tilePadding = 2;
+          const tilePadding = 1;
           const tileSize = this.getTileSize();
           tile.style.width = tileSize.x + tilePadding + "px";
           tile.style.height = tileSize.y + tilePadding + "px";

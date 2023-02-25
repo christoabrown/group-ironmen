@@ -1,7 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { storage } from "../data/storage";
-import { exampleData } from "../data/example-data";
 
 export class MenHomepage extends BaseElement {
   constructor() {
@@ -14,17 +13,11 @@ export class MenHomepage extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    exampleData.enable();
-    api.exampleDataEnabled = true;
-    api.enable();
     this.render();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    exampleData.disable();
-    api.exampleDataEnabled = false;
-    api.disable();
   }
 
   get hasLogin() {
