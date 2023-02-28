@@ -27,8 +27,5 @@ then
 fi
 echo "$BACKEND_SECRET" >> $SECRET_FILE
 
-echo "[entrypoint] Running build"
-cargo run build --release
-
 echo "[entrypoint] Running run"
 exec "$@"

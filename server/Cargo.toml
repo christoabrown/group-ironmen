@@ -6,27 +6,35 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio-postgres = { version = "0.7.5", features = ["with-serde_json-1", "with-chrono-0_4"] }
+tokio-postgres = { version = "0.7.7", features = ["with-serde_json-1", "with-chrono-0_4"] }
 actix-web = "4"
-tokio = { version = "1.18.2", features = ["time"] }
-serde = { version = "1.0.136", features = ["derive"] }
-deadpool-postgres = { version = "0.10.2", features = ["serde"] }
+tokio = { version = "1.25.0", features = ["time"] }
+serde = { version = "1.0.152", features = ["derive"] }
+deadpool-postgres = { version = "0.10.5", features = ["serde"] }
 config = "0.13.1"
 derive_more = "0.99.17"
 env_logger = { version = "0.9.0", default-features = false, features = ["termcolor", "atty", "humantime"] }
 log = "0.4.16"
-serde_json = "1.0.79"
+serde_json = "1.0.93"
 futures = "0.3.21"
 uuid = { version = "0.8.2", features = ["v4"] }
 actix-service = "2.0.2"
-chrono = { version = "0.4.19", features = ["serde"] }
+chrono = { version = "0.4.23", features = ["serde"] }
 actix-cors = "0.6.1"
-blake2 = "0.10.4"
+blake2 = "0.10.6"
 data-encoding = { version = "2.3.2", features = ["alloc"] }
 lazy_static = "1.4.0"
 regex = "1.5.5"
 arc-swap = "1.5.0"
-reqwest = { version = "0.11.10", features = ["json"] }
+reqwest = { version = "0.11.14", features = ["json"] }
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
 
 [profile.release]
 lto = true

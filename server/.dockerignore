@@ -4,3 +4,8 @@
 **/prettier*
 README.md
 .gitignore
+config.toml
+Dockerfile
+secret
+target
+.dockerignore
