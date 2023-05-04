@@ -14,7 +14,7 @@ function getArgValue(arg) {
   return args[i + 1];
 }
 
-const backend = getArgValue('--backend');
+const backend = getArgValue('--backend') === undefined ? process.env.HOST_URL : getArgValue('--backend');
 
 app.use(expressWinston.logger({
   transports: [
