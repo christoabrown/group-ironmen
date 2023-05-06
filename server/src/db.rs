@@ -210,8 +210,10 @@ UPDATE groupironman.members SET
   seed_vault = COALESCE($10, seed_vault),
   seed_vault_last_update = CASE WHEN $10 IS NULL THEN seed_vault_last_update ELSE NOW() END,
   diary_vars = COALESCE($11, diary_vars),
-  diary_vars_last_update = CASE WHEN $11 IS NULL THEN diary_vars_last_update ELSE NOW() END
-  WHERE group_id=$12 AND member_name=$13
+  diary_vars_last_update = CASE WHEN $11 IS NULL THEN diary_vars_last_update ELSE NOW() END,
+  tackle_box = COALESCE($12, tackle_box),
+  tackle_box_last_update = CASE WHEN $12 IS NULL THEN tackle_box_last_update ELSE NOW() END
+  WHERE group_id=$13 AND member_name=$14
 "#,
         )
         .await?;
@@ -240,6 +242,9 @@ UPDATE groupironman.members SET
                     .seed_vault
                     .map(|x| serialize_item_slice(x.as_slice())),
                 &group_member.diary_vars,
+                &group_member
+                    .tackle_box
+                    .map(|x| serialize_item_slice(x.as_slice())),
                 &group_id,
                 &group_member.name,
             ],
@@ -394,7 +399,7 @@ pub async fn get_group_data(
 SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
-rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update) as last_updated,
+rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update, tackle_box_last_update) as last_updated,
 CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
 CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
 CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,
@@ -405,7 +410,8 @@ CASE WHEN bank_last_update >= $1::TIMESTAMPTZ THEN bank ELSE NULL END as bank,
 CASE WHEN rune_pouch_last_update >= $1::TIMESTAMPTZ THEN rune_pouch ELSE NULL END as rune_pouch,
 CASE WHEN interacting_last_update >= $1::TIMESTAMPTZ THEN interacting ELSE NULL END as interacting,
 CASE WHEN seed_vault_last_update >= $1::TIMESTAMPTZ THEN seed_vault ELSE NULL END as seed_vault,
-CASE WHEN diary_vars_last_update >= $1::TIMESTAMPTZ THEN diary_vars ELSE NULL END as diary_vars
+CASE WHEN diary_vars_last_update >= $1::TIMESTAMPTZ THEN diary_vars ELSE NULL END as diary_vars,
+CASE WHEN tackle_box_last_update >= $1::TIMESTAMPTZ THEN tackle_box ELSE NULL END as tackle_box
 FROM groupironman.members WHERE group_id=$2
 "#,
         )
@@ -433,6 +439,7 @@ FROM groupironman.members WHERE group_id=$2
             seed_vault: row.try_get("seed_vault").ok(),
             interacting: try_deserialize_json_column(&row, "interacting")?,
             diary_vars: row.try_get("diary_vars").ok(),
+            tackle_box: row.try_get("tackle_box").ok(),
         };
         result.push(group_member);
     }
@@ -751,7 +758,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS members_groupid_name_idx ON groupironman.membe
             r#"
 ALTER TABLE groupironman.members
 ADD COLUMN IF NOT EXISTS diary_vars_last_update TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS diary_vars INTEGER[62]
+ADD COLUMN IF NOT EXISTS diary_vars INTEGER[62],
+ADD COLUMN IF NOT EXISTS tackle_box_last_update TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS tackle_box INTEGER[32]
 "#,
             &[],
         )

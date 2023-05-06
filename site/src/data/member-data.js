@@ -14,6 +14,7 @@ export class MemberData {
       equipment: new Map(),
       runePouch: new Map(),
       seedVault: new Map(),
+      tackleBox: new Map(),
     };
     this.inactive = false;
   }
@@ -108,6 +109,13 @@ export class MemberData {
       this.publishUpdate("diaries");
     }
 
+    if (memberData.tackle_box) {
+      this.tackleBox = Item.parseItemData(memberData.tackle_box);
+      this.updateItemQuantitiesIn("tackleBox");
+      this.publishUpdate("tackleBox");
+      updatedAttributes.add("tackleBox");
+    }
+
     return updatedAttributes;
   }
 
@@ -121,7 +129,8 @@ export class MemberData {
       (this.itemQuantities.equipment.get(itemId) || 0) +
       (this.itemQuantities.inventory.get(itemId) || 0) +
       (this.itemQuantities.runePouch.get(itemId) || 0) +
-      (this.itemQuantities.seedVault.get(itemId) || 0)
+      (this.itemQuantities.seedVault.get(itemId) || 0) +
+      (this.itemQuantities.tackleBox.get(itemId) || 0)
     );
   }
 
@@ -135,7 +144,7 @@ export class MemberData {
 
   *allItems() {
     const yieldedIds = new Set();
-    for (const item of this.itemsIn("inventory", "bank", "equipment", "runePouch", "seedVault")) {
+    for (const item of this.itemsIn("inventory", "bank", "equipment", "runePouch", "seedVault", "tackleBox")) {
       if (!yieldedIds.has(item.id)) {
         yieldedIds.add(item.id);
         yield item;
