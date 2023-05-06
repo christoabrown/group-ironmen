@@ -33,406 +33,410 @@ import net.runelite.cache.definitions.providers.ModelProvider;
 import net.runelite.cache.definitions.providers.SpriteProvider;
 import net.runelite.cache.definitions.providers.TextureProvider;
 import net.runelite.cache.models.FaceNormal;
+import net.runelite.cache.models.JagexColor;
 import net.runelite.cache.models.VertexNormal;
 
 public class ItemSpriteFactory
 {
-  public static final BufferedImage createSprite(ItemProvider itemProvider, ModelProvider modelProvider,
-                                                 SpriteProvider spriteProvider, TextureProvider textureProvider,
-                                                 int itemId, int quantity, int border, int shadowColor,
-                                                 boolean noted) throws IOException
-  {
-    SpritePixels spritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
-                                                   itemId, quantity, border, shadowColor, noted);
-    return spritePixels == null ? null : spritePixels.toBufferedImage();
-  }
-
-  private static final SpritePixels createSpritePixels(ItemProvider itemProvider, ModelProvider modelProvider,
-                                                       SpriteProvider spriteProvider, TextureProvider textureProvider,
-                                                       int itemId, int quantity, int border, int shadowColor,
-                                                       boolean noted) throws IOException
-  {
-    ItemDefinition item = itemProvider.provide(itemId);
-
-    if (quantity > 1 && item.countObj != null)
+    public static BufferedImage createSprite(ItemProvider itemProvider, ModelProvider modelProvider,
+                                             SpriteProvider spriteProvider, TextureProvider textureProvider,
+                                             int itemId, int quantity, int border, int shadowColor,
+                                             boolean noted) throws IOException
     {
-      int stackItemID = -1;
+        SpritePixels spritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
+                                                       itemId, quantity, border, shadowColor, noted);
+        return spritePixels == null ? null : spritePixels.toBufferedImage();
+    }
 
-      for (int i = 0; i < 10; ++i)
-      {
-        if (quantity >= item.countCo[i] && item.countCo[i] != 0)
-        {
-          stackItemID = item.countObj[i];
+    private static SpritePixels createSpritePixels(ItemProvider itemProvider, ModelProvider modelProvider,
+                                                   SpriteProvider spriteProvider, TextureProvider textureProvider,
+                                                   int itemId, int quantity, int border, int shadowColor,
+                                                   boolean noted) throws IOException
+    {
+        ItemDefinition item = itemProvider.provide(itemId);
+
+        if (quantity > 1 && item.countObj != null)
+            {
+                int stackItemID = -1;
+
+                for (int i = 0; i < 10; ++i)
+                    {
+                        if (quantity >= item.countCo[i] && item.countCo[i] != 0)
+                            {
+                                stackItemID = item.countObj[i];
+                            }
+                    }
+
+                if (stackItemID != -1)
+                    {
+                        item = itemProvider.provide(stackItemID);
+                    }
+            }
+
+        Model itemModel = getModel(modelProvider, item);
+        if (itemModel == null)
+            {
+                return null;
+            }
+
+        SpritePixels auxSpritePixels = null;
+        if (item.notedTemplate != -1)
+            {
+                auxSpritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
+                                                     item.notedID, 10, 1, 0, true);
+                if (auxSpritePixels == null)
+                    {
+                        return null;
+                    }
+            }
+        else if (item.boughtTemplateId != -1)
+            {
+                auxSpritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
+                                                     item.boughtId, quantity, border, 0, false);
+                if (auxSpritePixels == null)
+                    {
+                        return null;
+                    }
+            }
+        else if (item.placeholderTemplateId != -1)
+            {
+                auxSpritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
+                                                     item.placeholderId, quantity, 0, 0, false);
+                if (auxSpritePixels == null)
+                    {
+                        return null;
+                    }
+            }
+
+        RSTextureProvider rsTextureProvider = new RSTextureProvider(textureProvider, spriteProvider);
+
+        int width = 36 * 2;
+        int height = 32 * 2;
+        SpritePixels spritePixels = new SpritePixels(width, height);
+        Graphics3D graphics = new Graphics3D(rsTextureProvider);
+        graphics.setBrightness(JagexColor.BRIGHTNESS_MAX);
+        graphics.setRasterBuffer(spritePixels.pixels, width, height);
+        graphics.reset();
+        graphics.setRasterClipping();
+        graphics.setOffset(16 * 2, 16 * 2);
+        graphics.rasterGouraudLowRes = false;
+        if (item.placeholderTemplateId != -1)
+            {
+                auxSpritePixels.drawAtOn(graphics, 0, 0);
+            }
+
+        int zoom2d;
+        // The holy symbol item for some reason needs a different zoom value otherwise it gets cut off
+        if (itemId == 1716 || itemId == 1718) {
+            zoom2d = (int) (((double) item.zoom2d) / 1.5D);
+        } else {
+            zoom2d = (int) (((double) item.zoom2d) / 1.95D);
         }
-      }
 
-      if (stackItemID != -1)
-      {
-        item = itemProvider.provide(stackItemID);
-      }
+        if (noted)
+            {
+                zoom2d = (int) ((double) zoom2d * 1.5D);
+            }
+        else if (border == 2)
+            {
+                zoom2d = (int) ((double) zoom2d * 1.04D);
+            }
+
+        int var17 = zoom2d * Graphics3D.SINE[item.xan2d] >> 16;
+        int var18 = zoom2d * Graphics3D.COSINE[item.xan2d] >> 16;
+
+        itemModel.calculateBoundsCylinder();
+        itemModel.projectAndDraw(graphics, 0,
+                                 item.yan2d,
+                                 item.zan2d,
+                                 item.xan2d,
+                                 item.xOffset2d,
+                                 itemModel.modelHeight / 2 + var17 + item.yOffset2d,
+                                 var18 + item.yOffset2d);
+        if (item.boughtTemplateId != -1)
+            {
+                auxSpritePixels.drawAtOn(graphics, 0, 0);
+            }
+
+        if (border >= 1)
+            {
+                spritePixels.drawBorder(1);
+            }
+
+        if (border >= 2)
+            {
+                spritePixels.drawBorder(0xffffff);
+            }
+
+        if (shadowColor != 0)
+            {
+                spritePixels.drawShadow(shadowColor);
+            }
+
+        graphics.setRasterBuffer(spritePixels.pixels, width, height);
+        if (item.notedTemplate != -1)
+            {
+                auxSpritePixels.drawAtOn(graphics, 0, 0);
+            }
+
+        graphics.setRasterBuffer(graphics.graphicsPixels,
+                                 graphics.graphicsPixelsWidth,
+                                 graphics.graphicsPixelsHeight);
+
+        graphics.setRasterClipping();
+        graphics.rasterGouraudLowRes = true;
+        return spritePixels;
     }
 
-    Model itemModel = getModel(modelProvider, item);
-    if (itemModel == null)
+    private static Model getModel(ModelProvider modelProvider, ItemDefinition item) throws IOException
     {
-      return null;
+        Model itemModel;
+        ModelDefinition inventoryModel = modelProvider.provide(item.inventoryModel);
+        if (inventoryModel == null)
+            {
+                return null;
+            }
+
+        if (item.resizeX != 128 || item.resizeY != 128 || item.resizeZ != 128)
+            {
+                inventoryModel.resize(item.resizeX, item.resizeY, item.resizeZ);
+            }
+
+        if (item.colorFind != null)
+            {
+                for (int i = 0; i < item.colorFind.length; ++i)
+                    {
+                        inventoryModel.recolor(item.colorFind[i], item.colorReplace[i]);
+                    }
+            }
+
+        if (item.textureFind != null)
+            {
+                for (int i = 0; i < item.textureFind.length; ++i)
+                    {
+                        inventoryModel.retexture(item.textureFind[i], item.textureReplace[i]);
+                    }
+            }
+
+        itemModel = light(inventoryModel, item.ambient + 64, item.contrast + 768, -50, -10, -50);
+        return itemModel;
     }
 
-    SpritePixels auxSpritePixels = null;
-    if (item.notedTemplate != -1)
+    private static Model light(ModelDefinition def, int ambient, int contrast, int x, int y, int z)
     {
-      auxSpritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
-                                           item.notedID, 10, 1, 0, true);
-      if (auxSpritePixels == null)
-      {
-        return null;
-      }
+        def.computeNormals();
+        int somethingMagnitude = (int) Math.sqrt((double) (z * z + x * x + y * y));
+        int var7 = somethingMagnitude * contrast >> 8;
+        Model litModel = new Model();
+        litModel.faceColors1 = new int[def.faceCount];
+        litModel.faceColors2 = new int[def.faceCount];
+        litModel.faceColors3 = new int[def.faceCount];
+        if (def.numTextureFaces > 0 && def.textureCoords != null)
+            {
+                int[] var9 = new int[def.numTextureFaces];
+
+                int var10;
+                for (var10 = 0; var10 < def.faceCount; ++var10)
+                    {
+                        if (def.textureCoords[var10] != -1)
+                            {
+                                ++var9[def.textureCoords[var10] & 255];
+                            }
+                    }
+
+                litModel.numTextureFaces = 0;
+
+                for (var10 = 0; var10 < def.numTextureFaces; ++var10)
+                    {
+                        if (var9[var10] > 0 && def.textureRenderTypes[var10] == 0)
+                            {
+                                ++litModel.numTextureFaces;
+                            }
+                    }
+
+                litModel.texIndices1 = new int[litModel.numTextureFaces];
+                litModel.texIndices2 = new int[litModel.numTextureFaces];
+                litModel.texIndices3 = new int[litModel.numTextureFaces];
+                var10 = 0;
+
+
+                for (int i = 0; i < def.numTextureFaces; ++i)
+                    {
+                        if (var9[i] > 0 && def.textureRenderTypes[i] == 0)
+                            {
+                                litModel.texIndices1[var10] = def.texIndices1[i] & '\uffff';
+                                litModel.texIndices2[var10] = def.texIndices2[i] & '\uffff';
+                                litModel.texIndices3[var10] = def.texIndices3[i] & '\uffff';
+                                var9[i] = var10++;
+                            }
+                        else
+                            {
+                                var9[i] = -1;
+                            }
+                    }
+
+                litModel.textureCoords = new byte[def.faceCount];
+
+                for (int i = 0; i < def.faceCount; ++i)
+                    {
+                        if (def.textureCoords[i] != -1)
+                            {
+                                litModel.textureCoords[i] = (byte) var9[def.textureCoords[i] & 255];
+                            }
+                        else
+                            {
+                                litModel.textureCoords[i] = -1;
+                            }
+                    }
+            }
+
+        for (int faceIdx = 0; faceIdx < def.faceCount; ++faceIdx)
+            {
+                byte faceType;
+                if (def.faceRenderTypes == null)
+                    {
+                        faceType = 0;
+                    }
+                else
+                    {
+                        faceType = def.faceRenderTypes[faceIdx];
+                    }
+
+                byte faceAlpha;
+                if (def.faceTransparencies == null)
+                    {
+                        faceAlpha = 0;
+                    }
+                else
+                    {
+                        faceAlpha = def.faceTransparencies[faceIdx];
+                    }
+
+                short faceTexture;
+                if (def.faceTextures == null)
+                    {
+                        faceTexture = -1;
+                    }
+                else
+                    {
+                        faceTexture = def.faceTextures[faceIdx];
+                    }
+
+                if (faceAlpha == -2)
+                    {
+                        faceType = 3;
+                    }
+
+                if (faceAlpha == -1)
+                    {
+                        faceType = 2;
+                    }
+
+                VertexNormal vertexNormal;
+                int tmp;
+                FaceNormal faceNormal;
+                if (faceTexture == -1)
+                    {
+                        if (faceType != 0)
+                            {
+                                if (faceType == 1)
+                                    {
+                                        faceNormal = def.faceNormals[faceIdx];
+                                        tmp = (y * faceNormal.y + z * faceNormal.z + x * faceNormal.x) / (var7 / 2 + var7) + ambient;
+                                        litModel.faceColors1[faceIdx] = method2608(def.faceColors[faceIdx] & '\uffff', tmp);
+                                        litModel.faceColors3[faceIdx] = -1;
+                                    }
+                                else if (faceType == 3)
+                                    {
+                                        litModel.faceColors1[faceIdx] = 128;
+                                        litModel.faceColors3[faceIdx] = -1;
+                                    }
+                                else
+                                    {
+                                        litModel.faceColors3[faceIdx] = -2;
+                                    }
+                            }
+                        else
+                            {
+                                int var15 = def.faceColors[faceIdx] & '\uffff';
+                                vertexNormal = def.vertexNormals[def.faceIndices1[faceIdx]];
+
+                                tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
+                                litModel.faceColors1[faceIdx] = method2608(var15, tmp);
+                                vertexNormal = def.vertexNormals[def.faceIndices2[faceIdx]];
+
+                                tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
+                                litModel.faceColors2[faceIdx] = method2608(var15, tmp);
+                                vertexNormal = def.vertexNormals[def.faceIndices3[faceIdx]];
+
+                                tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
+                                litModel.faceColors3[faceIdx] = method2608(var15, tmp);
+                            }
+                    }
+                else if (faceType != 0)
+                    {
+                        if (faceType == 1)
+                            {
+                                faceNormal = def.faceNormals[faceIdx];
+                                tmp = (y * faceNormal.y + z * faceNormal.z + x * faceNormal.x) / (var7 / 2 + var7) + ambient;
+                                litModel.faceColors1[faceIdx] = bound2to126(tmp);
+                                litModel.faceColors3[faceIdx] = -1;
+                            }
+                        else
+                            {
+                                litModel.faceColors3[faceIdx] = -2;
+                            }
+                    }
+                else
+                    {
+                        vertexNormal = def.vertexNormals[def.faceIndices1[faceIdx]];
+
+                        tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
+                        litModel.faceColors1[faceIdx] = bound2to126(tmp);
+                        vertexNormal = def.vertexNormals[def.faceIndices2[faceIdx]];
+
+                        tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
+                        litModel.faceColors2[faceIdx] = bound2to126(tmp);
+                        vertexNormal = def.vertexNormals[def.faceIndices3[faceIdx]];
+
+                        tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
+                        litModel.faceColors3[faceIdx] = bound2to126(tmp);
+                    }
+            }
+
+        litModel.verticesCount = def.vertexCount;
+        litModel.verticesX = def.vertexX;
+        litModel.verticesY = def.vertexY;
+        litModel.verticesZ = def.vertexZ;
+        litModel.indicesCount = def.faceCount;
+        litModel.indices1 = def.faceIndices1;
+        litModel.indices2 = def.faceIndices2;
+        litModel.indices3 = def.faceIndices3;
+        litModel.facePriorities = def.faceRenderPriorities;
+        litModel.faceTransparencies = def.faceTransparencies;
+        litModel.faceTextures = def.faceTextures;
+        return litModel;
     }
-    else if (item.boughtTemplateId != -1)
+
+    static int method2608(int var0, int var1)
     {
-      auxSpritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
-                                           item.boughtId, quantity, border, 0, false);
-      if (auxSpritePixels == null)
-      {
-        return null;
-      }
+        var1 = ((var0 & 127) * var1) >> 7;
+        var1 = bound2to126(var1);
+
+        return (var0 & 65408) + var1;
     }
-    else if (item.placeholderTemplateId != -1)
+
+    static int bound2to126(int var0)
     {
-      auxSpritePixels = createSpritePixels(itemProvider, modelProvider, spriteProvider, textureProvider,
-                                           item.placeholderId, quantity, 0, 0, false);
-      if (auxSpritePixels == null)
-      {
-        return null;
-      }
+        if (var0 < 2)
+            {
+                var0 = 2;
+            }
+        else if (var0 > 126)
+            {
+                var0 = 126;
+            }
+
+        return var0;
     }
-
-    RSTextureProvider rsTextureProvider = new RSTextureProvider(textureProvider, spriteProvider);
-
-    final int width = 36 * 2;
-    final int height = 32 * 2;
-
-    SpritePixels spritePixels = new SpritePixels(width, height);
-    Graphics3D graphics = new Graphics3D(rsTextureProvider);
-    graphics.setBrightness(0.6d);
-    graphics.setRasterBuffer(spritePixels.pixels, width, height);
-    graphics.reset();
-    graphics.setRasterClipping();
-    graphics.setOffset(16 * 2, 16 * 2);
-    graphics.rasterGouraudLowRes = false;
-    if (item.placeholderTemplateId != -1)
-    {
-      auxSpritePixels.drawAtOn(graphics, 0, 0);
-    }
-
-    int zoom2d = (int) (((double) item.zoom2d) / 1.95D);
-    if (noted)
-    {
-      zoom2d = (int) ((double) zoom2d * 1.5D);
-    }
-    else if (border == 2)
-    {
-      zoom2d = (int) ((double) zoom2d * 1.04D);
-    }
-
-    int var17 = zoom2d * Graphics3D.SINE[item.xan2d] >> 16;
-    int var18 = zoom2d * Graphics3D.COSINE[item.xan2d] >> 16;
-
-    final int xOffset2d = item.xOffset2d;
-    final int yOffset2d = item.yOffset2d;
-
-    itemModel.calculateBoundsCylinder();
-    itemModel.rotateAndProject(graphics, 0,
-                               item.yan2d,
-                               item.zan2d,
-                               item.xan2d,
-                               xOffset2d,
-                               itemModel.modelHeight / 2 + var17 + yOffset2d,
-                               var18 + yOffset2d);
-    if (item.boughtTemplateId != -1)
-    {
-      auxSpritePixels.drawAtOn(graphics, 0, 0);
-    }
-
-    if (border >= 1)
-    {
-      spritePixels.drawBorder(1);
-    }
-
-    if (border >= 2)
-    {
-      spritePixels.drawBorder(0xffffff);
-    }
-
-    if (shadowColor != 0)
-    {
-      spritePixels.drawShadow(shadowColor);
-    }
-
-    graphics.setRasterBuffer(spritePixels.pixels, width, height);
-    if (item.notedTemplate != -1)
-    {
-      auxSpritePixels.drawAtOn(graphics, 0, 0);
-    }
-
-    graphics.setRasterBuffer(graphics.graphicsPixels, width, height);
-
-    graphics.setRasterClipping();
-    graphics.rasterGouraudLowRes = true;
-    return spritePixels;
-  }
-
-  private static Model getModel(ModelProvider modelProvider, ItemDefinition item) throws IOException
-  {
-    Model itemModel;
-    ModelDefinition inventoryModel = modelProvider.provide(item.inventoryModel);
-    if (inventoryModel == null)
-    {
-      return null;
-    }
-
-    if (item.resizeX != 128 || item.resizeY != 128 || item.resizeZ != 128)
-    {
-      inventoryModel.resize(item.resizeX, item.resizeY, item.resizeZ);
-    }
-
-    if (item.colorFind != null)
-    {
-      for (int i = 0; i < item.colorFind.length; ++i)
-      {
-        inventoryModel.recolor(item.colorFind[i], item.colorReplace[i]);
-      }
-    }
-
-    if (item.textureFind != null)
-    {
-      for (int i = 0; i < item.textureFind.length; ++i)
-      {
-        inventoryModel.retexture(item.textureFind[i], item.textureReplace[i]);
-      }
-    }
-
-    itemModel = light(inventoryModel, item.ambient + 64, item.contrast + 768, -50, -10, -50);
-    itemModel.isItemModel = true;
-    return itemModel;
-  }
-
-  private static Model light(ModelDefinition def, int ambient, int contrast, int x, int y, int z)
-  {
-    def.computeNormals();
-    int somethingMagnitude = (int) Math.sqrt((double) (z * z + x * x + y * y));
-    int var7 = somethingMagnitude * contrast >> 8;
-    Model litModel = new Model();
-    litModel.field1856 = new int[def.faceCount];
-    litModel.field1854 = new int[def.faceCount];
-    litModel.field1823 = new int[def.faceCount];
-    if (def.numTextureFaces > 0 && def.textureCoords != null)
-    {
-      int[] var9 = new int[def.numTextureFaces];
-
-      int var10;
-      for (var10 = 0; var10 < def.faceCount; ++var10)
-      {
-        if (def.textureCoords[var10] != -1)
-        {
-          ++var9[def.textureCoords[var10] & 255];
-        }
-      }
-
-      litModel.field1852 = 0;
-
-      for (var10 = 0; var10 < def.numTextureFaces; ++var10)
-      {
-        if (var9[var10] > 0 && def.textureRenderTypes[var10] == 0)
-        {
-          ++litModel.field1852;
-        }
-      }
-
-      litModel.field1844 = new int[litModel.field1852];
-      litModel.field1865 = new int[litModel.field1852];
-      litModel.field1846 = new int[litModel.field1852];
-      var10 = 0;
-
-
-      for (int i = 0; i < def.numTextureFaces; ++i)
-      {
-        if (var9[i] > 0 && def.textureRenderTypes[i] == 0)
-        {
-          litModel.field1844[var10] = def.texIndices1[i] & '\uffff';
-          litModel.field1865[var10] = def.texIndices2[i] & '\uffff';
-          litModel.field1846[var10] = def.texIndices3[i] & '\uffff';
-          var9[i] = var10++;
-        }
-        else
-        {
-          var9[i] = -1;
-        }
-      }
-
-      litModel.field1840 = new byte[def.faceCount];
-
-      for (int i = 0; i < def.faceCount; ++i)
-      {
-        if (def.textureCoords[i] != -1)
-        {
-          litModel.field1840[i] = (byte) var9[def.textureCoords[i] & 255];
-        }
-        else
-        {
-          litModel.field1840[i] = -1;
-        }
-      }
-    }
-
-    for (int faceIdx = 0; faceIdx < def.faceCount; ++faceIdx)
-    {
-      byte faceType;
-      if (def.faceRenderTypes == null)
-      {
-        faceType = 0;
-      }
-      else
-      {
-        faceType = def.faceRenderTypes[faceIdx];
-      }
-
-      byte faceAlpha;
-      if (def.faceTransparencies == null)
-      {
-        faceAlpha = 0;
-      }
-      else
-      {
-        faceAlpha = def.faceTransparencies[faceIdx];
-      }
-
-      short faceTexture;
-      if (def.faceTextures == null)
-      {
-        faceTexture = -1;
-      }
-      else
-      {
-        faceTexture = def.faceTextures[faceIdx];
-      }
-
-      if (faceAlpha == -2)
-      {
-        faceType = 3;
-      }
-
-      if (faceAlpha == -1)
-      {
-        faceType = 2;
-      }
-
-      VertexNormal vertexNormal;
-      int tmp;
-      FaceNormal faceNormal;
-      if (faceTexture == -1)
-      {
-        if (faceType != 0)
-        {
-          if (faceType == 1)
-          {
-            faceNormal = def.faceNormals[faceIdx];
-            tmp = (y * faceNormal.y + z * faceNormal.z + x * faceNormal.x) / (var7 / 2 + var7) + ambient;
-            litModel.field1856[faceIdx] = method2608(def.faceColors[faceIdx] & '\uffff', tmp);
-            litModel.field1823[faceIdx] = -1;
-          }
-          else if (faceType == 3)
-          {
-            litModel.field1856[faceIdx] = 128;
-            litModel.field1823[faceIdx] = -1;
-          }
-          else
-          {
-            litModel.field1823[faceIdx] = -2;
-          }
-        }
-        else
-        {
-          int var15 = def.faceColors[faceIdx] & '\uffff';
-          vertexNormal = def.vertexNormals[def.faceIndices1[faceIdx]];
-
-          tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
-          litModel.field1856[faceIdx] = method2608(var15, tmp);
-          vertexNormal = def.vertexNormals[def.faceIndices2[faceIdx]];
-
-          tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
-          litModel.field1854[faceIdx] = method2608(var15, tmp);
-          vertexNormal = def.vertexNormals[def.faceIndices3[faceIdx]];
-
-          tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
-          litModel.field1823[faceIdx] = method2608(var15, tmp);
-        }
-      }
-      else if (faceType != 0)
-      {
-        if (faceType == 1)
-        {
-          faceNormal = def.faceNormals[faceIdx];
-          tmp = (y * faceNormal.y + z * faceNormal.z + x * faceNormal.x) / (var7 / 2 + var7) + ambient;
-          litModel.field1856[faceIdx] = bound2to126(tmp);
-          litModel.field1823[faceIdx] = -1;
-        }
-        else
-        {
-          litModel.field1823[faceIdx] = -2;
-        }
-      }
-      else
-      {
-        vertexNormal = def.vertexNormals[def.faceIndices1[faceIdx]];
-
-        tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
-        litModel.field1856[faceIdx] = bound2to126(tmp);
-        vertexNormal = def.vertexNormals[def.faceIndices2[faceIdx]];
-
-        tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
-        litModel.field1854[faceIdx] = bound2to126(tmp);
-        vertexNormal = def.vertexNormals[def.faceIndices3[faceIdx]];
-
-        tmp = (y * vertexNormal.y + z * vertexNormal.z + x * vertexNormal.x) / (var7 * vertexNormal.magnitude) + ambient;
-        litModel.field1823[faceIdx] = bound2to126(tmp);
-      }
-    }
-
-    litModel.verticesCount = def.vertexCount;
-    litModel.verticesX = def.vertexX;
-    litModel.verticesY = def.vertexY;
-    litModel.verticesZ = def.vertexZ;
-    litModel.indicesCount = def.faceCount;
-    litModel.indices1 = def.faceIndices1;
-    litModel.indices2 = def.faceIndices2;
-    litModel.indices3 = def.faceIndices3;
-    litModel.field1838 = def.faceRenderPriorities;
-    litModel.field1882 = def.faceTransparencies;
-    litModel.field1842 = def.priority;
-    litModel.field1841 = def.faceTextures;
-    return litModel;
-  }
-
-  static final int method2608(int var0, int var1)
-  {
-    var1 = ((var0 & 127) * var1) >> 7;
-    var1 = bound2to126(var1);
-
-    return (var0 & 65408) + var1;
-  }
-
-  static final int bound2to126(int var0)
-  {
-    if (var0 < 2)
-    {
-      var0 = 2;
-    }
-    else if (var0 > 126)
-    {
-      var0 = 126;
-    }
-
-    return var0;
-  }
 }
