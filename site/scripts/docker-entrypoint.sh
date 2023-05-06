@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 API_FILE_PATH=./src/data/api.js
 

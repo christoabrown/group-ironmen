@@ -1,7 +1,7 @@
 ###############################################
 # Frontend Image
 ###############################################
-FROM node:16.10.0 as production-frontend
+FROM node:16.10.0-alpine as production-frontend
 
 WORKDIR /app
 
@@ -10,5 +10,5 @@ RUN npm install --ignore-scripts
 
 COPY . .
 
-ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["npm","run","serve"]
