@@ -10,6 +10,16 @@ class ExampleData {
   enable() {
     this.disable();
     this.reset();
+    utility.callOnInterval(() => {
+      let plane = this.members["Zezima"].coordinates[2];
+      plane += 1;
+      if (plane > 3) plane = 0;
+      this.members["Zezima"].coordinates = [
+        this.members["Zezima"].coordinates[0] + 1,
+        this.members["Zezima"].coordinates[1],
+        plane,
+      ];
+    }, 1000);
     this.intervals = [
       utility.callOnInterval(this.doHealthUpdate.bind(this), 3000),
       utility.callOnInterval(this.doXpDrop.bind(this), 2000),
@@ -42,7 +52,8 @@ class ExampleData {
       "group alt two": {
         rune_pouch: [563, 1922, 561, 5, 554, 15194],
         quests: Quest.randomQuestStates(),
-        coordinates: [3129, 3100, 0],
+        coordinates: [3029, 3000, 0],
+        // coordinates: [3129, 3100, 0],
         stats: [55, 93, 13, 70, 75, 100, 330],
         skills: Object.values(SkillName).map(() => Math.floor(Math.random() * 14000000)),
         bank: [995, Math.floor(Math.random() * 5000000)],
@@ -112,6 +123,7 @@ class ExampleData {
         skills: Object.values(SkillName).map(() => Math.floor(Math.random() * 14000000)),
         stats: [7, 10, 10, 10, 100, 100, 309],
         equipment: Item.randomItems(14, 1),
+        // coordinates: [3029, 3000, 0],
         coordinates: [3103, 3025, 0],
         quests: Quest.randomQuestStates(),
         diary_vars: AchievementDiary.randomDiaries(),
@@ -141,9 +153,11 @@ class ExampleData {
       "group alt two": {
         skills: this.members["group alt two"].skills,
       },
-      Zezima: [],
-      "Bank alt": [],
-      "@SHARED": [],
+      Zezima: {
+        coordinates: this.members["Zezima"].coordinates,
+      },
+      "Bank alt": {},
+      "@SHARED": {},
     };
     return groupData;
   }

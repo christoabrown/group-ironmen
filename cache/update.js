@@ -20,6 +20,7 @@ const osrsCacheDirectory = './cache/cache';
 const siteItemDataPath = '../site/public/data/item_data.json';
 const siteItemImagesPath = '../site/public/icons/items';
 const siteMapImagesPath = '../site/public/map';
+const tileSize = 256;
 
 function exec(command, options) {
   console.log(command);
@@ -252,7 +253,7 @@ async function tilePlane(plane) {
   await retry(() => fs.rmSync('./output_files', { recursive: true, force: true }));
   const planeImage = sharp(`./map-data/img-${plane}.png`, { limitInputPixels: false }).flip();
   await planeImage.webp({ lossless: true }).tile({
-    size: 256,
+    size: tileSize,
     depth: "one",
     background: { r: 0, g: 0, b: 0, alpha: 0 },
     skipBlanks: 0
@@ -272,8 +273,8 @@ async function finalizePlaneTiles(plane, previousTiles) {
     const filename = path.basename(tileImage, '.webp');
     const [x, y] = filename.split('_').map((coord) => parseInt(coord, 10));
 
-    const finalX = x + 18;
-    const finalY = y + 19;
+    const finalX = x + (4608 / tileSize);
+    const finalY = y + (4864 / tileSize);
 
     let s;
     if (plane > 0) {

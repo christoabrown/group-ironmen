@@ -1,0 +1,632 @@
+import { BaseElement } from "../base-element/base-element";
+import { utility } from "../utility";
+import { Animation } from "./animation";
+
+export class CanvasMap extends BaseElement {
+  constructor() {
+    super();
+  }
+
+  html() {
+    return `{{canvas-map.html}}`;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.render();
+
+    this.coordinatesDisplay = this.querySelector(".canvas-map__coordinates");
+    this.canvas = this.querySelector("canvas");
+    this.ctx = this.canvas.getContext("2d", { alpha: true });
+    this.eventListener(this, "mousedown", this.onPointerDown.bind(this));
+    this.eventListener(this, "touchstart", this.onTouchStart.bind(this));
+    this.eventListener(this, "mouseup", this.onPointerUp.bind(this));
+    this.eventListener(this, "touchend", this.onPointerUp.bind(this));
+    this.eventListener(this, "mousemove", this.onPointerMove.bind(this));
+    this.eventListener(this, "touchmove", this.onTouchMove.bind(this));
+    this.eventListener(this, "wheel", this.onScroll.bind(this));
+    this.eventListener(this, "mouseleave", this.stopDragging.bind(this));
+    this.eventListener(this, "mouseenter", this.stopDragging.bind(this));
+    this.eventListener(this, "touchcancel", this.stopDragging.bind(this));
+    this.eventListener(window, "resize", this.onResize.bind(this));
+    this.playerMarkers = new Map();
+    this.interactingMarkers = new Set();
+    this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
+    this.subscribe("coordinates", this.handleUpdatedCoordinates.bind(this));
+
+    this.plane = 1;
+    this.tileSize = 256;
+    this.pixelsPerGameTile = 4;
+    this.tiles = [new Map(), new Map(), new Map(), new Map()];
+    this.tilesInView = [];
+    this.previousFrameTime = performance.now();
+    this.followingPlayer = {};
+
+    this.onResize();
+    this.camera = {
+      x: new Animation({
+        current: 0,
+        target: 0,
+        progress: 1,
+      }),
+      y: new Animation({
+        current: 0,
+        target: 0,
+        progress: 1,
+      }),
+      zoom: new Animation({
+        current: 1,
+        target: 1,
+        progress: 1,
+      }),
+      maxZoom: 6,
+      minZoom: 1,
+      isDragging: false,
+    };
+    this.cursor = {
+      x: 0,
+      y: 0,
+      frameX: [0],
+      frameY: [0],
+    };
+    this.touch = {
+      pinchDistance: 0,
+    };
+
+    const [startX, startY] = this.gamePositionToCameraCenter(3103, 3095);
+    this.camera.x.goTo(startX, 1);
+    this.camera.y.goTo(startY, 1);
+
+    this.getValidMapTiles();
+    this.update = this._update.bind(this);
+    this.requestUpdate();
+    window.requestAnimationFrame(this.update);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+  }
+
+  async getValidMapTiles() {
+    const response = await fetch("/data/map_tiles.json");
+    const data = await response.json();
+    this.validTiles = [];
+    for (const x of data) {
+      this.validTiles.push(new Set(x));
+    }
+    this.requestUpdate();
+  }
+
+  handleUpdatedMembers(members) {
+    this.playerMarkers = new Map();
+
+    for (const member of members) {
+      if (member.name === "@SHARED") continue;
+      this.playerMarkers.set(member.name, {});
+      this.handleUpdatedCoordinates(member);
+    }
+  }
+
+  handleUpdatedCoordinates(member) {
+    const coordinates = member.coordinates || {};
+    if (!isNaN(coordinates.x) && !isNaN(coordinates.y) && !isNaN(coordinates.plane)) {
+      this.playerMarkers.set(member.name, {
+        label: member.name,
+        coordinates,
+      });
+
+      if (this.followingPlayer.name === member.name) {
+        this.followingPlayer.coordinates = coordinates;
+      }
+
+      if (this.isGameTileInView(coordinates.x, coordinates.y)) {
+        this.requestUpdate();
+      }
+    }
+  }
+
+  followPlayer(playerName) {
+    const marker = this.playerMarkers.get(playerName);
+    if (marker) {
+      this.followingPlayer.name = playerName;
+      this.followingPlayer.coordinates = marker.coordinates;
+      this.requestUpdate();
+    }
+  }
+
+  stopFollowingPlayer() {
+    this.followingPlayer.name = null;
+  }
+
+  // Converts a position in the runescape world to a camera position at the center of the canvas
+  gamePositionToCameraCenter(x, y) {
+    const tileCenterOffset = (this.pixelsPerGameTile * this.camera.zoom.current) / 2;
+    return [
+      x * this.pixelsPerGameTile * this.camera.zoom.current - this.canvas.width / 2 + tileCenterOffset,
+      (y * this.pixelsPerGameTile - this.tileSize) * this.camera.zoom.current + this.canvas.height / 2,
+    ];
+  }
+
+  // Converts a position in the runescape world to a client position relative to the camera.
+  // If the result is between [0, canvas.height] and [0, canvas.width] then it is visible.
+  gamePositionToClient(x, y) {
+    const tileCenterOffset = (this.pixelsPerGameTile * this.camera.zoom.current) / 2;
+    return [
+      x * this.pixelsPerGameTile * this.camera.zoom.current + tileCenterOffset - this.camera.x.current,
+      this.camera.y.current - (y * this.pixelsPerGameTile - this.tileSize) * this.camera.zoom.current,
+    ];
+  }
+
+  // Converts a game position to a position on the canvas that we can use to draw on.
+  gamePositionToCanvas(x, y) {
+    return [x * this.pixelsPerGameTile, -y * this.pixelsPerGameTile + this.tileSize];
+  }
+
+  // Checks if a tile in the runescape worls is currently visible on the canvas
+  isGameTileInView(x, y) {
+    const padding = this.tileSize / this.pixelsPerGameTile;
+    const [clientLeft, clientTop] = this.gamePositionToClient(x + padding, y - padding);
+    const [clientRight, clientBottom] = this.gamePositionToClient(x - padding, y + padding);
+    return clientLeft >= 0 && clientRight <= this.canvas.width && clientTop >= 0 && clientBottom <= this.canvas.height;
+  }
+
+  requestUpdate() {
+    this.updateRequested = true;
+  }
+
+  cantor(x, y) {
+    return ((x + y) * (x + y + 1)) / 2 + y;
+  }
+
+  _update(timestamp) {
+    let doAnotherUpdate = false;
+    const elapsed = timestamp - this.previousFrameTime;
+    this.previousFrameTime = timestamp;
+
+    if (this.updateRequested && elapsed > 0) {
+      // Handle the camera panning
+      const panStopThreshold = 0.005;
+      const speed = this.cursor.dx * this.cursor.dx + this.cursor.dy * this.cursor.dy;
+      if (!this.camera.isDragging) {
+        if (speed > panStopThreshold) {
+          this.camera.x.goTo(this.camera.x.current + this.cursor.dx * elapsed, 1);
+          this.camera.y.goTo(this.camera.y.current + this.cursor.dy * elapsed, 1);
+        }
+      }
+      if (speed > panStopThreshold) {
+        this.cursor.dx /= elapsed * 0.005 + 1;
+        this.cursor.dy /= elapsed * 0.005 + 1;
+        // The camera's speed is still high enough to animate it for at least another frame
+        doAnotherUpdate = true;
+      }
+
+      // Handle the camera zoom
+      const zooming = this.camera.zoom.animate(elapsed);
+      doAnotherUpdate = zooming || doAnotherUpdate;
+      // Handle player following. We don't want to do it while a zoom is also happening since zoom
+      // performs a translate to keep it centered on the cursor.
+      if (!zooming && this.followingPlayer.name) {
+        const [x, y] = this.gamePositionToCameraCenter(
+          this.followingPlayer.coordinates.x,
+          this.followingPlayer.coordinates.y
+        );
+        if (this.camera.x.target !== x) {
+          this.camera.x.goTo(x, 100);
+        }
+        if (this.camera.y.target !== y) {
+          this.camera.y.goTo(y, 100);
+        }
+        this.showPlane(this.followingPlayer.coordinates.plane + 1);
+      }
+
+      doAnotherUpdate = this.camera.x.animate(elapsed) || doAnotherUpdate;
+      doAnotherUpdate = this.camera.y.animate(elapsed) || doAnotherUpdate;
+
+      // Handle the 'fade in' animation for the map tiles
+      for (let i = 0; i < this.tilesInView.length; ++i) {
+        doAnotherUpdate = this.tilesInView[i].animation?.animate(elapsed) || doAnotherUpdate;
+      }
+
+      this.ctx.resetTransform();
+      this.ctx.fillStyle = "black";
+      // NOTE: Firefox needs the fillRect otherwise it will show borders around the tiles at non-integer zoom levels.
+      // The clearRect makes the tile fade in look better somehow.
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+      this.ctx.setTransform(
+        this.camera.zoom.current, // horizontalScaling
+        0, // vertical skewing
+        0, // horizontal skewing
+        this.camera.zoom.current, // vertical scaling
+        Math.round(-this.camera.x.current),
+        Math.round(this.camera.y.current)
+      );
+
+      // Don't try to load tiles if we are panning a large distance
+      const distanceLeftToTravel =
+        (Math.abs((this.camera.x.target - this.camera.x.current) / this.camera.x.time) +
+          Math.abs((this.camera.y.target - this.camera.y.current) / this.camera.y.time)) /
+        this.camera.zoom.current;
+      const isPanningABigDistance = !zooming && distanceLeftToTravel > 10;
+      this.drawTilesInCurrentView(!isPanningABigDistance);
+
+      this.drawTileMarkers(this.playerMarkers.values(), {
+        fillColor: "#348feb",
+        strokeColor: "#34d8eb",
+        labelPosition: "top",
+        labelFill: "yellow",
+        labelStroke: "black",
+      });
+      this.drawTileMarkers(this.interactingMarkers.values(), {
+        fillColor: "#a832a8",
+        strokeColor: "#cc2ed1",
+        labelPosition: "bottom",
+        labelFill: "red",
+        labelStroke: "black",
+      });
+      this.drawCursorTile();
+    }
+
+    this.updateRequested = doAnotherUpdate;
+    window.requestAnimationFrame(this.update);
+  }
+
+  addInteractingMarker(x, y, label) {
+    const marker = {
+      label,
+      coordinates: { x, y, plane: 0 },
+    };
+    this.interactingMarkers.add(marker);
+    return marker;
+  }
+
+  removeInteractingMarker(marker) {
+    this.interactingMarkers.delete(marker);
+  }
+
+  drawGameTiles(positions, fillColor, strokeColor) {
+    this.ctx.beginPath();
+    this.ctx.fillStyle = fillColor;
+    this.ctx.strokeStyle = strokeColor;
+    this.ctx.lineWidth = 1;
+    for (const position of positions) {
+      this.ctx.rect(position.x, position.y, this.pixelsPerGameTile, this.pixelsPerGameTile);
+    }
+    this.ctx.stroke();
+    this.ctx.fill();
+    this.ctx.closePath();
+  }
+
+  drawLabels(labels, fillColor, strokeColor, position) {
+    const groupedByTile = new Map();
+    for (const label of labels) {
+      const x = this.cantor(label.x, label.y);
+      if (!groupedByTile.has(x)) {
+        groupedByTile.set(x, []);
+      }
+      groupedByTile.get(x).push(label);
+    }
+
+    this.ctx.fillStyle = fillColor;
+    this.ctx.strokeStyle = strokeColor;
+    this.ctx.font = `${20 / this.camera.zoom.current}px rssmall`;
+    this.ctx.textAlign = "center";
+    this.ctx.lineWidth = 1 / this.camera.zoom.current;
+    const xOffset = this.pixelsPerGameTile / 2;
+    const strokeOffset = 1 / this.camera.zoom.current;
+
+    const yOffsets = {
+      top: -18 / this.camera.zoom.current,
+      bottom: 18 / this.camera.zoom.current,
+    };
+
+    for (const labelsOnTile of groupedByTile.values()) {
+      let yOffset = position === "top" ? 0 : this.pixelsPerGameTile + yOffsets[position];
+      for (const label of labelsOnTile) {
+        let [x, y] = [label.x, label.y];
+        x += xOffset;
+        y += yOffset;
+        yOffset += yOffsets[position];
+        this.ctx.strokeText(label.text, x + strokeOffset, y + strokeOffset);
+        this.ctx.fillText(label.text, x, y);
+      }
+    }
+  }
+
+  drawTileMarkers(markers, options) {
+    const groupedByPlane = [[], [], [], []];
+    for (const tileMarker of markers) {
+      groupedByPlane[tileMarker.coordinates.plane].push(tileMarker);
+    }
+
+    for (let plane = 0; plane < groupedByPlane.length; ++plane) {
+      const tilesOnPlane = groupedByPlane[plane];
+
+      // Change the opacity based on distance to currently displayed plane
+      this.ctx.globalAlpha = 1 - Math.abs(this.plane - 1 - plane) * 0.25;
+
+      const positions = [];
+      for (const tileMarker of tilesOnPlane) {
+        const [x, y] = this.gamePositionToCanvas(tileMarker.coordinates.x, tileMarker.coordinates.y);
+        positions.push({ x, y, text: tileMarker.label });
+      }
+      this.drawGameTiles(positions, options.fillColor, options.strokeColor);
+      this.drawLabels(positions, options.labelFill, options.labelStroke, options.labelPosition);
+    }
+
+    this.ctx.globalAlpha = 1;
+  }
+
+  drawCursorTile() {
+    this.drawGameTiles([{ x: this.cursor.canvasX, y: this.cursor.canvasY }], "#348feb", "#34d8eb");
+  }
+
+  drawTilesInCurrentView(loadNewTiles) {
+    const s = this.tileSize * this.camera.zoom.current;
+    const top = this.camera.y.current / s;
+    const left = this.camera.x.current / s;
+    const right = left + this.canvas.width / s;
+    const bottom = top - this.canvas.height / s;
+    const region = {
+      left: Math.floor(left),
+      right: Math.ceil(right),
+      top: Math.ceil(top),
+      bottom: Math.floor(bottom),
+    };
+
+    this.drawTilesInRegion(region, loadNewTiles);
+    this.ctx.globalAlpha = 1;
+  }
+
+  drawTilesInRegion(region, loadNewTiles) {
+    const top = region.top;
+    const left = region.left;
+    const right = region.right;
+    const bottom = region.bottom;
+    const tiles = this.tiles[this.plane - 1];
+    const imageSize = this.tileSize;
+    this.tilesInView = [];
+
+    for (let tileX = left; tileX < right; ++tileX) {
+      const tileWorldX = tileX * imageSize;
+      for (let tileY = top; tileY > bottom; --tileY) {
+        const i = this.cantor(tileX, tileY);
+        if (this.validTiles && !this.validTiles[this.plane - 1].has(i)) continue;
+        let tile = tiles.get(i);
+
+        if (!tile && loadNewTiles) {
+          tile = new Image(this.tileSize, this.tileSize);
+          const tileFileBaseName = `${this.plane - 1}_${tileX}_${tileY}`;
+          tile.src = `/map/${tileFileBaseName}.webp`;
+          tiles.set(i, tile);
+        } else if (!tile && !loadNewTiles) {
+          continue;
+        }
+
+        this.tilesInView.push(tile);
+        const tileWorldY = tileY * imageSize;
+        tile.loaded = tile.loaded || tile.complete;
+        if (tile.loaded && tile.animation) {
+          this.ctx.globalAlpha = tile.animation.current;
+          try {
+            this.ctx.drawImage(tile, 0, 0, imageSize, imageSize, tileWorldX, -tileWorldY, imageSize, imageSize);
+          } catch {}
+        } else if (!tile.onload) {
+          tile.onload = (...args) => {
+            tile.animation = new Animation({ current: 0, target: 1, time: 300 });
+            tile.loaded = true;
+            this.requestUpdate();
+          };
+        }
+      }
+    }
+  }
+
+  showPlane(plane) {
+    if (this.plane !== plane) {
+      this.plane = plane;
+      this.dispatchEvent(
+        new CustomEvent("plane-changed", {
+          detail: {
+            plane,
+          },
+        })
+      );
+
+      this.requestUpdate();
+    }
+  }
+
+  onResize() {
+    this.canvas.width = this.offsetWidth;
+    this.canvas.height = this.offsetHeight;
+    this.ctx.imageSmoothingEnabled = false;
+
+    this.requestUpdate();
+  }
+
+  onPointerDown(event) {
+    this.startDragging(event.clientX, event.clientY);
+  }
+
+  pinchDistance(touches) {
+    const touch1 = touches[0];
+    const touch2 = touches[1];
+    const a = touch1.clientX - touch2.clientX;
+    const b = touch1.clientY - touch2.clientY;
+
+    return Math.sqrt(a * a + b * b);
+  }
+
+  pinchCenter(touches) {
+    const touch1 = touches[0];
+    const touch2 = touches[1];
+
+    return [(touch1.clientX + touch2.clientX) / 2, (touch1.clientY + touch2.clientY) / 2];
+  }
+
+  onTouchStart(event) {
+    if (event.touches.length === 2) {
+      this.touch.startDistance = this.pinchDistance(event.touches);
+      this.touch.startZoom = this.camera.zoom.current;
+    }
+  }
+
+  startDragging(x, y) {
+    this.camera.isDragging = true;
+    this.camera.x.cancelAnimation();
+    this.camera.y.cancelAnimation();
+    this.camera.zoom.cancelAnimation();
+    this.cursor.frameX = [];
+    this.cursor.frameY = [];
+    this.cursor.dx = 0;
+    this.cursor.dy = 0;
+    this.cursor.previousX = x;
+    this.cursor.previousY = y;
+    this.cursor.lastPointerMoveTime = performance.now();
+    this.stopFollowingPlayer();
+    this.requestUpdate();
+  }
+
+  onPointerUp(_event) {
+    this.stopDragging();
+  }
+
+  stopDragging() {
+    // To handle cases when the pointer stops moving before letting go
+    const elapsed = performance.now() - this.cursor.lastPointerMoveTime;
+    if (elapsed > 100) {
+      this.cursor.dx = 0;
+      this.cursor.dy = 0;
+    }
+    this.camera.isDragging = false;
+    this.requestUpdate();
+  }
+
+  onPointerMove(event) {
+    const x = event.clientX;
+    const y = event.clientY;
+    const dx = x - this.cursor.previousX || 0;
+    const dy = y - this.cursor.previousY || 0;
+    this.cursor.previousX = x;
+    this.cursor.previousY = y;
+    this.handleMovement(x, y, dx, dy);
+  }
+
+  onTouchMove(event) {
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      if (!this.camera.isDragging) {
+        this.startDragging(touch.clientX, touch.clientY);
+      }
+      const x = touch.clientX;
+      const y = touch.clientY;
+      const dx = x - this.cursor.previousX || 0;
+      const dy = y - this.cursor.previousY || 0;
+      this.cursor.previousX = x;
+      this.cursor.previousY = y;
+      this.handleMovement(x, y, dx, dy);
+    } else if (event.touches.length === 2) {
+      this.stopDragging();
+      const pinchDistance = this.pinchDistance(event.touches);
+
+      const scale = pinchDistance / this.touch.startDistance;
+      const a = scale * Math.pow(2, this.touch.startZoom);
+      const zoom = Math.log(a) / Math.LN2;
+      const [x, y] = this.pinchCenter(event.touches);
+      this.zoomOntoPoint({
+        x,
+        y,
+        zoom,
+      });
+    }
+  }
+
+  handleMovement(x, y, dx, dy) {
+    const elapsed = performance.now() - this.cursor.lastPointerMoveTime;
+    this.cursor.lastPointerMoveTime = performance.now();
+
+    // cursor.dx and cursor.dy are calculated as the average movement over 10 frames. This is used
+    // to calculate the speed after dragging has stopped which is used to animate and convey momentum.
+    if (elapsed) {
+      const eventsToKeep = 10;
+      this.cursor.frameX.push(-dx / elapsed);
+      if (this.cursor.frameX.length > eventsToKeep) {
+        this.cursor.frameX = this.cursor.frameX.slice(this.cursor.frameX.length - eventsToKeep);
+      }
+      this.cursor.frameY.push(dy / elapsed);
+      if (this.cursor.frameY.length > eventsToKeep) {
+        this.cursor.frameY = this.cursor.frameY.slice(this.cursor.frameY.length - eventsToKeep);
+      }
+    }
+
+    if (this.camera.isDragging) {
+      this.camera.x.goTo(this.camera.x.target - dx, 1);
+      this.camera.y.goTo(this.camera.y.target + dy, 1);
+      this.cursor.dx = utility.average(this.cursor.frameX) || 0;
+      this.cursor.dy = utility.average(this.cursor.frameY) || 0;
+    }
+
+    this.cursor.x = x - this.canvas.offsetTop;
+    this.cursor.y = y - this.canvas.offsetLeft;
+    this.cursor.tileX = Math.floor((this.cursor.x + this.camera.x.current) / this.tileSize / this.camera.zoom.current);
+    this.cursor.tileY = Math.floor(
+      (this.camera.y.current - this.cursor.y + this.tileSize) / this.tileSize / this.camera.zoom.current
+    );
+    this.cursor.worldX = Math.floor(
+      (this.cursor.x + this.camera.x.current) / this.pixelsPerGameTile / this.camera.zoom.current
+    );
+    this.cursor.worldY = Math.floor(
+      (this.camera.y.current - this.cursor.y) / this.pixelsPerGameTile / this.camera.zoom.current +
+        this.tileSize / this.pixelsPerGameTile
+    );
+    this.cursor.canvasX = this.cursor.worldX * this.pixelsPerGameTile;
+    this.cursor.canvasY = -this.cursor.worldY * this.pixelsPerGameTile + this.tileSize - this.pixelsPerGameTile;
+
+    this.requestUpdate();
+  }
+
+  onScroll(event) {
+    if (this.camera.isDragging) return;
+    this.zoomOntoPoint({
+      delta: -0.2 * Math.sign(event.deltaY) * this.camera.zoom.target,
+      x: this.cursor.x,
+      y: this.cursor.y,
+      animationTime: 100,
+    });
+  }
+
+  // Zooms and keeps a point at the same screen position during the zoom
+  zoomOntoPoint(options) {
+    if (this.camera.isDragging) return;
+    this.cursor.dx = 0;
+    this.cursor.dy = 0;
+
+    let newZoom;
+    if (options.zoom === undefined) {
+      newZoom = Math.min(Math.max(this.camera.zoom.target + options.delta, this.camera.minZoom), this.camera.maxZoom);
+    } else {
+      newZoom = Math.min(Math.max(options.zoom, this.camera.minZoom), this.camera.maxZoom);
+    }
+    const zoomDelta = newZoom - this.camera.zoom.target;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+
+    let x = options.x;
+    let y = options.y;
+    if (this.followingPlayer.name) {
+      [x, y] = this.gamePositionToClient(this.followingPlayer.coordinates.x, this.followingPlayer.coordinates.y);
+    }
+    const wx = (-x - this.camera.x.target) / (width * this.camera.zoom.target);
+    const wy = (y - this.camera.y.target) / (height * this.camera.zoom.target);
+
+    const zoomAnimationTime = 100;
+    this.camera.x.goTo(this.camera.x.target - wx * width * zoomDelta, options.animationTime || 1);
+    this.camera.y.goTo(this.camera.y.target - wy * height * zoomDelta, options.animationTime || 1);
+    this.camera.zoom.goTo(newZoom, options.animationTime || 1);
+    this.requestUpdate();
+  }
+}
+
+customElements.define("canvas-map", CanvasMap);

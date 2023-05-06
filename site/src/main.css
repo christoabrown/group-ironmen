@@ -296,10 +296,6 @@ ul {
   filter: none !important;
 }
 
-#background-worldmap.interactable .world-map__map {
-  pointer-events: auto;
-}
-
 #background-worldmap {
   position: absolute;
   top: 0;
@@ -314,11 +310,6 @@ ul {
 
 .dark-mode #background-worldmap {
   filter: opacity(0.15);
-}
-
-#background-worldmap .world-map__map {
-  height: 100%;
-  pointer-events: none;
 }
 
 .rstext {

@@ -14,7 +14,8 @@
     ],
     "lines-between-class-members": ["error", "always"],
     "no-unused-vars": "off",
-    "no-console": ["error", { "allow": ["warn", "error"] }]
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "no-empty": "off"
   },
   "env": {
     "es6": true,

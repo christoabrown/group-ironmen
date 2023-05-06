@@ -30,14 +30,13 @@ export class PlayerInteracting extends BaseElement {
     window.clearTimeout(this.hideTimeout);
 
     if (this.marker) {
-      this.map.map.removeLayer(this.marker);
+      this.map.removeInteractingMarker(this.marker);
     }
   }
 
   handleInteracting(interacting) {
     this.interacting = interacting;
     const timeSinceLastUpdate = utility.timeSinceLastUpdate(interacting.last_updated);
-
     const timeUntilHide = this.staleTimeout - timeSinceLastUpdate;
 
     if (timeUntilHide > 1000) {
@@ -50,18 +49,18 @@ export class PlayerInteracting extends BaseElement {
   }
 
   async addMapMarker() {
-    this.marker = await this.map.addInteractingMarker(0, 0, "");
+    this.marker = this.map.addInteractingMarker(0, 0, "");
   }
 
   hide() {
     this.style.visibility = "hidden";
-    this.marker.setLatLng([-1000000, -1000000]);
+    this.marker.coordinates = { x: -1000000, y: -1000000, plane: 0 };
   }
 
   show() {
     this.style.visibility = "visible";
-    this.marker.setLatLng(this.map.gamePositionToLatLong(this.interacting.location.x, this.interacting.location.y));
-    this.marker.getTooltip().setContent(this.interacting.name);
+    this.marker.coordinates = this.interacting.location;
+    this.marker.label = this.interacting.name;
   }
 }
 
