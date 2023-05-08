@@ -102,14 +102,17 @@ export class CanvasMap extends BaseElement {
 
     for (const member of members) {
       if (member.name === "@SHARED") continue;
-      this.playerMarkers.set(member.name, {});
       this.handleUpdatedCoordinates(member);
     }
   }
 
+  isValidCoordinates(coordinates) {
+    return !isNaN(coordinates?.x) && !isNaN(coordinates?.y) && !isNaN(coordinates?.plane);
+  }
+
   handleUpdatedCoordinates(member) {
     const coordinates = member.coordinates || {};
-    if (!isNaN(coordinates.x) && !isNaN(coordinates.y) && !isNaN(coordinates.plane)) {
+    if (this.isValidCoordinates(coordinates)) {
       this.playerMarkers.set(member.name, {
         label: member.name,
         coordinates,
@@ -127,7 +130,8 @@ export class CanvasMap extends BaseElement {
 
   followPlayer(playerName) {
     const marker = this.playerMarkers.get(playerName);
-    if (marker) {
+    const coordinates = marker?.coordinates;
+    if (this.isValidCoordinates(coordinates)) {
       this.followingPlayer.name = playerName;
       this.followingPlayer.coordinates = marker.coordinates;
       this.requestUpdate();
@@ -337,7 +341,9 @@ export class CanvasMap extends BaseElement {
   drawTileMarkers(markers, options) {
     const groupedByPlane = [[], [], [], []];
     for (const tileMarker of markers) {
-      groupedByPlane[tileMarker.coordinates.plane].push(tileMarker);
+      if (this.isValidCoordinates(tileMarker?.coordinates)) {
+        groupedByPlane[tileMarker.coordinates.plane].push(tileMarker);
+      }
     }
 
     for (let plane = 0; plane < groupedByPlane.length; ++plane) {

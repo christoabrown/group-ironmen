@@ -11,7 +11,7 @@ if (productionMode) {
 }
 
 const mapTilesJsonPlugin = {
-  name: 'mapeTilesJson',
+  name: 'mapTilesJson',
   setup(build) {
     const mapImageFiles = fs.readdirSync("public/map").filter((file) => file.endsWith('.webp')).map((file) => path.basename(file, '.webp'));
 

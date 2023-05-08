@@ -18,7 +18,7 @@ export class MapPage extends BaseElement {
     this.playerButtons = this.querySelector(".map-page__focus-player-buttons");
     this.planeSelect = this.querySelector(".map-page__plane-select");
 
-    this.planeSelect.value = this.worldMap.currentPlane || 1;
+    this.planeSelect.value = this.worldMap.plane || 1;
 
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.eventListener(this.playerButtons, "click", this.handleFocusPlayer.bind(this));
