@@ -429,6 +429,8 @@ export class CanvasMap extends BaseElement {
             tile.loaded = true;
             this.requestUpdate();
           };
+        } else {
+          this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
         }
       }
     }
