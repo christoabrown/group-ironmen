@@ -233,10 +233,6 @@ export class CanvasMap extends BaseElement {
 
       this.ctx.resetTransform();
       this.ctx.fillStyle = "black";
-      // NOTE: Firefox needs the fillRect otherwise it will show borders around the tiles at non-integer zoom levels.
-      // The clearRect makes the tile fade in look better somehow.
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
       this.ctx.setTransform(
         this.camera.zoom.current, // horizontalScaling
@@ -380,7 +376,6 @@ export class CanvasMap extends BaseElement {
       top: Math.ceil(top),
       bottom: Math.floor(bottom),
     };
-
     this.drawTilesInRegion(region, loadNewTiles);
     this.ctx.globalAlpha = 1;
   }
@@ -398,7 +393,11 @@ export class CanvasMap extends BaseElement {
       const tileWorldX = tileX * imageSize;
       for (let tileY = top; tileY > bottom; --tileY) {
         const i = this.cantor(tileX, tileY);
-        if (this.validTiles && !this.validTiles[this.plane - 1].has(i)) continue;
+        const tileWorldY = tileY * imageSize;
+        if (this.validTiles && !this.validTiles[this.plane - 1].has(i)) {
+          this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
+          continue;
+        }
         let tile = tiles.get(i);
 
         if (!tile && loadNewTiles) {
@@ -411,11 +410,17 @@ export class CanvasMap extends BaseElement {
         }
 
         this.tilesInView.push(tile);
-        const tileWorldY = tileY * imageSize;
         tile.loaded = tile.loaded || tile.complete;
         if (tile.loaded && tile.animation) {
-          this.ctx.globalAlpha = tile.animation.current;
+          const alpha = tile.animation.current;
+          this.ctx.globalAlpha = alpha;
           try {
+            if (alpha < 1) {
+              // NOTE: Clearing only the area of the image tile while it fades in. If we try
+              // to clear the whole canvas instead, chromium browers will show a small border
+              // around the tiles.
+              this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
+            }
             this.ctx.drawImage(tile, 0, 0, imageSize, imageSize, tileWorldX, -tileWorldY, imageSize, imageSize);
           } catch {}
         } else if (!tile.onload) {
