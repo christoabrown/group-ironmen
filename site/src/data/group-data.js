@@ -274,7 +274,18 @@ export class GroupData {
     if (quests === undefined || quests === null) return;
 
     const runeliteQuestIdMap = new Map([
-      [181, "2306"], // Into the Tombs
+      [170, "180"], // The Garden of Death
+      [171, "2306"], // Into the Tombs
+      [172, "2307"], // Recipe for Disaster - Another Cook's Quest
+      [173, "2308"], // Recipe for Disaster - Mountain Dwarf
+      [174, "2309"], // Recipe for Disaster - Wartface & Bentnoze
+      [175, "2310"], // Recipe for Disaster - Pirate Pete
+      [176, "2311"], // Recipe for Disaster - Lumbridge Guide
+      [177, "2312"], // Recipe for Disaster - Evil Dave
+      [178, "2313"], // Recipe for Disaster - Skrach Uglogwee
+      [179, "2314"], // Recipe for Disaster - Sir Amik Varze
+      [180, "2315"], // Recipe for Disaster - King Awowogei
+      [181, "2316"], // Recipe for Disaster - Culinaromancer
       [182, "2338"], // Secrets of the North
     ]);
 
