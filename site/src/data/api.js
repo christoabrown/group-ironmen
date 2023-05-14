@@ -43,6 +43,14 @@ class Api {
     return `${this.baseUrl}/captcha-enabled`;
   }
 
+  get collectionLogInfoUrl() {
+    return `${this.baseUrl}/collection-log-info`;
+  }
+
+  collectionLogDataUrl(playerName) {
+    return `${this.baseUrl}/group/${this.groupName}/collection-log?member_name=${playerName}`;
+  }
+
   setCredentials(groupName, groupToken) {
     this.groupName = groupName;
     this.groupToken = groupToken;
@@ -188,6 +196,20 @@ class Api {
 
   async getCaptchaEnabled() {
     const response = await fetch(this.captchaEnabledUrl);
+    return response.json();
+  }
+
+  async getCollectionLogInfo() {
+    const response = await fetch(this.collectionLogInfoUrl);
+    return response.json();
+  }
+
+  async getCollectionLog(playerName) {
+    const response = await fetch(this.collectionLogDataUrl(playerName), {
+      headers: {
+        Authorization: this.groupToken,
+      },
+    });
     return response.json();
   }
 }

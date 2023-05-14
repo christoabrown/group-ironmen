@@ -46,3 +46,6 @@ import "./diary-dialog/diary-dialog.js";
 import "./player-diaries/player-diaries.js";
 import "./diary-completion/diary-completion.js";
 import "./canvas-map/canvas-map.js";
+import "./collection-log/collection-log.js";
+import "./collection-log-page/collection-log-page.js";
+import "./collection-log-tab/collection-log-tab.js";
