@@ -7,8 +7,10 @@ mod error;
 mod models;
 mod unauthed;
 mod validators;
+mod collection_log;
 use crate::auth_middleware::AuthenticateMiddlewareFactory;
 use crate::config::Config;
+use crate::collection_log::CollectionLogInfo;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
@@ -24,6 +26,7 @@ async fn main() -> std::io::Result<()> {
 
     let mut client = pool.get().await.unwrap();
     db::update_schema(&mut client).await.unwrap();
+    let collection_log_info: CollectionLogInfo = db::get_collection_log_info(&client).await.unwrap();
 
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());
@@ -32,7 +35,8 @@ async fn main() -> std::io::Result<()> {
         let unauthed_scope = web::scope("/api")
             .service(unauthed::create_group)
             .service(unauthed::get_ge_prices)
-            .service(unauthed::captcha_enabled);
+            .service(unauthed::captcha_enabled)
+            .service(unauthed::collection_log_info);
         let authed_scope = web::scope("/api/group/{group_name}")
             .wrap(AuthenticateMiddlewareFactory::new())
             .service(authed::update_group_member)
@@ -42,7 +46,8 @@ async fn main() -> std::io::Result<()> {
             .service(authed::rename_group_member)
             .service(authed::am_i_logged_in)
             .service(authed::am_i_in_group)
-            .service(authed::get_skill_data);
+            .service(authed::get_skill_data)
+            .service(authed::get_collection_log);
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
             .allow_any_origin()
@@ -65,6 +70,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(collection_log_info.clone()))
             .service(authed_scope)
             .service(unauthed_scope)
     })

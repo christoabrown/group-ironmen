@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use crate::error::ApiError;
+use crate::collection_log::{CollectionLogInfo, CollectionLog};
 
 #[cfg(test)]
 mod valid_name_tests {
@@ -83,6 +84,44 @@ pub fn validate_member_prop_length<T>(prop_name: &str, value: &Option<Vec<T>>, m
             Ok(())
         } else {
             Err(ApiError::GroupMemberValidationError(format!("{} length violated range constraint {}..={} actual={}", prop_name, min, max, x.len())))
+        }
+    }
+}
+
+pub fn validate_collection_log(collection_log_info: &actix_web::web::Data<CollectionLogInfo>, collection_logs: &Option<Vec<CollectionLog>>) -> Result<(), ApiError> {
+    match collection_logs {
+        None => Ok(()),
+        Some (x) => {
+            for collection_log in x {
+                let page_id = collection_log_info.page_name_to_id(&collection_log.page_name);
+                let result = match page_id {
+                    Some(id) => {
+                        let number_of_items: usize = collection_log.items.len() / 2;
+                        if number_of_items > collection_log_info.number_of_items_in_page(*id) {
+                            return Err(ApiError::GroupMemberValidationError(
+                                format!("{} is too many items for collection log {}", number_of_items, collection_log.page_name)));
+                        }
+
+                        for i in (0..collection_log.items.len()).step_by(2) {
+                            let item_id = collection_log.items[i];
+                            if !collection_log_info.has_item(*id, item_id) {
+                                return Err(ApiError::GroupMemberValidationError(format!("collection log {} does not have item id {}", collection_log.page_name, item_id)));
+                            }
+                        }
+
+                        Ok(())
+                    },
+                    None => {
+                        Err(ApiError::GroupMemberValidationError(format!("invalid collection log page {}", collection_log.page_name)))
+                    }
+                };
+
+                if result.is_err() {
+                    return result;
+                }
+            }
+
+            Ok(())
         }
     }
 }

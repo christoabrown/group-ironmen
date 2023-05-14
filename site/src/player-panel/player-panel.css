@@ -12,7 +12,8 @@ player-panel + player-panel {
 }
 
 .player-panel__minibar {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
 }
 
 player-panel.expanded .player-panel__minibar {
@@ -46,4 +47,8 @@ button.player-panel__tab-active {
 
 player-panel.expanded .player-panel__content {
   padding: 8px 0;
+}
+
+.player-panel__collection-log img {
+  image-rendering: initial;
 }

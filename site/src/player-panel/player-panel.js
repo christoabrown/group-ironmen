@@ -15,10 +15,21 @@ export class PlayerPanel extends BaseElement {
     this.render();
     this.contentArea = this.querySelector(".player-panel__content");
     this.eventListener(this.querySelector(".player-panel__minibar"), "click", this.handleMiniBarClick.bind(this));
+    this.eventListener(
+      this.querySelector(".player-panel__collection-log"),
+      "click",
+      this.handleCollectionLogClick.bind(this)
+    );
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+  }
+
+  handleCollectionLogClick() {
+    const collectionLogEl = document.createElement("collection-log");
+    collectionLogEl.setAttribute("player-name", this.playerName);
+    document.body.appendChild(collectionLogEl);
   }
 
   handleMiniBarClick(event) {
