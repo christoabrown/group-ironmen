@@ -13,12 +13,12 @@ export class Item {
     this.visible = true;
   }
 
-  static imageUrl(itemId, quantity) {
-    const itemDetails = Item.itemDetails[itemId];
+  get imageUrl() {
+    const itemDetails = Item.itemDetails[this.id];
     let imageId = itemDetails.id;
     if (itemDetails.stacks) {
       for (const stack of itemDetails.stacks) {
-        if (quantity >= stack.count) {
+        if (this.quantity >= stack.count) {
           imageId = stack.id;
         }
       }
@@ -26,28 +26,12 @@ export class Item {
     return `/icons/items/${imageId}.webp`;
   }
 
-  static itemName(itemId) {
-    return Item.itemDetails[itemId].name;
-  }
-
-  static shortQuantity(quantity) {
-    return utility.formatShortQuantity(quantity);
-  }
-
-  static veryShortQuantity(quantity) {
-    return utility.formatVeryShortQuantity(quantity);
-  }
-
-  get imageUrl() {
-    return Item.imageUrl(this.id, this.quantity);
-  }
-
   get shortQuantity() {
-    return Item.shortQuantity(this.quantity);
+    return utility.formatShortQuantity(this.quantity);
   }
 
   get veryShortQuantity() {
-    return Item.veryShortQuantity(this.quantity);
+    return utility.formatVeryShortQuantity(this.quantity);
   }
 
   get name() {

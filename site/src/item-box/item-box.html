@@ -1,14 +1,10 @@
-<div class="item-box__container">
-  <img class="item-box__image" src="${Item.imageUrl(this.itemId, this.quantity)}" loading="lazy" />
-  ${this.quantity > 1 ? `
-  <span class="item-box__quantity">
-    ${this.veryShortQuantity ? Item.veryShortQuantity(this.quantity) : Item.shortQuantity(this.quantity)}
-  </span>
-  ` : ""}
-  ${this.item?.isRunePouch() ? `
-  <rune-pouch
-    player-name="${this.playerName}"
-    pouch-name="${this.item.name}">
-  </rune-pouch>
-  ` : ""}
-</div>
+<img class="item-box__image" src="${this.item.imageUrl}" loading="lazy" />
+${this.item.quantity > 1 ? `
+<span class="item-box__quantity"
+  >${this.veryShortQuantity ? this.item.veryShortQuantity : this.item.shortQuantity}</span
+>
+` : ""} ${this.item.isRunePouch() ? `<rune-pouch
+  player-name="${this.playerName}"
+  pouch-name="${this.item.name}"
+></rune-pouch
+>` : ""}

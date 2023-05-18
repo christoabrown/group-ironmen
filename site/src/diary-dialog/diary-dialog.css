@@ -60,7 +60,7 @@ diary-dialog .dialog__container {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.dialog__close:hover {
+.diary-dialog__close:hover {
   filter: brightness(1.3);
 }
 
