@@ -1,6 +1,5 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use crate::error::ApiError;
 
 #[cfg(test)]
 mod valid_name_tests {
@@ -64,7 +63,7 @@ mod valid_name_tests {
                 name
             );
         }
-    } 
+    }
 }
 
 pub fn valid_name(name: &str) -> bool {
@@ -74,15 +73,4 @@ pub fn valid_name(name: &str) -> bool {
 
     let len = name.len();
     (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && name.trim().len() > 0
-}
-
-pub fn validate_member_prop_length<T>(prop_name: &str, value: &Option<Vec<T>>, min: usize, max: usize) -> Result<(), ApiError> {
-    match value {
-        None => Ok(()),
-        Some(x) => if (min..=max).contains(&x.len()) {
-            Ok(())
-        } else {
-            Err(ApiError::GroupMemberValidationError(format!("{} length violated range constraint {}..={} actual={}", prop_name, min, max, x.len())))
-        }
-    }
 }
