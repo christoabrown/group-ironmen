@@ -67,14 +67,6 @@ collection-log-page {
   color: white;
 }
 
-.collection-log__complete {
-  color: var(--green);
-}
-
-.collection-log__in-progress {
-  color: var(--yellow);
-}
-
-.collection-log__not-started {
-  color: var(--red);
+collection-log-page item-box:hover {
+  background: rgba(255, 255, 255, 0.1);
 }

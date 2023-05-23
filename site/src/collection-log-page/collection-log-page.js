@@ -20,12 +20,19 @@ export class CollectionLogPage extends BaseElement {
     this.playerData = collectionLog.logs.find((log) => log.page_id === this.pageId);
     this.unlockedItems = collectionLog.unlockedItems;
     this.unlockedItemsCount = collectionLog.unlockedItemsCountByPage.get(this.pageId) || 0;
+    this.completionStateClass = collectionLog.completionStateClass(this.pageId);
 
-    this.completionStateClass = "collection-log__not-started";
-    if (this.unlockedItemsCount === this.pageItems.length) {
-      this.completionStateClass = "collection-log__complete";
-    } else if (this.unlockedItemsCount > 0) {
-      this.completionStateClass = "collection-log__in-progress";
+    const tab = this.pageInfo[0];
+    if (tab === 2) {
+      // Clues tab
+      if (this.pageTitle.startsWith("Shared")) {
+        this.pageTitleLink = "https://oldschool.runescape.wiki/w/Collection_log#Shared_Treasure_Trail_Rewards";
+      } else {
+        const difficulty = this.pageTitle.split(" ")[0].toLowerCase();
+        this.pageTitleLink = `https://oldschool.runescape.wiki/w/Clue_scroll_(${difficulty})`;
+      }
+    } else {
+      this.pageTitleLink = `https://oldschool.runescape.wiki/w/Special:Lookup?type=npc&name=${this.pageTitle}`;
     }
 
     this.render();

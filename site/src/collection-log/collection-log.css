@@ -16,7 +16,7 @@ collection-log h2 {
 
 .collection-log__header {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 2fr 1fr;
   align-items: center;
   text-align: center;
   padding: 8px;
@@ -75,4 +75,16 @@ collection-log .collection-log__title {
   border: 1px solid hsl(40deg 15.79% 29.8%);
   height: 100%;
   overflow: hidden;
+}
+
+.collection-log__complete {
+  color: var(--green);
+}
+
+.collection-log__in-progress {
+  color: var(--yellow);
+}
+
+.collection-log__not-started {
+  color: var(--red);
 }

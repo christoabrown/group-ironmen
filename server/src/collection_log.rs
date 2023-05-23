@@ -79,7 +79,15 @@ impl CollectionLogInfo {
     }
 
     pub fn page_name_to_id(&self, page_name: &String) -> Option<&i16> {
-        self.page_name_to_id_lookup.get(page_name)
+        match self.page_name_to_id_lookup.get(page_name) {
+            Some(x) => Some(x),
+            None => {
+                match COLLECTION_PAGE_REMAP.get(page_name) {
+                    Some(x) => self.page_name_to_id_lookup.get(x),
+                    None => None
+                }
+            }
+        }
     }
 
     pub fn has_item(&self, page_id: i16, item_id: i32) -> bool {
@@ -107,6 +115,12 @@ impl CollectionLogInfo {
 }
 
 lazy_static! {
+    // Seems runelite plugins can rename the value we pass for the page. This remaps
+    // known plugin boss renaming. Is there a better way to handle this?
+    pub static ref COLLECTION_PAGE_REMAP: HashMap<String, String> = HashMap::from([
+        ("The Grumbler".to_string(), "Phantom Muspah".to_string())
+    ]);
+
     pub static ref COLLECTION_LOG_ITEMS: Vec<(i16, String, String, i32)> = vec![
         (0, "Abyssal Sire".to_string(), "Abyssal orphan".to_string(), 13262),
         (0, "Abyssal Sire".to_string(), "Unsired".to_string(), 25624),

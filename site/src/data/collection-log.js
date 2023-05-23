@@ -42,6 +42,18 @@ class CollectionLog {
   isLogComplete(pageId) {
     return this.unlockedItemsCountByPage.get(pageId) === this.pageItems.get(pageId).length;
   }
+
+  completionStateClass(pageId) {
+    const unlockedItemsCount = this.unlockedItemsCountByPage.get(pageId);
+    const totalItemsInPage = this.pageItems.get(pageId).length;
+    if (totalItemsInPage === unlockedItemsCount) {
+      return "collection-log__complete";
+    } else if (unlockedItemsCount > 0) {
+      return "collection-log__in-progress";
+    }
+
+    return "collection-log__not-started";
+  }
 }
 
 const collectionLog = new CollectionLog();

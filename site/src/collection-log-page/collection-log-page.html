@@ -1,5 +1,7 @@
 <div class="collection-log__page-top">
-  <h2>${this.pageTitle}</h2>
+  <h2 class="rstext">
+    <a href="${this.pageTitleLink}" target="_blank">${this.pageTitle}</a>
+  </h2>
   <div>Obtained: <span class="${this.completionStateClass}">${this.unlockedItemsCount}/${this.pageItems.length}</span></div>
   ${this.pageCountLabels.map((label, i) => `
   <div>${label}: <span class="collection-log__count">${this.playerData?.completion_counts[i] || 0}</span></div>
@@ -7,8 +9,11 @@
 </div>
 <div class="collection-log__page-items">
   ${this.pageItems.map((item) => `
-  <item-box item-id="${item}"
-            item-quantity="${this.unlockedItems.get(item) || 0}"
-            class="${this.unlockedItems.has(item) ? 'collection-log__item-unlocked' : ''}">
-  </item-box>`).join('')}
+  <a href="https://oldschool.runescape.wiki/w/Special:Lookup?type=item&id=${item}" target="_blank">
+    <item-box item-id="${item}"
+              item-quantity="${this.unlockedItems.get(item) || 0}"
+              class="${this.unlockedItems.has(item) ? 'collection-log__item-unlocked' : ''}">
+    </item-box>
+  </a>
+  `).join('')}
 </div>
