@@ -20,7 +20,7 @@ export class DiaryDialog extends BaseElement {
     this.background = this.querySelector(".dialog__visible");
 
     this.subscribeOnce(`diaries:${this.playerName}`, this.handleDiaries.bind(this));
-    this.eventListener(this.querySelector(".dialog__close"), "click", this.close.bind(this));
+    this.eventListener(this.querySelector(".diary-dialog__close"), "click", this.close.bind(this));
     this.eventListener(this.background, "click", this.closeIfBackgroundClick.bind(this));
   }
 

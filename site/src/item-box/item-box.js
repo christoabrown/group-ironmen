@@ -1,6 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
 import { groupData } from "../data/group-data";
-import { Item } from "../data/item";
 
 export class ItemBox extends BaseElement {
   constructor() {
@@ -16,31 +15,23 @@ export class ItemBox extends BaseElement {
     this.noTooltip = this.hasAttribute("no-tooltip");
     this.playerName = this.getAttribute("player-name");
     this.veryShortQuantity = this.hasAttribute("very-short-quantity");
-    this.quantity = parseInt(this.getAttribute("item-quantity"));
-    this.itemId = this.item?.id || parseInt(this.getAttribute("item-id"));
+    const inventoryType = this.getAttribute("inventory-type");
+    const totalInventoryQuantity = groupData.inventoryQuantityForItem(this.item.id, this.playerName, inventoryType);
+    const stackHighAlch = totalInventoryQuantity * this.item.highAlch;
+    const stackGePrice = totalInventoryQuantity * this.item.gePrice;
 
     if (!this.noTooltip) {
       this.enableTooltip();
-      if (this.item) {
-        const inventoryType = this.getAttribute("inventory-type");
-        const totalInventoryQuantity = groupData.inventoryQuantityForItem(this.item.id, this.playerName, inventoryType);
-        const stackHighAlch = totalInventoryQuantity * this.item.highAlch;
-        const stackGePrice = totalInventoryQuantity * this.item.gePrice;
-
-        this.setAttribute(
-          "tooltip-text",
-          `
+      this.setAttribute(
+        "tooltip-text",
+        `
 ${this.item.name} x ${totalInventoryQuantity}
 <br />
 HA: ${stackHighAlch.toLocaleString()}
 <br />
 GE: ${stackGePrice.toLocaleString()}`
-        );
-      } else {
-        this.setAttribute("tooltip-text", `${Item.itemName(this.itemId)} x ${this.quantity.toLocaleString()}`);
-      }
+      );
     }
-
     this.render();
   }
 
