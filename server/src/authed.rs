@@ -2,10 +2,13 @@ use crate::auth_middleware::Authenticated;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{
-    AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember, StoredGroupData,
+    AmIInGroupRequest,
+    GroupMember,
+    GroupSkillData,
+    RenameGroupMember,
     SHARED_MEMBER,
 };
-use crate::validators::valid_name;
+use crate::validators::{valid_name, validate_member_prop_length};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
@@ -91,7 +94,22 @@ pub async fn update_group_member(
     if !in_group {
         return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
     }
-    db::update_group_member(&client, auth.group_id, group_member.into_inner()).await?;
+    let group_member_inner: GroupMember = group_member.into_inner();
+
+    validate_member_prop_length("stats", &group_member_inner.stats, 7, 7)?;
+    validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 3)?;
+    validate_member_prop_length("skills", &group_member_inner.skills, 24, 24)?;
+    validate_member_prop_length("quests", &group_member_inner.quests, 0, 200)?;
+    validate_member_prop_length("inventory", &group_member_inner.inventory, 56, 56)?;
+    validate_member_prop_length("equipment", &group_member_inner.equipment, 28, 28)?;
+    validate_member_prop_length("bank", &group_member_inner.bank, 0, 3000)?;
+    validate_member_prop_length("shared_bank", &group_member_inner.shared_bank, 0, 1000)?;
+    validate_member_prop_length("rune_pouch", &group_member_inner.rune_pouch, 6, 8)?;
+    validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
+    validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
+    validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
+
+    db::update_group_member(&client, auth.group_id, group_member_inner).await?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -105,7 +123,7 @@ pub async fn get_group_data(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
     query: web::Query<GetGroupDataQuery>,
-) -> Result<web::Json<StoredGroupData>, Error> {
+) -> Result<web::Json<Vec<GroupMember>>, Error> {
     let from_time = query.from_time;
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let group_members = db::get_group_data(&client, auth.group_id, &from_time).await?;

@@ -27,6 +27,7 @@ pub enum ApiError {
     GetSkillsDataError(tokio_postgres::error::Error),
     GroupFullError,
     ReqwestError(reqwest::Error),
+    GroupMemberValidationError(String)
 }
 impl std::error::Error for ApiError {}
 fn handle_pg_error(err: &tokio_postgres::error::Error, name: &str) -> HttpResponse {
@@ -69,6 +70,10 @@ impl ResponseError for ApiError {
             ApiError::ReqwestError(ref err) => {
                 log::error!("ReqwestError: {}", err);
                 HttpResponse::InternalServerError().body(format!("ReqwestError: {}", err))
+            },
+            ApiError::GroupMemberValidationError(ref reason) => {
+                log::error!("Validation error: {}", reason);
+                HttpResponse::BadRequest().body(reason.clone())
             }
         }
     }

@@ -87,7 +87,6 @@ ${this.questSectionHtml(Quest.memberQuests)}
   handleUpdatedQuests(quests) {
     const previousQuests = this.quests;
     this.quests = quests;
-
     for (const [questId, el] of this.questListElements.entries()) {
       const previousQuest = previousQuests?.[questId];
       const quest = this.quests?.[questId];

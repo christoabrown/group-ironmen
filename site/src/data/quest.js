@@ -2,9 +2,9 @@ import { utility } from "../utility";
 import { pubsub } from "./pubsub";
 
 export const QuestState = {
+  IN_PROGRESS: "IN_PROGRESS",
   NOT_STARTED: "NOT_STARTED",
   FINISHED: "FINISHED",
-  IN_PROGRESS: "IN_PROGRESS",
 };
 
 export class Quest {

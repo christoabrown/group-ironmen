@@ -1,9 +1,12 @@
 use crate::crypto::token_hash;
 use crate::error::ApiError;
 use crate::models::{
-    serialize_coordinates, serialize_item_slice, serialize_quests, serialize_skills,
-    serialize_stats, AggregateSkillData, Bank, CreateGroup, GroupMember, GroupSkillData, Item,
-    MemberSkillData, StoredGroupData, StoredGroupMember, SHARED_MEMBER,
+    AggregateSkillData,
+    CreateGroup,
+    GroupMember,
+    GroupSkillData,
+    MemberSkillData,
+    SHARED_MEMBER,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -219,26 +222,16 @@ UPDATE groupironman.members SET
         .execute(
             &stmt,
             &[
-                &group_member.stats.map(serialize_stats),
-                &group_member.coordinates.map(serialize_coordinates),
-                &group_member.skills.map(serialize_skills),
-                &serialize_quests(&group_member.quests),
-                &group_member
-                    .inventory
-                    .map(|x| serialize_item_slice(x.as_slice())),
-                &group_member
-                    .equipment
-                    .map(|x| serialize_item_slice(x.as_slice())),
-                &group_member
-                    .bank
-                    .map(|x| serialize_item_slice(x.as_slice())),
-                &group_member
-                    .rune_pouch
-                    .map(|x| serialize_item_slice(x.as_slice())),
+                &group_member.stats,
+                &group_member.coordinates,
+                &group_member.skills,
+                &group_member.quests,
+                &group_member.inventory,
+                &group_member.equipment,
+                &group_member.bank,
+                &group_member.rune_pouch,
                 &serialize_serde(&group_member.interacting)?,
-                &group_member
-                    .seed_vault
-                    .map(|x| serialize_item_slice(x.as_slice())),
+                &group_member.seed_vault,
                 &group_member.diary_vars,
                 &group_id,
                 &group_member.name,
@@ -270,7 +263,7 @@ WHERE group_id=$2 AND member_name=$3"#,
                 .execute(
                     &stmt,
                     &[
-                        &serialize_item_slice(shared_bank.as_slice()),
+                        &shared_bank,
                         &group_id,
                         &SHARED_MEMBER,
                     ],
@@ -288,7 +281,7 @@ pub async fn deposit_items(
     client: &Client,
     group_id: i64,
     member_name: &str,
-    deposited: Bank,
+    deposited: Vec<i32>,
 ) -> Result<(), ApiError> {
     if deposited.is_empty() {
         return Ok(());
@@ -306,13 +299,15 @@ pub async fn deposit_items(
 
     let opt_bank: Option<Vec<i32>> = row.try_get("bank").ok();
 
+    // Merge the deposited items into the bank data
     match opt_bank {
         Some(mut bank) => {
             let mut deposited_map = HashMap::new();
-            for item in deposited {
-                deposited_map.insert(item.id, item.quantity);
+            for i in (0..deposited.len()).step_by(2) {
+                deposited_map.insert(deposited[i], deposited[i + 1]);
             }
 
+            // Add the quantity of a deposited item to an item already in the bank
             for i in (0..bank.len()).step_by(2) {
                 let item_id = bank[i];
                 if deposited_map.contains_key(&item_id) {
@@ -321,19 +316,17 @@ pub async fn deposit_items(
                 }
             }
 
+            // Add the rest of the deposted items as new items into the bank
             for id in deposited_map.keys() {
                 if *id == 0 {
                     continue;
                 }
 
-                let item = Item {
-                    id: *id,
-                    quantity: *deposited_map.get(id).unwrap_or(&0),
-                };
+                let quantity = *deposited_map.get(id).unwrap_or(&0);
 
-                if item.quantity > 0 {
-                    bank.push(item.id);
-                    bank.push(item.quantity);
+                if quantity > 0 {
+                    bank.push(*id);
+                    bank.push(quantity);
                 }
             }
 
@@ -387,7 +380,7 @@ pub async fn get_group_data(
     client: &Client,
     group_id: i64,
     timestamp: &DateTime<Utc>,
-) -> Result<StoredGroupData, ApiError> {
+) -> Result<Vec<GroupMember>, ApiError> {
     let stmt = client
         .prepare_cached(
             r#"
@@ -419,7 +412,7 @@ FROM groupironman.members WHERE group_id=$2
     for row in rows {
         let member_name = row.try_get("member_name")?;
         let last_updated: Option<DateTime<Utc>> = row.try_get("last_updated").ok();
-        let group_member = StoredGroupMember {
+        let group_member = GroupMember {
             name: member_name,
             last_updated,
             stats: row.try_get("stats").ok(),
@@ -433,6 +426,8 @@ FROM groupironman.members WHERE group_id=$2
             seed_vault: row.try_get("seed_vault").ok(),
             interacting: try_deserialize_json_column(&row, "interacting")?,
             diary_vars: row.try_get("diary_vars").ok(),
+            shared_bank: Option::None,
+            deposited: Option::None,
         };
         result.push(group_member);
     }
