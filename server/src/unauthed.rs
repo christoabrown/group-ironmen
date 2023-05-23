@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
+use crate::collection_log::CollectionLogInfo;
 use crate::validators::valid_name;
 use actix_web::{get, post, web, Error, HttpResponse};
 use arc_swap::{ArcSwap, ArcSwapAny};
@@ -184,4 +185,9 @@ pub async fn create_group(
 #[get("captcha-enabled")]
 pub async fn captcha_enabled(config: web::Data<Config>) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(&config.hcaptcha))
+}
+
+#[get("collection-log-info")]
+pub async fn collection_log_info(collection_log_info: web::Data<CollectionLogInfo>) -> Result<web::Json<CollectionLogInfo>, Error> {
+    Ok(web::Json((*collection_log_info.into_inner()).clone()))
 }

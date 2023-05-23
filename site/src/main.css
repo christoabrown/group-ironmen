@@ -8,6 +8,9 @@
   --invalid: #ee0d0d;
   --graph-grid-border: rgba(255, 255, 255, 0.05);
   --orange: #ff981f;
+  --yellow: #ffff00;
+  --red: #ff0000;
+  --green: #0dc10d;
 
   --rsbackground: url(/ui/297-0.png);
   --rsbackground-dark: url(/ui/297-0-dark.png);
@@ -25,7 +28,13 @@ body {
   position: relative;
   font-size: 16px;
   font-family: "rssmall", ui-sans-serif, Arial, sans-serif;
-  text-shadow: 1px 1px var(--black);
+  text-shadow: 1.3px 1.3px var(--black);
+}
+
+h1,
+h2,
+h3 {
+  font-family: "rsbold", ui-sans-serif, Arial, sans-serif;
 }
 
 .unauthed-section {
@@ -41,6 +50,12 @@ body {
   font-family: "rssmall";
   font-display: block;
   src: url("/fonts/RuneScape-Chat-07.ttf");
+}
+
+@font-face {
+  font-family: "rsbold";
+  font-display: block;
+  src: url("/fonts/RuneScape-Chat-Bold-07.ttf");
 }
 
 .authed-section__main-content {
@@ -318,6 +333,12 @@ ul {
 
 .rsborder {
   border-image: url(/ui/border.png) 32 32 / 32px / 4px round;
+  border-style: solid;
+  border-radius: 4px;
+}
+
+.metal-border {
+  border-image: url(/ui/metal-border.png) 18 18 / 18px / 2px round;
   border-style: solid;
   border-radius: 4px;
 }

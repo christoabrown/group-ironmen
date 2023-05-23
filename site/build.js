@@ -37,8 +37,10 @@ const componentBuildPlugin = {
       const isComponent = components.has(componentName);
       let jsText = await fs.promises.readFile(args.path, 'utf8');
       if (isComponent) {
-        let htmlText = await fs.promises.readFile(`${componentDir}/${componentName}.html`, 'utf8');
-        jsText = jsText.replace(`{{${componentName}.html}}`, htmlText);
+        try {
+          let htmlText = await fs.promises.readFile(`${componentDir}/${componentName}.html`, 'utf8');
+          jsText = jsText.replace(`{{${componentName}.html}}`, htmlText);
+        } catch {}
       }
 
       return {

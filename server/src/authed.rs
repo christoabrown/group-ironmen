@@ -8,7 +8,8 @@ use crate::models::{
     RenameGroupMember,
     SHARED_MEMBER,
 };
-use crate::validators::{valid_name, validate_member_prop_length};
+use crate::validators::{valid_name, validate_member_prop_length, validate_collection_log};
+use crate::collection_log::{CollectionLogInfo, CollectionLog};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
@@ -88,6 +89,7 @@ pub async fn update_group_member(
     auth: Authenticated,
     group_member: web::Json<GroupMember>,
     db_pool: web::Data<Pool>,
+    collection_log_info: web::Data<CollectionLogInfo>
 ) -> Result<HttpResponse, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
@@ -108,8 +110,9 @@ pub async fn update_group_member(
     validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
     validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
     validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
+    validate_collection_log(&collection_log_info, &group_member_inner.collection_log)?;
 
-    db::update_group_member(&client, auth.group_id, group_member_inner).await?;
+    db::update_group_member(&client, auth.group_id, group_member_inner, collection_log_info).await?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -158,6 +161,22 @@ pub async fn get_skill_data(
     let group_skill_data =
         db::get_skills_for_period(&client, auth.group_id, aggregate_period).await?;
     Ok(web::Json(group_skill_data))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectionLogQuery {
+    pub member_name: String
+}
+#[get("/collection-log")]
+pub async fn get_collection_log(
+    auth: Authenticated,
+    db_pool: web::Data<Pool>,
+    query: web::Query<CollectionLogQuery>
+) -> Result<web::Json<Vec<CollectionLog>>, Error> {
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let collection_logs = db::get_collection_log_for_member(&client, auth.group_id, query.member_name.clone()).await?;
+    Ok(web::Json(collection_logs))
 }
 
 #[get("/am-i-logged-in")]
