@@ -108,6 +108,21 @@ DELETE FROM groupironman.skills_{} WHERE member_id=$1
     Ok(())
 }
 
+pub async fn delete_collection_log_data_for_member(
+    transaction: &Transaction<'_>,
+    member_id: i64
+) -> Result<(), ApiError> {
+    let a = "DELETE FROM groupironman.collection_log WHERE member_id=$1";
+    let delete_collection_stmt = transaction.prepare_cached(&a).await?;
+    transaction.execute(&delete_collection_stmt, &[&member_id]).await?;
+
+    let b = "DELETE FROM groupironman.collection_log_new WHERE member_id=$1";
+    let delete_new_stmt = transaction.prepare_cached(&b).await?;
+    transaction.execute(&delete_new_stmt, &[&member_id]).await?;
+
+    Ok(())
+}
+
 pub async fn get_member_id(client: &Client, group_id: i64, member_name: &str) -> Result<i64, ApiError> {
     let get_member_id_stmt = client
         .prepare_cached(
@@ -132,6 +147,7 @@ pub async fn delete_group_member(
     delete_skills_data_for_member(&transaction, AggregatePeriod::Day, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Month, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Year, member_id).await?;
+    delete_collection_log_data_for_member(&transaction, member_id).await?;
 
     let stmt = transaction
         .prepare_cached("DELETE FROM groupironman.members WHERE group_id=$1 AND member_name=$2")
