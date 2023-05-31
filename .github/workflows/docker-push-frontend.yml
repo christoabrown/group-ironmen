@@ -2,8 +2,6 @@ name: Push Frontend Docker Image
 
 on:
   push:
-    paths:
-      - 'site/**'
     branches: [ master ]
 
 jobs:
@@ -31,4 +29,4 @@ jobs:
         with:
           context: ./site
           push: true
-          tags: chrisleeeee/group-ironmen-tracker-frontend:latest
+          tags: wouterrutgers/group-ironmen-tracker-frontend:latest

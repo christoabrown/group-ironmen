@@ -1,6 +1,8 @@
 import { utility } from "../utility";
 import { pubsub } from "./pubsub";
 import { api } from "./api";
+import { map } from "./item-mapping";
+import { COINS_995, PLATINUM_TOKEN } from "./item-constants";
 
 export class Item {
   constructor(id, quantity) {
@@ -63,7 +65,26 @@ export class Item {
   }
 
   get gePrice() {
-    return Item.gePrices[this.id] || 0;
+    if (this.id == COINS_995) {
+      return 1;
+    }
+
+    if (this.id == PLATINUM_TOKEN) {
+      return 1000;
+    }
+
+    let price = 0;
+
+    const mappedItems = map(this.id);
+    if (mappedItems === null) {
+      price += Item.gePrices[this.id] || 0;
+    } else {
+      for (const mappedItem of mappedItems) {
+        price += new Item(mappedItem.tradeableItem, 1).gePrice * mappedItem.quantity;
+      }
+    }
+
+    return price;
   }
 
   isValid() {
