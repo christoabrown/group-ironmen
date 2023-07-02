@@ -98,7 +98,15 @@ impl CollectionLogInfo {
     }
 
     pub fn item_name_to_id(&self, item_name: &String) -> Option<&i32> {
-        self.item_name_to_id_lookup.get(item_name)
+        match self.item_name_to_id_lookup.get(item_name) {
+            Some(x) => Some(x),
+            None => {
+                match COLLECTION_ITEM_REMAP.get(item_name) {
+                    Some(x) => self.item_name_to_id_lookup.get(x),
+                    None => None
+                }
+            }
+        }
     }
 
     pub fn page_ids_for_item(&self, item_id: i32) -> Option<&HashSet<i16>> {
@@ -119,6 +127,10 @@ lazy_static! {
     // known plugin boss renaming. Is there a better way to handle this?
     pub static ref COLLECTION_PAGE_REMAP: HashMap<String, String> = HashMap::from([
         ("The Grumbler".to_string(), "Phantom Muspah".to_string())
+    ]);
+
+    pub static ref COLLECTION_ITEM_REMAP: HashMap<String, String> = HashMap::from([
+        ("Pharaoh's sceptre".to_string(), "Pharaoh's sceptre (uncharged)".to_string())
     ]);
 
     pub static ref COLLECTION_LOG_ITEMS: Vec<(i16, String, String, i32)> = vec![
