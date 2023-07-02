@@ -234,9 +234,23 @@ export class GroupData {
 
     let result = {};
     let i = 0;
+    let overall = 0;
+    // NOTE: Overall xp was removed from the API response, but keeping this here so it still
+    // works for data that was stored before that change.
+    const hasOverallXp = skills.length !== 23;
     for (const skillName of Object.keys(SkillName)) {
-      result[skillName] = skills[i++];
+      if (skillName !== SkillName.Overall || hasOverallXp) {
+        result[skillName] = skills[i];
+
+        if (skillName !== SkillName.Overall) {
+          overall += skills[i];
+        }
+
+        i += 1;
+      }
     }
+
+    result[SkillName.Overall] = overall;
     return result;
   }
 
