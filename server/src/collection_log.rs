@@ -1737,6 +1737,14 @@ lazy_static! {
         (4, "Miscellaneous".to_string(), "Merfolk trident".to_string(), 21649),
         (4, "Miscellaneous".to_string(), "Orange egg sac".to_string(), 25844),
         (4, "Miscellaneous".to_string(), "Blue egg sac".to_string(), 25846),
+        (4, "Forestry".to_string(), "Log brace".to_string(), 28146),
+        (4, "Forestry".to_string(), "Clothes pouch blueprint".to_string(), 28166),
+        (4, "Forestry".to_string(), "Forestry top".to_string(), 28169),
+        (4, "Forestry".to_string(), "Funky shaped log".to_string(), 28138),
+        (4, "Forestry".to_string(), "Forestry legs".to_string(), 28171),
+        (4, "Forestry".to_string(), "Log basket".to_string(), 28140),
+        (4, "Forestry".to_string(), "Forestry hat".to_string(), 28173),
+        (4, "Forestry".to_string(), "Forestry boots".to_string(), 28175),
     ];
     pub static ref COLLECTION_TAB_PAGES: Vec<(i16, String, Vec<&'static str>)> = vec![
         (0, "Abyssal Sire".to_string(), vec!["Abyssal Sire kills"]),
@@ -1831,6 +1839,7 @@ lazy_static! {
         (4, "Skilling Pets".to_string(), vec![]),
         (4, "Slayer".to_string(), vec![]),
         (4, "TzHaar".to_string(), vec![]),
-        (4, "Miscellaneous".to_string(), vec![])
+        (4, "Miscellaneous".to_string(), vec![]),
+        (4, "Forestry".to_string(), vec![]),
     ];
 }
