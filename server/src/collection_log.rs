@@ -1745,6 +1745,10 @@ lazy_static! {
         (4, "Forestry".to_string(), "Log basket".to_string(), 28140),
         (4, "Forestry".to_string(), "Forestry hat".to_string(), 28173),
         (4, "Forestry".to_string(), "Forestry boots".to_string(), 28175),
+        (4, "Forestry".to_string(), "Lumberjack boots".to_string(), 10933),
+        (4, "Forestry".to_string(), "Lumberjack top".to_string(), 10939),
+        (4, "Forestry".to_string(), "Lumberjack legs".to_string(), 10940),
+        (4, "Forestry".to_string(), "Lumberjack hat".to_string(), 10941),
     ];
     pub static ref COLLECTION_TAB_PAGES: Vec<(i16, String, Vec<&'static str>)> = vec![
         (0, "Abyssal Sire".to_string(), vec!["Abyssal Sire kills"]),
