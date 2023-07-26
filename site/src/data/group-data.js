@@ -301,6 +301,8 @@ export class GroupData {
       [180, "2315"], // Recipe for Disaster - King Awowogei
       [181, "2316"], // Recipe for Disaster - Culinaromancer
       [182, "2338"], // Secrets of the North
+      [183, "2343"], // Desert Treasure II
+      [184, "3250"], // His Faithful Servants
     ]);
 
     const result = {};
