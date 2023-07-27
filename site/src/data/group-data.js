@@ -277,9 +277,13 @@ export class GroupData {
   static transformCoordinatesFromStorage(coordinates) {
     if (coordinates === undefined || coordinates === null) return;
 
+    // NOTE: The coordinates from runelite seems to have changed? Need to
+    // offset them now to line them up with the map.
+    const xOffset = 128;
+    const yOffset = 1;
     return {
-      x: coordinates[0],
-      y: coordinates[1],
+      x: coordinates[0] + xOffset,
+      y: coordinates[1] + yOffset,
       plane: coordinates[2],
     };
   }
@@ -301,6 +305,8 @@ export class GroupData {
       [180, "2315"], // Recipe for Disaster - King Awowogei
       [181, "2316"], // Recipe for Disaster - Culinaromancer
       [182, "2338"], // Secrets of the North
+      [183, "2343"], // Desert Treasure II
+      [184, "3250"], // His Faithful Servants
     ]);
 
     const result = {};
@@ -324,6 +330,14 @@ export class GroupData {
       memberData.stats = GroupData.transformStatsFromStorage(memberData.stats);
       memberData.coordinates = GroupData.transformCoordinatesFromStorage(memberData.coordinates);
       memberData.quests = GroupData.transformQuestsFromStorage(memberData.quests);
+
+      if (memberData.interacting) {
+        memberData.interacting.location = GroupData.transformCoordinatesFromStorage([
+          memberData.interacting.location.x,
+          memberData.interacting.location.y,
+          memberData.interacting.location.plane,
+        ]);
+      }
     }
   }
 }
