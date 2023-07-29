@@ -1,0 +1,7 @@
+player-icon {
+  display: inline;
+}
+
+player-icon img {
+  filter: hue-rotate(var(--player-icon-color)) saturate(75%);
+}

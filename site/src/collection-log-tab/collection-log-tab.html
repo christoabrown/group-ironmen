@@ -1,7 +1,7 @@
 <div class="collection-log__tab-list">
   ${this.pages.map((page) => `
-  <button class="${collectionLog.isLogComplete(page[1]) ? "collection-log__complete" : ""}" page-id="${page[1]}">
-    ${page[2]} <span class="${collectionLog.completionStateClass(page[1])}">${collectionLog.unlockedItemsCountByPage.get(page[1]) || 0}/${collectionLog.pageItems.get(page[1]).length}</span>
+  <button class="${collectionLog.isLogComplete(this.playerName, page[1]) ? "collection-log__complete" : ""}" page-id="${page[1]}">
+    ${page[2]} <span class="${collectionLog.completionStateClass(this.playerName, page[1])}">${collectionLog.completionCountForPage(this.playerName, page[1]) || 0}/${collectionLog.pageSize(page[1])}</span>
   </button>`).join('')}
 </div>
 <div class="collection-log__page-container"></div>

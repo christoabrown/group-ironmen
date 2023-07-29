@@ -29,6 +29,7 @@ item-box {
   left: 0;
   z-index: 1;
   color: yellow;
-  transform: translate(-10%, -20%);
-  font-size: 14px;
+  transform: translate(0, -20%);
+  font-size: 16px;
+  font-family: "rstiny";
 }

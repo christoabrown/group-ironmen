@@ -5,3 +5,8 @@ player-skills {
   grid-template-columns: 62px 62px 62px;
   justify-content: center;
 }
+
+player-skills skill-box:hover,
+player-skills total-level-box:hover {
+  filter: brightness(1.25);
+}

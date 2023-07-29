@@ -32,6 +32,10 @@ class PubSub {
     }
   }
 
+  unpublishAll() {
+    this.mostRecentPublish.clear();
+  }
+
   unpublish(dataName) {
     this.mostRecentPublish.delete(dataName);
   }

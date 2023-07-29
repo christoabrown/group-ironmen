@@ -48,7 +48,7 @@ class Api {
   }
 
   collectionLogDataUrl(playerName) {
-    return `${this.baseUrl}/group/${this.groupName}/collection-log?member_name=${playerName}`;
+    return `${this.baseUrl}/group/${this.groupName}/collection-log`;
   }
 
   setCredentials(groupName, groupToken) {
@@ -204,13 +204,18 @@ class Api {
     return response.json();
   }
 
-  async getCollectionLog(playerName) {
-    const response = await fetch(this.collectionLogDataUrl(playerName), {
-      headers: {
-        Authorization: this.groupToken,
-      },
-    });
-    return response.json();
+  async getCollectionLog() {
+    if (this.exampleDataEnabled) {
+      const collectionLog = exampleData.getCollectionLog();
+      return collectionLog;
+    } else {
+      const response = await fetch(this.collectionLogDataUrl(), {
+        headers: {
+          Authorization: this.groupToken,
+        },
+      });
+      return response.json();
+    }
   }
 }
 

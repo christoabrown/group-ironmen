@@ -4,6 +4,8 @@ skill-box {
   transform: translateZ(1px);
   width: 62px;
   height: 32px;
+
+  font-family: "rstiny";
 }
 
 .skill-box__left {
@@ -43,19 +45,20 @@ skill-box {
 .skill-box__current-level,
 .skill-box__baseline-level {
   position: absolute;
-  font-size: 13px;
+  font-size: 16px;
   color: yellow;
   text-shadow: 1px 1px var(--black);
+  min-width: 10px;
 }
 
 .skill-box__baseline-level {
-  left: 50%;
-  top: 47%;
+  transform: translate(calc(50% - 1px), 5px);
+  text-align: right;
 }
 
 .skill-box__current-level {
-  right: 50%;
-  bottom: 47%;
+  transform: translate(calc(-50% - 2px), -5px);
+  text-align: left;
 }
 
 .skill-box__progress {

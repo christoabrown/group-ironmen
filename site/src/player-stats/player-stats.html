@@ -2,7 +2,7 @@
   <stat-bar class="player-stats__hitpoints-bar" bar-color="#157145"></stat-bar>
   <player-interacting player-name="${this.playerName}"></player-interacting>
   <div class="player-stats__name">
-    ${this.playerName} -
+    <player-icon player-name="${this.playerName}"></player-icon> ${this.playerName} -
     <span class="player-stats__world"></span>
   </div>
   <div class="player-stats__hitpoints-numbers">${this.hitpoints.current} / ${this.hitpoints.max}</div>

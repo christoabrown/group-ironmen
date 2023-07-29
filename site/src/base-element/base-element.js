@@ -24,14 +24,14 @@ export class BaseElement extends HTMLElement {
   }
 
   updateTooltip(tooltipText) {
-    this.setAttribute("tooltip-text", tooltipText);
+    this.tooltipText = tooltipText;
     if (this.showingTooltip) {
       tooltipManager.showTooltip(tooltipText);
     }
   }
 
   handleMouseOver(mouseEvent) {
-    const tooltipText = this.getAttribute("tooltip-text");
+    const tooltipText = this.tooltipText || this.getAttribute("tooltip-text");
     if (tooltipText) {
       this.showingTooltip = true;
       this.updateTooltip(tooltipText.trim());

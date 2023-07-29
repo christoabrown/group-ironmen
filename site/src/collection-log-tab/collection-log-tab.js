@@ -12,6 +12,7 @@ export class CollectionLogTab extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.playerName = this.getAttribute("player-name");
     this.tabId = parseInt(this.getAttribute("tab-id"));
     this.pages = collectionLog.info.pages.filter((page) => page[0] === this.tabId);
     this.pages.sort((a, b) => a[2].localeCompare(b[2]));
@@ -39,7 +40,7 @@ export class CollectionLogTab extends BaseElement {
       if (button.getAttribute("page-id") === `${pageId}`) button.classList.add("collection-log__page-active");
       else button.classList.remove("collection-log__page-active");
     });
-    this.pageContainer.innerHTML = `<collection-log-page page-id="${pageId}"></collection-log-page>`;
+    this.pageContainer.innerHTML = `<collection-log-page player-name="${this.playerName}" page-id="${pageId}"></collection-log-page>`;
   }
 }
 

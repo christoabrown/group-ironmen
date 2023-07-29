@@ -16,8 +16,8 @@ export class CollectionLog extends BaseElement {
     loadingScreenManager.showLoadingScreen();
     this.playerName = this.getAttribute("player-name");
     await this.init();
-    this.totalUniqueItems = new Set(collectionLog.info.items.map((item) => item[1])).size;
-    this.unlockedUniqueItems = collectionLog.unlockedItems.size;
+    this.totalUniqueItems = collectionLog.totalUniqueItems();
+    this.unlockedUniqueItems = collectionLog.totalUnlockedItems(this.playerName);
     this.render();
 
     this.tabContent = this.querySelector(".collection-log__tab-container");
@@ -46,7 +46,8 @@ export class CollectionLog extends BaseElement {
   }
 
   async init() {
-    await Promise.all([collectionLog.initLogInfo(), collectionLog.loadPlayer(this.playerName)]);
+    await Promise.all([collectionLog.initLogInfo(), collectionLog.load()]);
+    collectionLog.loadPlayer(this.playerName);
     loadingScreenManager.hideLoadingScreen();
   }
 
@@ -62,7 +63,7 @@ export class CollectionLog extends BaseElement {
       if (button.getAttribute("tab-id") === `${tabId}`) button.classList.add("collection-log__tab-button-active");
       else button.classList.remove("collection-log__tab-button-active");
     });
-    this.tabContent.innerHTML = `<collection-log-tab tab-id="${tabId}"></collection-log-tab>`;
+    this.tabContent.innerHTML = `<collection-log-tab player-name="${this.playerName}" tab-id="${tabId}"></collection-log-tab>`;
   }
 }
 
