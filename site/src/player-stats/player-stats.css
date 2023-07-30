@@ -38,7 +38,7 @@ player-stats {
   height: 3px;
 }
 
-.player-stats__inactive {
+.player-stats__inactive stat-bar {
   filter: grayscale(100%);
 }
 

@@ -27,17 +27,14 @@ export class ItemBox extends BaseElement {
         const stackHighAlch = totalInventoryQuantity * this.item.highAlch;
         const stackGePrice = totalInventoryQuantity * this.item.gePrice;
 
-        this.setAttribute(
-          "tooltip-text",
-          `
+        this.tooltipText = `
 ${this.item.name} x ${totalInventoryQuantity}
 <br />
 HA: ${stackHighAlch.toLocaleString()}
 <br />
-GE: ${stackGePrice.toLocaleString()}`
-        );
+GE: ${stackGePrice.toLocaleString()}`;
       } else {
-        this.setAttribute("tooltip-text", `${Item.itemName(this.itemId)} x ${this.quantity.toLocaleString()}`);
+        this.tooltipText = `${Item.itemName(this.itemId)} x ${this.quantity.toLocaleString()}`;
       }
     }
 

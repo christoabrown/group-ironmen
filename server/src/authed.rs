@@ -14,6 +14,7 @@ use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[post("/add-group-member")]
 pub async fn add_group_member(
@@ -171,11 +172,10 @@ pub struct CollectionLogQuery {
 #[get("/collection-log")]
 pub async fn get_collection_log(
     auth: Authenticated,
-    db_pool: web::Data<Pool>,
-    query: web::Query<CollectionLogQuery>
-) -> Result<web::Json<Vec<CollectionLog>>, Error> {
+    db_pool: web::Data<Pool>
+) -> Result<web::Json<HashMap<String, Vec<CollectionLog>>>, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let collection_logs = db::get_collection_log_for_member(&client, auth.group_id, query.member_name.clone()).await?;
+    let collection_logs = db::get_collection_log_for_group(&client, auth.group_id).await?;
     Ok(web::Json(collection_logs))
 }
 

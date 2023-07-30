@@ -46,7 +46,7 @@ export class RunePouch extends BaseElement {
     this.appendChild(runeEls);
 
     this.enableTooltip();
-    this.setAttribute("tooltip-text", `${this.pouchName}<br />${tooltipRunes.join("<br />")}`);
+    this.tooltipText = `${this.pouchName}<br />${tooltipRunes.join("<br />")}`;
   }
 }
 
