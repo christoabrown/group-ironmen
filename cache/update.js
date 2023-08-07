@@ -18,8 +18,10 @@ const cachePomPath = `${cacheProjectPath}/pom.xml`;
 const cacheJarOutputDir = `${cacheProjectPath}/target`;
 const osrsCacheDirectory = './cache/cache';
 const siteItemDataPath = '../site/public/data/item_data.json';
+const siteMapIconMetaPath = "../site/public/data/map_icons.json";
 const siteItemImagesPath = '../site/public/icons/items';
 const siteMapImagesPath = '../site/public/map';
+const siteMapIconPath = "../site/public/map/icons/map_icons.webp";
 const tileSize = 256;
 
 function exec(command, options) {
@@ -335,25 +337,73 @@ async function generateMapTiles() {
   }
 }
 
+async function moveFiles(globSource, destination) {
+  const files = glob.sync(globSource);
+  for (file of files) {
+    const base = path.parse(file).base;
+    if (base) {
+      await retry(() => fs.renameSync(file, `${destination}/${base}`), true);
+    }
+  }
+}
+
 async function moveResults() {
   console.log('\nStep: Moving results to site');
   await retry(() => fs.renameSync('./item_data.json', siteItemDataPath), true);
 
-  const newImageFiles = glob.sync('./item-images/*.webp');
-  for (const imageFile of newImageFiles) {
-    const base = path.parse(imageFile).base;
-    if (base) {
-      await retry(() => fs.renameSync(imageFile, `${siteItemImagesPath}/${base}`), true);
+  await moveFiles('./item-images/*.webp', siteItemImagesPath);
+  await moveFiles("./map-data/tiles/*.webp", siteMapImagesPath);
+
+  // Create a tile sheet of the map icons
+  const mapIcons = glob.sync("./map-data/icons/*.png");
+  let mapIconsCompositeOpts = [];
+  const iconIdToSpriteMapIndex = {};
+  for (let i = 0; i < mapIcons.length; ++i) {
+    mapIconsCompositeOpts.push({
+      input: mapIcons[i],
+      left: 15 * i,
+      top: 0
+    });
+
+    iconIdToSpriteMapIndex[path.basename(mapIcons[i], '.png')] = i;
+  }
+  await sharp({
+    create: {
+      width: 15 * mapIcons.length,
+      height: 15,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  }).composite(mapIconsCompositeOpts).webp({ lossless: true, effort: 6 }).toFile(siteMapIconPath);
+
+  // Convert the output of the map-icons locations to be keyed by the X an Y of the regions
+  // that they are in. This is done so that the canvas map component can quickly lookup
+  // all of the icons in each of the regions that are being shown.
+  const mapIconsMeta = JSON.parse(fs.readFileSync("./map-data/icons/map-icons.json", 'utf8'));
+  const locationByRegion = {};
+
+  for (const [iconId, coordinates] of Object.entries(mapIconsMeta)) {
+    for (let i = 0; i < coordinates.length; i += 2) {
+      const x = coordinates[i] + 128;
+      const y = coordinates[i + 1] + 1;
+
+      const regionX = Math.floor(x / 64);
+      const regionY = Math.floor(y / 64);
+
+      const spriteMapIndex = iconIdToSpriteMapIndex[iconId];
+      if (spriteMapIndex === undefined) {
+        throw new Error("Could not find sprite map index for map icon: " + iconId);
+      }
+
+      locationByRegion[regionX] = locationByRegion[regionX] || {};
+      locationByRegion[regionX][regionY] = locationByRegion[regionX][regionY] || {};
+      locationByRegion[regionX][regionY][spriteMapIndex] = locationByRegion[regionX][regionY][spriteMapIndex] || [];
+
+      locationByRegion[regionX][regionY][spriteMapIndex].push(x, y);
     }
   }
 
-  const tileImageFiles = glob.sync("./map-data/tiles/*.webp");
-  for (const tileImage of tileImageFiles) {
-    const base = path.parse(tileImage).base;
-    if (base) {
-      await retry(() => fs.renameSync(tileImage, `${siteMapImagesPath}/${base}`), true);
-    }
-  }
+  fs.writeFileSync(siteMapIconMetaPath, JSON.stringify(locationByRegion));
 }
 
 (async () => {
