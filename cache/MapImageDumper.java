@@ -30,6 +30,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -69,6 +70,7 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import com.google.gson.Gson;
 
 @Slf4j
 @Accessors(chain = true)
@@ -96,6 +98,8 @@ public class MapImageDumper
     private final SpriteManager sprites;
     private RSTextureProvider rsTextureProvider;
     private final ObjectManager objectManager;
+
+    private static String outputDirectory;
 
     @Getter
     @Setter
@@ -161,7 +165,7 @@ public class MapImageDumper
 
         final String cacheDirectory = cmd.getOptionValue("cachedir");
         final String xteaJSONPath = cmd.getOptionValue("xteapath");
-        final String outputDirectory = cmd.getOptionValue("outputdir");
+        outputDirectory = cmd.getOptionValue("outputdir");
 
         XteaKeyManager xteaKeyManager = new XteaKeyManager();
         try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -250,9 +254,9 @@ public class MapImageDumper
                 image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
             }
 
-        drawMap(image, z);
-        drawObjects(image, z);
-        drawMapIcons(image, z);
+        // drawMap(image, z);
+        // drawObjects(image, z);
+        dumpMapIcons(z);
 
         return image;
     }
@@ -266,29 +270,6 @@ public class MapImageDumper
             }
 
         drawObjects(image, Region.X * dx, Region.Y * -dy, neighbor, z);
-    }
-
-    public BufferedImage drawRegion(Region region, int z)
-    {
-        int pixelsX = Region.X * MAP_SCALE;
-        int pixelsY = Region.Y * MAP_SCALE;
-
-        BufferedImage image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-
-        drawMap(image, 0, 0, z, region);
-
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), -1, -1, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), -1, 0, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), -1, 1, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 0, -1, z);
-        drawObjects(image, 0, 0, region, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 0, 1, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 1, -1, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 1, 0, z);
-        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 1, 1, z);
-        drawMapIcons(image, 0, 0, region, z);
-
-        return image;
     }
 
     private void drawMap(BufferedImage image, int drawBaseX, int drawBaseY, int z, Region region)
@@ -875,48 +856,58 @@ public class MapImageDumper
             }
     }
 
-    private void drawMapIcons(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
-    {
-        int baseX = region.getBaseX();
-        int baseY = region.getBaseY();
+    private void dumpMapIcons(int z) {
+        Map<Integer, List<Integer>> icons = new HashMap<>();
 
-        Graphics2D graphics = image.createGraphics();
+        if (z == 0) return;
 
-        drawMapIcons(image, region, z, drawBaseX, drawBaseY);
+        for (Region region : regionLoader.getRegions()) {
+            for (Location location : region.getLocations()) {
+                ObjectDefinition od = findObject(location.getId());
 
-        if (labelRegions)
-            {
-                graphics.setColor(Color.WHITE);
-                String str = baseX + "," + baseY + " (" + region.getRegionX() + "," + region.getRegionY() + ")";
-                graphics.drawString(str, drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE + graphics.getFontMetrics().getHeight());
+                if (od.getMapAreaId() != -1) {
+                    AreaDefinition area = areas.getArea(od.getMapAreaId());
+
+                    List<Integer> x = icons.computeIfAbsent(area.spriteId, k -> new ArrayList<>());
+                    x.add(location.getPosition().getX());
+                    x.add(location.getPosition().getY());
+                }
+            }
+        }
+
+        File outDir = new File(outputDirectory + "/icons");
+        outDir.mkdirs();
+        for (Integer spriteId : icons.keySet()) {
+            SpriteDefinition sprite = sprites.findSprite(spriteId, 0);
+            BufferedImage iconImage = new BufferedImage(sprite.getWidth(), sprite.getHeight(), BufferedImage.TYPE_INT_ARGB);
+
+            for (int x = 0; x < sprite.getWidth(); ++x) {
+                for (int y = 0; y < sprite.getHeight(); ++y) {
+                    int rgb = sprite.getPixels()[x + (y * sprite.getWidth())];
+                    if (rgb != 0) {
+                        iconImage.setRGB(x, y, rgb | 0xFF000000);
+                    }
+                }
             }
 
-        if (outlineRegions)
-            {
-                graphics.setColor(Color.WHITE);
-                graphics.drawRect(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
+            try {
+                File iconFile = new File(outDir, spriteId + ".png");
+                ImageIO.write(iconImage, "png", iconFile);
+            } catch (Exception ex) {
+                log.error("Failed to write sprite file", ex);
             }
+        }
 
-        graphics.dispose();
-    }
-
-    private void drawMapIcons(BufferedImage image, int z)
-    {
-        // map icons
-        for (Region region : regionLoader.getRegions())
-            {
-                int baseX = region.getBaseX();
-                int baseY = region.getBaseY();
-
-                // to pixel X
-                int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
-
-                // to pixel Y. top most y is 0, but the top most
-                // region has the greatest y, so invert
-                int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
-
-                drawMapIcons(image, drawBaseX, drawBaseY, region, z);
-            }
+        try {
+            Gson gson = new Gson();
+            File jsonFile = new File(outDir, "map-icons.json");
+            FileWriter writer = new FileWriter(jsonFile);
+            gson.toJson(icons, writer);
+            writer.flush();
+            writer.close();
+        } catch (Exception ex) {
+            log.error("Failed to write map-icons.json", ex);
+        }
     }
 
     private ObjectDefinition findObject(int id)
@@ -1021,49 +1012,53 @@ public class MapImageDumper
             }
     }
 
-    private void drawMapIcons(BufferedImage img, Region region, int z, int drawBaseX, int drawBaseY)
-    {
-        if (!renderIcons)
-            {
-                return;
-            }
+    // private void drawMapIcons(BufferedImage img, Region region, int z, int drawBaseX, int drawBaseY)
+    // {
+    //     if (!renderIcons)
+    //         {
+    //             return;
+    //         }
 
-        for (Location location : region.getLocations())
-            {
-                int localX = location.getPosition().getX() - region.getBaseX();
-                int localY = location.getPosition().getY() - region.getBaseY();
-                boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
+    //     for (Location location : region.getLocations())
+    //         {
+    //             int localX = location.getPosition().getX() - region.getBaseX();
+    //             int localY = location.getPosition().getY() - region.getBaseY();
+    //             boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
 
-                int tileZ = z + (isBridge ? 1 : 0);
-                int localZ = location.getPosition().getZ();
-                if (z != 0 && localZ != tileZ)
-                    {
-                        // draw all icons on z=0
-                        continue;
-                    }
+    //             int tileZ = z + (isBridge ? 1 : 0);
+    //             int localZ = location.getPosition().getZ();
+    //             if (z != 0 && localZ != tileZ)
+    //                 {
+    //                     // draw all icons on z=0
+    //                     continue;
+    //                 }
 
-                ObjectDefinition od = findObject(location.getId());
+    //             ObjectDefinition od = findObject(location.getId());
 
-                assert od != null;
+    //             assert od != null;
 
-                int drawX = drawBaseX + localX;
-                int drawY = drawBaseY + (Region.Y - 1 - localY);
+    //             int drawX = drawBaseX + localX;
+    //             int drawY = drawBaseY + (Region.Y - 1 - localY);
 
-                if (od.getMapAreaId() != -1)
-                    {
-                        AreaDefinition area = areas.getArea(od.getMapAreaId());
-                        assert area != null;
+    //             if (od.getMapAreaId() != -1)
+    //                 {
+    //                     AreaDefinition area = areas.getArea(od.getMapAreaId());
+    //                     if (area.name != null) {
+    //                         log.info("{}", area);
+    //                     }
+                        
+    //                     assert area != null;
 
-                        SpriteDefinition sprite = sprites.findSprite(area.spriteId, 0);
-                        assert sprite != null;
+    //                     SpriteDefinition sprite = sprites.findSprite(area.spriteId, 0);
+    //                     assert sprite != null;
 
-                        blitIcon(img,
-                                 2 + (drawX * MAP_SCALE) - (sprite.getMaxWidth() / 2),
-                                 2 + (drawY * MAP_SCALE) - (sprite.getMaxHeight() / 2),
-                                 sprite);
-                    }
-            }
-    }
+    //                     blitIcon(img,
+    //                              2 + (drawX * MAP_SCALE) - (sprite.getMaxWidth() / 2),
+    //                              2 + (drawY * MAP_SCALE) - (sprite.getMaxHeight() / 2),
+    //                              sprite);
+    //                 }
+    //         }
+    // }
 
     private void loadRegions() throws IOException
     {

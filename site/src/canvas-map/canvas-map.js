@@ -77,7 +77,7 @@ export class CanvasMap extends BaseElement {
     this.camera.x.goTo(startX, 1);
     this.camera.y.goTo(startY, 1);
 
-    this.getValidMapTiles();
+    this.getMapJson();
     this.update = this._update.bind(this);
     this.requestUpdate();
     window.requestAnimationFrame(this.update);
@@ -87,14 +87,20 @@ export class CanvasMap extends BaseElement {
     super.disconnectedCallback();
   }
 
-  async getValidMapTiles() {
-    const response = await fetch("/data/map_tiles.json");
+  async getMapJson() {
+    const response = await fetch("/data/map.json");
     const data = await response.json();
     this.validTiles = [];
-    for (const x of data) {
+    for (const x of data.tiles) {
       this.validTiles.push(new Set(x));
     }
-    this.requestUpdate();
+
+    this.locations = data.icons;
+    this.locationIconsSheet = new Image();
+    this.locationIconsSheet.src = "/map/icons/map_icons.webp";
+    this.locationIconsSheet.onload = () => {
+      this.requestUpdate();
+    };
   }
 
   handleUpdatedMembers(members) {
@@ -166,7 +172,7 @@ export class CanvasMap extends BaseElement {
     return [x * this.pixelsPerGameTile, -y * this.pixelsPerGameTile + this.tileSize];
   }
 
-  // Checks if a tile in the runescape worls is currently visible on the canvas
+  // Checks if a tile in the runescape world is currently visible on the canvas
   isGameTileInView(x, y) {
     const padding = this.tileSize / this.pixelsPerGameTile;
     const [clientLeft, clientTop] = this.gamePositionToClient(x + padding, y - padding);
@@ -250,6 +256,7 @@ export class CanvasMap extends BaseElement {
         this.camera.zoom.current;
       const isPanningABigDistance = !zooming && distanceLeftToTravel > 10;
       this.drawTilesInCurrentView(!isPanningABigDistance);
+      this.drawLocations();
 
       this.drawTileMarkers(this.playerMarkers.values(), {
         fillColor: "#348feb",
@@ -364,6 +371,33 @@ export class CanvasMap extends BaseElement {
     this.drawGameTiles([{ x: this.cursor.canvasX, y: this.cursor.canvasY }], "#348feb", "#34d8eb");
   }
 
+  drawLocations() {
+    if (!this.locations) return;
+    const imageSize = 15;
+    const imageSizeHalf = imageSize / 2;
+    for (const tile of this.tilesInView) {
+      const locations = this.locations[tile.regionX.toString()]?.[tile.regionY.toString()];
+      if (locations) {
+        for (const [spriteIndex, coordinates] of Object.entries(locations)) {
+          for (let i = 0; i < coordinates.length; i += 2) {
+            const [x, y] = this.gamePositionToCanvas(coordinates[i], coordinates[i + 1]);
+            this.ctx.drawImage(
+              this.locationIconsSheet,
+              imageSize * parseInt(spriteIndex),
+              0,
+              imageSize,
+              imageSize,
+              x - imageSizeHalf,
+              y - imageSizeHalf,
+              imageSize,
+              imageSize
+            );
+          }
+        }
+      }
+    }
+  }
+
   drawTilesInCurrentView(loadNewTiles) {
     const s = this.tileSize * this.camera.zoom.current;
     const top = this.camera.y.current / s;
@@ -404,6 +438,8 @@ export class CanvasMap extends BaseElement {
           tile = new Image(this.tileSize, this.tileSize);
           const tileFileBaseName = `${this.plane - 1}_${tileX}_${tileY}`;
           tile.src = `/map/${tileFileBaseName}.webp`;
+          tile.regionX = tileX;
+          tile.regionY = tileY;
           tiles.set(i, tile);
         } else if (!tile && !loadNewTiles) {
           continue;
@@ -487,6 +523,7 @@ export class CanvasMap extends BaseElement {
   }
 
   startDragging(x, y) {
+    this.classList.add("dragging");
     this.camera.isDragging = true;
     this.camera.x.cancelAnimation();
     this.camera.y.cancelAnimation();
@@ -507,6 +544,7 @@ export class CanvasMap extends BaseElement {
   }
 
   stopDragging() {
+    this.classList.remove("dragging");
     // To handle cases when the pointer stops moving before letting go
     const elapsed = performance.now() - this.cursor.lastPointerMoveTime;
     if (elapsed > 100) {
@@ -598,6 +636,8 @@ export class CanvasMap extends BaseElement {
     this.cursor.canvasY = -this.cursor.worldY * this.pixelsPerGameTile + this.tileSize - this.pixelsPerGameTile;
 
     this.requestUpdate();
+
+    this.coordinatesDisplay.innerText = `${this.cursor.worldX}, ${this.cursor.worldY}`;
   }
 
   onScroll(event) {
