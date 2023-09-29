@@ -2,7 +2,6 @@ import { utility } from "../utility";
 import { pubsub } from "./pubsub";
 import { api } from "./api";
 import { map } from "./item-mapping";
-import { COINS_995, PLATINUM_TOKEN } from "./item-constants";
 
 export class Item {
   constructor(id, quantity) {
@@ -30,6 +29,10 @@ export class Item {
 
   static itemName(itemId) {
     return Item.itemDetails[itemId].name;
+  }
+
+  static itemId(runeliteKey) {
+    return Item.runeliteKeyList[runeliteKey];
   }
 
   static shortQuantity(quantity) {
@@ -65,17 +68,17 @@ export class Item {
   }
 
   get gePrice() {
-    if (this.id == COINS_995) {
+    if (this.id == this.itemId('COINS_995')) {
       return 1;
     }
 
-    if (this.id == PLATINUM_TOKEN) {
+    if (this.id == this.itemId('PLATINUM_TOKEN')) {
       return 1000;
     }
 
     let price = 0;
 
-    const mappedItems = map(this.id);
+    const mappedItems = map(this, this.id);
     if (mappedItems === null) {
       price += Item.gePrices[this.id] || 0;
     } else {
@@ -116,12 +119,20 @@ export class Item {
   }
 
   static async loadItems() {
-    const response = await fetch("/data/item_data.json");
-    Item.itemDetails = await response.json();
+    const itemDataResponse = await fetch("/data/item_data.json");
+    Item.itemDetails = await itemDataResponse.json();
+
+    const itemVariationsResponse = await fetch("/data/item_variations.json");
+    Item.itemVariations = await itemVariationsResponse.json();
+
+    Item.runeliteKeyList = {};
+
     for (const [itemId, itemDetails] of Object.entries(Item.itemDetails)) {
       const stacks = itemDetails.stacks;
       itemDetails.stacks = stacks ? stacks.map((stack) => ({ id: stack[1], count: stack[0] })) : null;
       itemDetails.id = itemId;
+
+      Item.runeliteKeyList[itemDetails.runeliteKey] = itemId;
     }
 
     pubsub.publish("item-data-loaded");
