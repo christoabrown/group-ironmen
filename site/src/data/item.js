@@ -68,17 +68,17 @@ export class Item {
   }
 
   get gePrice() {
-    if (this.id == Item.itemId('COINS_995')) {
+    if (this.id == Item.itemId("COINS_995")) {
       return 1;
     }
 
-    if (this.id == Item.itemId('PLATINUM_TOKEN')) {
+    if (this.id == Item.itemId("PLATINUM_TOKEN")) {
       return 1000;
     }
 
     let price = 0;
 
-    const mappedItems = map(this, this.id);
+    const mappedItems = map(this.id);
     if (mappedItems === null) {
       price += Item.gePrices[this.id] || 0;
     } else {

@@ -1,50 +1,52 @@
-import { ItemMappingList } from './item-mapping-list';
-import { ItemData } from './item-data';
+import { ItemMappingList } from "./item-mapping-list";
+import { ItemData } from "./item-data";
 
-export function map(Item, itemId) {
-    if (! this.mappings) {
-        let invertedVariations = {};
+let mappings = null;
 
-        Object.keys(ItemData.itemVariations()).forEach(key => {
-            if (key === 'default') {
-                return;
-            }
+export function map(itemId) {
+  if (!mappings) {
+    let invertedVariations = {};
 
-            ItemData.itemVariations()[key].forEach(variation => {
-                ItemData.itemVariations()[key].forEach(id => {
-                    invertedVariations[variation] = invertedVariations[variation] || [];
-                    invertedVariations[variation].push(id);
-                });
-            });
+    Object.keys(ItemData.itemVariations()).forEach((key) => {
+      if (key === "default") {
+        return;
+      }
+
+      ItemData.itemVariations()[key].forEach((variation) => {
+        ItemData.itemVariations()[key].forEach((id) => {
+          invertedVariations[variation] = invertedVariations[variation] || [];
+          invertedVariations[variation].push(id);
         });
+      });
+    });
 
-        this.mappings = new Map();
+    mappings = new Map();
 
-        for (const item of Object.values(ItemMappingList.mapping())) {
-            for (const itemId of item.untradableItems) {
-                if (item.includeVariations) {
-                    const variations = invertedVariations[itemId] || [itemId];
+    for (const item of Object.values(ItemMappingList.mapping())) {
+      for (const itemId of item.untradableItems) {
+        if (item.includeVariations) {
+          const variations = invertedVariations[itemId] || [itemId];
 
-                    for (const variation of variations) {
-                        if (variation !== item.tradeableItem) {
-                            if (! this.mappings.has(variation)) {
-                                this.mappings.set(variation, []);
-                            }
+          for (const variation of variations) {
+            if (variation !== item.tradeableItem) {
+              if (!mappings.has(variation)) {
+                mappings.set(variation, []);
+              }
 
-                            this.mappings.get(variation).push(item);
-                        }
-                    }
-                } else {
-                    if (! this.mappings.has(itemId)) {
-                        this.mappings.set(itemId, []);
-                    }
-
-                    this.mappings.get(itemId).push(item);
-                }
+              mappings.get(variation).push(item);
             }
-        }
-    }
+          }
+        } else {
+          if (!mappings.has(itemId)) {
+            mappings.set(itemId, []);
+          }
 
-    const mapping = this.mappings.get(itemId);
-    return mapping && mapping.length > 0 ? mapping : null;
+          mappings.get(itemId).push(item);
+        }
+      }
+    }
+  }
+
+  const mapping = mappings.get(itemId);
+  return mapping && mapping.length > 0 ? mapping : null;
 }

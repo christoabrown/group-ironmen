@@ -7,7 +7,7 @@ import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { exampleData } from "../data/example-data";
 import { AchievementDiary } from "../data/diaries";
-import { ItemData } from '../data/item-data';
+import { ItemData } from "../data/item-data";
 
 export class AppInitializer extends BaseElement {
   constructor() {
