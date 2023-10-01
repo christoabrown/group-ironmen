@@ -1,7 +1,7 @@
 import { utility } from "../utility";
-import { pubsub } from "./pubsub";
 import { api } from "./api";
 import { map } from "./item-mapping";
+import { ItemData } from "./item-data";
 
 export class Item {
   constructor(id, quantity) {
@@ -15,7 +15,7 @@ export class Item {
   }
 
   static imageUrl(itemId, quantity) {
-    const itemDetails = Item.itemDetails[itemId];
+    const itemDetails = ItemData.itemDetails()[itemId];
     let imageId = itemDetails.id;
     if (itemDetails.stacks) {
       for (const stack of itemDetails.stacks) {
@@ -28,11 +28,11 @@ export class Item {
   }
 
   static itemName(itemId) {
-    return Item.itemDetails[itemId].name;
+    return ItemData.itemDetails()[itemId].name;
   }
 
   static itemId(runeliteKey) {
-    return Item.runeliteKeyList[runeliteKey];
+    return ItemData.runeliteKeyList()[runeliteKey];
   }
 
   static shortQuantity(quantity) {
@@ -56,7 +56,7 @@ export class Item {
   }
 
   get name() {
-    return Item.itemDetails[this.id].name;
+    return ItemData.itemDetails()[this.id].name;
   }
 
   get wikiLink() {
@@ -64,15 +64,15 @@ export class Item {
   }
 
   get highAlch() {
-    return Item.itemDetails[this.id].highalch;
+    return ItemData.itemDetails()[this.id].highalch;
   }
 
   get gePrice() {
-    if (this.id == this.itemId('COINS_995')) {
+    if (this.id == Item.itemId('COINS_995')) {
       return 1;
     }
 
-    if (this.id == this.itemId('PLATINUM_TOKEN')) {
+    if (this.id == Item.itemId('PLATINUM_TOKEN')) {
       return 1000;
     }
 
@@ -106,7 +106,7 @@ export class Item {
         continue;
       }
 
-      if (!Item.itemDetails[data[i].id]) {
+      if (!ItemData.itemDetails()[data[i].id]) {
         console.warn(`Unrecognized item id: ${data[i].id}`);
         continue;
       }
@@ -118,35 +118,15 @@ export class Item {
     return result;
   }
 
-  static async loadItems() {
-    const itemDataResponse = await fetch("/data/item_data.json");
-    Item.itemDetails = await itemDataResponse.json();
-
-    const itemVariationsResponse = await fetch("/data/item_variations.json");
-    Item.itemVariations = await itemVariationsResponse.json();
-
-    Item.runeliteKeyList = {};
-
-    for (const [itemId, itemDetails] of Object.entries(Item.itemDetails)) {
-      const stacks = itemDetails.stacks;
-      itemDetails.stacks = stacks ? stacks.map((stack) => ({ id: stack[1], count: stack[0] })) : null;
-      itemDetails.id = itemId;
-
-      Item.runeliteKeyList[itemDetails.runeliteKey] = itemId;
-    }
-
-    pubsub.publish("item-data-loaded");
-  }
-
   static async loadGePrices() {
     const response = await api.getGePrices();
     Item.gePrices = await response.json();
   }
 
   static randomItem(quantity = null) {
-    const keys = Object.keys(Item.itemDetails);
+    const keys = Object.keys(ItemData.itemDetails());
     const key = keys[(keys.length * Math.random()) << 0];
-    const item = Item.itemDetails[key];
+    const item = ItemData.itemDetails()[key];
     return [item.id, quantity ? quantity : Math.round(Math.random() * 100000 + 1)];
   }
 

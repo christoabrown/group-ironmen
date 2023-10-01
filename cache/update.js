@@ -223,11 +223,12 @@ async function buildItemMapper() {
   let contents = fs.readFileSync(`${runelitePath}/runelite-client/src/main/java/net/runelite/client/game/ItemMapping.java`, 'utf8');
   contents = contents.substring(contents.indexOf('{', contents.indexOf('public enum ItemMapping')) + 1)
       .replace(/(ITEM_.+)\(\s*([^)]+)\)[,;]/g, 'itemMappings.$1 = new ItemMapping($2);')
-      .replace(/(new ItemMapping\(|, )([^,)]+)/g, '$1Item.itemId(\'$2\')')
-      .replace(/Item.itemId\('(true|false)'\)|Item.itemId\('(\d+)L'\)/g, '$1$2')
+      .replace(/(new ItemMapping\(|,\s*)([^,)]+)/g, '$1ItemData.runeliteKeyList()[\'$2\']')
+      .replace(/ItemData.runeliteKeyList\(\)\['(true|false)'\)|ItemData.runeliteKeyList\(\)\['(\d+)L'\]/g, '$1$2')
   contents = contents.substring(0, contents.indexOf('@VisibleForTesting'));
 
-  fs.writeFileSync('./item-mapping-list.js', `import { Item } from './item.js';
+  fs.writeFileSync('./item-mapping-list.js', `import { ItemData } from "./item-data";
+
 class ItemMapping {
   constructor(tradeableItem, ...untradableItems) {
     this.quantity = 1;
@@ -249,9 +250,14 @@ class ItemMapping {
     this.untradableItems = untradableItems;
   }
 }
-const itemMappings = {};
+
+export class ItemMappingList {
+	static async mapping() {
+		const itemMappings = {};
 ${contents}
-export { itemMappings };`);
+	return itemMappings;
+	}
+}`);
 }
 
 async function dumpItemImages(allIncludedItemIds) {
