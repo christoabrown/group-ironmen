@@ -23,11 +23,15 @@ export function map(itemId) {
     mappings = new Map();
 
     for (const item of Object.values(ItemMappingList.mapping())) {
-      for (const untradeableId of item.untradableItems) {
+      for (let untradeableId of item.untradableItems) {
+        untradeableId = parseInt(untradeableId);
+
         if (item.includeVariations) {
           const variations = invertedVariations[untradeableId] || [untradeableId];
 
-          for (const variation of variations) {
+          for (let variation of variations) {
+            variation = parseInt(variation);
+
             if (variation != item.tradeableItem) {
               if (!mappings.has(variation)) {
                 mappings.set(variation, []);
@@ -45,10 +49,11 @@ export function map(itemId) {
         }
       }
     }
+
+    // console.log(JSON.stringify(Object.fromEntries(mappings), null, 4));
   }
 
-  const mapping = mappings.get(itemId);
-
+  const mapping = mappings.get(parseInt(itemId));
   if (!mapping || !mapping.length) {
     return null;
   }
