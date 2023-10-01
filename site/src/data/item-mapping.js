@@ -23,12 +23,12 @@ export function map(itemId) {
     mappings = new Map();
 
     for (const item of Object.values(ItemMappingList.mapping())) {
-      for (const itemId of item.untradableItems) {
+      for (const untradeableId of item.untradableItems) {
         if (item.includeVariations) {
-          const variations = invertedVariations[itemId] || [itemId];
+          const variations = invertedVariations[untradeableId] || [untradeableId];
 
           for (const variation of variations) {
-            if (variation !== item.tradeableItem) {
+            if (variation != item.tradeableItem) {
               if (!mappings.has(variation)) {
                 mappings.set(variation, []);
               }
@@ -37,16 +37,21 @@ export function map(itemId) {
             }
           }
         } else {
-          if (!mappings.has(itemId)) {
-            mappings.set(itemId, []);
+          if (!mappings.has(untradeableId)) {
+            mappings.set(untradeableId, []);
           }
 
-          mappings.get(itemId).push(item);
+          mappings.get(untradeableId).push(item);
         }
       }
     }
   }
 
   const mapping = mappings.get(itemId);
-  return mapping && mapping.length > 0 ? mapping : null;
+
+  if (!mapping || !mapping.length) {
+    return null;
+  }
+
+  return mapping;
 }

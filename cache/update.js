@@ -226,7 +226,8 @@ async function buildItemMapper() {
   contents = contents.substring(contents.indexOf('{', contents.indexOf('public enum ItemMapping')) + 1)
       .replace(/(ITEM_.+)\(\s*([^)]+)\)[,;]/g, 'itemMappings.$1 = new ItemMapping($2);')
       .replace(/(new ItemMapping\(|,\s*)([^,)]+)/g, '$1ItemData.runeliteKeyList()[\'$2\']')
-      .replace(/ItemData.runeliteKeyList\(\)\['(true|false)'\)|ItemData.runeliteKeyList\(\)\['(\d+)L'\]/g, '$1$2')
+      .replace(/ItemData\.runeliteKeyList\(\)\['(true|false)'\]|ItemData\.runeliteKeyList\(\)\['(\d+)L'\]/g, '$1$2')
+
   contents = contents.substring(0, contents.indexOf('@VisibleForTesting'));
 
   fs.writeFileSync('./item-mapping-list.js', `import { ItemData } from "./item-data";
@@ -472,6 +473,7 @@ async function moveResults() {
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
   await buildItemMapper();
+  await retry(() => fs.renameSync('./item-mapping-list.js', siteItemMappingPath), true);
 
   const xteasLocation = await convertXteasToRuneliteFormat();
   await dumpMapData(xteasLocation);

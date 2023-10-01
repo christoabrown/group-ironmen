@@ -23,7 +23,7 @@ class ItemMapping {
 }
 
 export class ItemMappingList {
-  static async mapping() {
+  static mapping() {
     const itemMappings = {};
 
     // Barrows equipment
@@ -725,55 +725,55 @@ export class ItemMappingList {
     // Imbued rings
     itemMappings.ITEM_BERSERKER_RING = new ItemMapping(
       ItemData.runeliteKeyList()["BERSERKER_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["BERSERKER_RING_I"]
     );
     itemMappings.ITEM_SEERS_RING = new ItemMapping(
       ItemData.runeliteKeyList()["SEERS_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["SEERS_RING_I"]
     );
     itemMappings.ITEM_WARRIOR_RING = new ItemMapping(
       ItemData.runeliteKeyList()["WARRIOR_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["WARRIOR_RING_I"]
     );
     itemMappings.ITEM_ARCHERS_RING = new ItemMapping(
       ItemData.runeliteKeyList()["ARCHERS_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["ARCHERS_RING_I"]
     );
     itemMappings.ITEM_TREASONOUS_RING = new ItemMapping(
       ItemData.runeliteKeyList()["TREASONOUS_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["TREASONOUS_RING_I"]
     );
     itemMappings.ITEM_TYRANNICAL_RING = new ItemMapping(
       ItemData.runeliteKeyList()["TYRANNICAL_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["TYRANNICAL_RING_I"]
     );
     itemMappings.ITEM_RING_OF_THE_GODS = new ItemMapping(
       ItemData.runeliteKeyList()["RING_OF_THE_GODS"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["RING_OF_THE_GODS_I"]
     );
     itemMappings.ITEM_RING_OF_SUFFERING = new ItemMapping(
       ItemData.runeliteKeyList()["RING_OF_SUFFERING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["RING_OF_SUFFERING_I"]
     );
     itemMappings.ITEM_GRANITE_RING = new ItemMapping(
       ItemData.runeliteKeyList()["GRANITE_RING"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["GRANITE_RING_I"]
     );
@@ -813,7 +813,7 @@ export class ItemMappingList {
     // Jewellery with charges
     itemMappings.ITEM_RING_OF_WEALTH = new ItemMapping(
       ItemData.runeliteKeyList()["RING_OF_WEALTH"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["RING_OF_WEALTH_1"]
     );
@@ -988,7 +988,7 @@ export class ItemMappingList {
     );
     itemMappings.ITEM_PHARAOHS_SCEPTRE = new ItemMapping(
       ItemData.runeliteKeyList()["PHARAOHS_SCEPTRE_UNCHARGED"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["PHARAOHS_SCEPTRE"]
     );
@@ -1094,7 +1094,7 @@ export class ItemMappingList {
     // Slayer helm/black mask
     itemMappings.ITEM_BLACK_MASK = new ItemMapping(
       ItemData.runeliteKeyList()["BLACK_MASK"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["BLACK_MASK"],
       ItemData.runeliteKeyList()["SLAYER_HELMET"]
@@ -1348,7 +1348,7 @@ export class ItemMappingList {
     );
     itemMappings.ITEM_BLADE_OF_SAELDOR = new ItemMapping(
       ItemData.runeliteKeyList()["BLADE_OF_SAELDOR_INACTIVE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["BLADE_OF_SAELDOR"]
     );
@@ -1372,25 +1372,25 @@ export class ItemMappingList {
     );
     itemMappings.ITEM_CRYSTAL_HELMET = new ItemMapping(
       ItemData.runeliteKeyList()["CRYSTAL_ARMOUR_SEED"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["CRYSTAL_HELM"]
     );
     itemMappings.ITEM_CRYSTAL_LEGS = new ItemMapping(
       ItemData.runeliteKeyList()["CRYSTAL_ARMOUR_SEED"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       2,
       ItemData.runeliteKeyList()["CRYSTAL_LEGS"]
     );
     itemMappings.ITEM_CRYSTAL_BODY = new ItemMapping(
       ItemData.runeliteKeyList()["CRYSTAL_ARMOUR_SEED"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       3,
       ItemData.runeliteKeyList()["CRYSTAL_BODY"]
     );
     itemMappings.ITEM_BOW_OF_FAERDHINEN = new ItemMapping(
       ItemData.runeliteKeyList()["BOW_OF_FAERDHINEN_INACTIVE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1,
       ItemData.runeliteKeyList()["BOW_OF_FAERDHINEN"]
     );
@@ -1444,43 +1444,43 @@ export class ItemMappingList {
     // Graceful
     itemMappings.ITEM_MARK_OF_GRACE = new ItemMapping(
       ItemData.runeliteKeyList()["AMYLASE_CRYSTAL"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       10,
       ItemData.runeliteKeyList()["MARK_OF_GRACE"]
     );
     itemMappings.ITEM_GRACEFUL_HOOD = new ItemMapping(
       ItemData.runeliteKeyList()["MARK_OF_GRACE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       28,
       ItemData.runeliteKeyList()["GRACEFUL_HOOD"]
     );
     itemMappings.ITEM_GRACEFUL_TOP = new ItemMapping(
       ItemData.runeliteKeyList()["MARK_OF_GRACE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       44,
       ItemData.runeliteKeyList()["GRACEFUL_TOP"]
     );
     itemMappings.ITEM_GRACEFUL_LEGS = new ItemMapping(
       ItemData.runeliteKeyList()["MARK_OF_GRACE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       48,
       ItemData.runeliteKeyList()["GRACEFUL_LEGS"]
     );
     itemMappings.ITEM_GRACEFUL_GLOVES = new ItemMapping(
       ItemData.runeliteKeyList()["MARK_OF_GRACE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       24,
       ItemData.runeliteKeyList()["GRACEFUL_GLOVES"]
     );
     itemMappings.ITEM_GRACEFUL_BOOTS = new ItemMapping(
       ItemData.runeliteKeyList()["MARK_OF_GRACE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       32,
       ItemData.runeliteKeyList()["GRACEFUL_BOOTS"]
     );
     itemMappings.ITEM_GRACEFUL_CAPE = new ItemMapping(
       ItemData.runeliteKeyList()["MARK_OF_GRACE"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       32,
       ItemData.runeliteKeyList()["GRACEFUL_CAPE"]
     );
@@ -1514,31 +1514,31 @@ export class ItemMappingList {
     // 10 golden nuggets = 100 soft clay
     itemMappings.ITEM_GOLDEN_NUGGET = new ItemMapping(
       ItemData.runeliteKeyList()["SOFT_CLAY"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       10,
       ItemData.runeliteKeyList()["GOLDEN_NUGGET"]
     );
     itemMappings.ITEM_PROSPECTOR_HELMET = new ItemMapping(
       ItemData.runeliteKeyList()["GOLDEN_NUGGET"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       32,
       ItemData.runeliteKeyList()["PROSPECTOR_HELMET"]
     );
     itemMappings.ITEM_PROSPECTOR_JACKET = new ItemMapping(
       ItemData.runeliteKeyList()["GOLDEN_NUGGET"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       48,
       ItemData.runeliteKeyList()["PROSPECTOR_JACKET"]
     );
     itemMappings.ITEM_PROSPECTOR_LEGS = new ItemMapping(
       ItemData.runeliteKeyList()["GOLDEN_NUGGET"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       40,
       ItemData.runeliteKeyList()["PROSPECTOR_LEGS"]
     );
     itemMappings.ITEM_PROSPECTOR_BOOTS = new ItemMapping(
       ItemData.runeliteKeyList()["GOLDEN_NUGGET"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       24,
       ItemData.runeliteKeyList()["PROSPECTOR_BOOTS"]
     );
@@ -1546,7 +1546,7 @@ export class ItemMappingList {
     // 10 unidentified minerals = 100 soft clay
     itemMappings.ITEM_UNIDENTIFIED_MINERALS = new ItemMapping(
       ItemData.runeliteKeyList()["SOFT_CLAY"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       10,
       ItemData.runeliteKeyList()["UNIDENTIFIED_MINERALS"]
     );
@@ -1554,7 +1554,7 @@ export class ItemMappingList {
     // Converted to coins
     itemMappings.ITEM_TATTERED_PAGE = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1000,
       ItemData.runeliteKeyList()["TATTERED_MOON_PAGE"],
       ItemData.runeliteKeyList()["TATTERED_SUN_PAGE"],
@@ -1562,37 +1562,37 @@ export class ItemMappingList {
     );
     itemMappings.ITEM_LONG_BONE = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       1000,
       ItemData.runeliteKeyList()["LONG_BONE"]
     );
     itemMappings.ITEM_CURVED_BONE = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       2000,
       ItemData.runeliteKeyList()["CURVED_BONE"]
     );
     itemMappings.ITEM_PERFECT_SHELL = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       600,
       ItemData.runeliteKeyList()["PERFECT_SHELL"]
     );
     itemMappings.ITEM_PERFECT_SNAIL_SHELL = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       600,
       ItemData.runeliteKeyList()["PERFECT_SNAIL_SHELL"]
     );
     itemMappings.ITEM_SNAIL_SHELL = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       600,
       ItemData.runeliteKeyList()["SNAIL_SHELL"]
     );
     itemMappings.ITEM_TORTOISE_SHELL = new ItemMapping(
       ItemData.runeliteKeyList()["COINS_995"],
-      ItemData.runeliteKeyList()["true"],
+      true,
       250,
       ItemData.runeliteKeyList()["TORTOISE_SHELL"]
     );
