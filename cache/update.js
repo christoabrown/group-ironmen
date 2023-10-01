@@ -19,6 +19,8 @@ const cacheJarOutputDir = `${cacheProjectPath}/target`;
 const osrsCacheDirectory = './cache/cache';
 const siteItemDataPath = '../site/public/data/item_data.json';
 const siteMapIconMetaPath = "../site/public/data/map_icons.json";
+const siteVariationDataPath = '../site/public/data/item_variations.json';
+const siteItemMappingPath = '../site/src/data/item-mapping-list.js';
 const siteItemImagesPath = '../site/public/icons/items';
 const siteMapImagesPath = '../site/public/map';
 const siteMapIconPath = "../site/public/map/icons/map_icons.webp";
@@ -148,12 +150,25 @@ async function buildItemDataJson() {
   const items = await readAllItemFiles();
   const includedItems = {};
   const allIncludedItemIds = new Set();
+  const runeliteKeys = new Set();
   for (const [itemId, item] of Object.entries(items)) {
     if (item.name && item.name.trim().toLowerCase() !== 'null') {
       includedItem = {
         name: item.name,
+        runeliteKey: item.name.toUpperCase().replace(/ /g, '_').replace(/[^a-zA-Z0-9_]/g, ''),
         highalch: Math.floor(item.cost * 0.6)
       };
+
+      if (Number.isInteger(includedItem.runeliteKey.charAt(0))) {
+        includedItem.runeliteKey = `_${includedItem.runeliteKey}`;
+      }
+
+      if (runeliteKeys.has(includedItem.runeliteKey)) {
+        includedItem.runeliteKey = `${includedItem.runeliteKey}_${itemId}`;
+      }
+
+      runeliteKeys.add(includedItem.runeliteKey);
+
       const stackedList = [];
       if (item.countCo && item.countObj && item.countCo.length > 0 && item.countObj.length > 0) {
         for (let i = 0; i < item.countCo.length; ++i) {
@@ -202,6 +217,49 @@ async function buildItemDataJson() {
   fs.writeFileSync('./item_data.json', JSON.stringify(includedItems));
 
   return allIncludedItemIds;
+}
+
+async function buildItemMapper() {
+  console.log('\nStep: Build item-mapping-list.js');
+
+  let contents = fs.readFileSync(`${runelitePath}/runelite-client/src/main/java/net/runelite/client/game/ItemMapping.java`, 'utf8');
+  contents = contents.substring(contents.indexOf('{', contents.indexOf('public enum ItemMapping')) + 1)
+      .replace(/(ITEM_.+)\(\s*([^)]+)\)[,;]/g, 'itemMappings.$1 = new ItemMapping($2);')
+      .replace(/(new ItemMapping\(|,\s*)([^,)]+)/g, '$1ItemData.runeliteKeyList()[\'$2\']')
+      .replace(/ItemData.runeliteKeyList\(\)\['(true|false)'\)|ItemData.runeliteKeyList\(\)\['(\d+)L'\]/g, '$1$2')
+  contents = contents.substring(0, contents.indexOf('@VisibleForTesting'));
+
+  fs.writeFileSync('./item-mapping-list.js', `import { ItemData } from "./item-data";
+
+class ItemMapping {
+  constructor(tradeableItem, ...untradableItems) {
+    this.quantity = 1;
+    this.includeVariations = false;
+
+    if (typeof untradableItems[0] === 'boolean') {
+      this.includeVariations = untradableItems[0];
+      this.quantity = untradableItems[1];
+      untradableItems = untradableItems.slice(2);
+    }
+
+    if (typeof untradableItems[0] === 'number') {
+      this.includeVariations = false;
+      this.quantity = untradableItems[0];
+      untradableItems = untradableItems.slice(1);
+    }
+
+    this.tradeableItem = tradeableItem;
+    this.untradableItems = untradableItems;
+  }
+}
+
+export class ItemMappingList {
+	static async mapping() {
+		const itemMappings = {};
+${contents}
+	return itemMappings;
+	}
+}`);
 }
 
 async function dumpItemImages(allIncludedItemIds) {
@@ -350,6 +408,8 @@ async function moveFiles(globSource, destination) {
 async function moveResults() {
   console.log('\nStep: Moving results to site');
   await retry(() => fs.renameSync('./item_data.json', siteItemDataPath), true);
+  await retry(() => fs.renameSync('./item-mapping-list.js', siteItemMappingPath), true);
+  fs.copyFileSync(`${runelitePath}/runelite-client/src/main/resources/item_variations.json`, siteVariationDataPath);
 
   await moveFiles('./item-images/*.webp', siteItemImagesPath);
   await moveFiles("./map-data/tiles/*.webp", siteMapImagesPath);
@@ -411,6 +471,7 @@ async function moveResults() {
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
+  await buildItemMapper();
 
   const xteasLocation = await convertXteasToRuneliteFormat();
   await dumpMapData(xteasLocation);
