@@ -50,23 +50,6 @@ collection-log-page {
   }
 }
 
-.collection-log__page-items item-box {
-  opacity: 0.3;
-}
-
-.collection-log__page-items item-box.collection-log__item-unlocked {
-  opacity: 1;
-}
-
-.collection-log__page-items .item-box__quantity {
-  font-size: 16px;
-  transform: translate(0, 0);
-}
-
 .collection-log__count {
   color: white;
-}
-
-collection-log-page item-box:hover {
-  background: rgba(255, 255, 255, 0.1);
 }

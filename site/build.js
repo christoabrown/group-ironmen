@@ -10,18 +10,25 @@ if (productionMode) {
   console.log("Production mode is enabled");
 }
 
-const mapTilesJsonPlugin = {
+const mapJsonPlugin = {
   name: 'mapTilesJson',
   setup(build) {
     const mapImageFiles = fs.readdirSync("public/map").filter((file) => file.endsWith('.webp')).map((file) => path.basename(file, '.webp'));
 
-    const result = [[], [], [], []];
+    const tiles = [[], [], [], []];
     for (const mapImageFile of mapImageFiles) {
       const [plane, x, y] = mapImageFile.split('_').map((x) => parseInt(x, 10));
-      result[plane].push(((x + y) * (x + y + 1)) / 2 + y);
+      tiles[plane].push(((x + y) * (x + y + 1)) / 2 + y);
     }
 
-    fs.writeFileSync('public/data/map_tiles.json', JSON.stringify(result));
+    const icons = JSON.parse(fs.readFileSync("public/data/map_icons.json", 'utf8'));
+
+    const result = {
+      tiles,
+      icons
+    };
+
+    fs.writeFileSync('public/data/map.json', JSON.stringify(result));
   }
 }
 
@@ -148,7 +155,7 @@ function build() {
     minify: false,
     format: 'esm',
     outfile: 'public/app.js',
-    plugins: [componentBuildPlugin, minifyJsPlugin, htmlBuildPlugin, buildLoggingPlugin, mapTilesJsonPlugin]
+    plugins: [componentBuildPlugin, minifyJsPlugin, htmlBuildPlugin, buildLoggingPlugin, mapJsonPlugin]
   }).catch((error) => console.error(error));
 }
 

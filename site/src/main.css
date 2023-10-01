@@ -58,6 +58,12 @@ h3 {
   src: url("/fonts/RuneScape-Chat-Bold-07.ttf");
 }
 
+@font-face {
+  font-family: "rstiny";
+  font-display: block;
+  src: url("/fonts/runescape-tiny.ttf");
+}
+
 .authed-section__main-content {
   width: 100%;
   padding: 20px 8px;

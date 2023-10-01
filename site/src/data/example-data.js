@@ -206,6 +206,10 @@ class ExampleData {
 
     return result;
   }
+
+  getCollectionLog() {
+    return {};
+  }
 }
 
 const exampleData = new ExampleData();

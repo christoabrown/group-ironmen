@@ -19,13 +19,6 @@ export class SkillGraph extends BaseElement {
     this.render();
     this.tableContainer = this.querySelector(".skill-graph__table-container");
     this.ctx = this.querySelector("canvas").getContext("2d");
-    this.dataSetColors = [
-      { line: "#CC8B00" }, // yellow
-      { line: "#157145" }, // green
-      { line: "#336699" }, // blue
-      { line: "#A41623" }, // red
-      { line: "#441151" }, // purple
-    ];
 
     this.subscribeOnce("get-group-data", this.create.bind(this));
   }
@@ -199,14 +192,14 @@ export class SkillGraph extends BaseElement {
         this.dates,
         skillName
       );
-      const color = this.dataSetColors[i];
+      const color = this.currentGroupData.members.get(playerSkillData.name).color;
 
       result.push({
         type: "line",
         label: playerSkillData.name,
         data: cumulativeChangeData,
-        borderColor: color.line,
-        backgroundColor: color.line,
+        borderColor: color,
+        backgroundColor: color,
         pointBorderWidth: 0,
         pointHoverBorderWidth: 0,
         pointHoverRadius: 3,

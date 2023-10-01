@@ -7,7 +7,7 @@ player-inventory {
   height: var(--inventory-height);
 }
 
-player-inventory item-box:hover {
+player-inventory .item-box__container:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 

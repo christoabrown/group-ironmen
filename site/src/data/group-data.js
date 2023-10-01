@@ -234,9 +234,23 @@ export class GroupData {
 
     let result = {};
     let i = 0;
+    let overall = 0;
+    // NOTE: Overall xp was removed from the API response, but keeping this here so it still
+    // works for data that was stored before that change.
+    const hasOverallXp = skills.length !== 23;
     for (const skillName of Object.keys(SkillName)) {
-      result[skillName] = skills[i++];
+      if (skillName !== SkillName.Overall || hasOverallXp) {
+        result[skillName] = skills[i];
+
+        if (skillName !== SkillName.Overall) {
+          overall += skills[i];
+        }
+
+        i += 1;
+      }
     }
+
+    result[SkillName.Overall] = overall;
     return result;
   }
 
@@ -263,9 +277,13 @@ export class GroupData {
   static transformCoordinatesFromStorage(coordinates) {
     if (coordinates === undefined || coordinates === null) return;
 
+    // NOTE: The coordinates from runelite seems to have changed? Need to
+    // offset them now to line them up with the map.
+    const xOffset = 128;
+    const yOffset = 1;
     return {
-      x: coordinates[0],
-      y: coordinates[1],
+      x: coordinates[0] + xOffset,
+      y: coordinates[1] + yOffset,
       plane: coordinates[2],
     };
   }
@@ -287,6 +305,8 @@ export class GroupData {
       [180, "2315"], // Recipe for Disaster - King Awowogei
       [181, "2316"], // Recipe for Disaster - Culinaromancer
       [182, "2338"], // Secrets of the North
+      [183, "2343"], // Desert Treasure II
+      [184, "3250"], // His Faithful Servants
     ]);
 
     const result = {};
@@ -310,6 +330,14 @@ export class GroupData {
       memberData.stats = GroupData.transformStatsFromStorage(memberData.stats);
       memberData.coordinates = GroupData.transformCoordinatesFromStorage(memberData.coordinates);
       memberData.quests = GroupData.transformQuestsFromStorage(memberData.quests);
+
+      if (memberData.interacting) {
+        memberData.interacting.location = GroupData.transformCoordinatesFromStorage([
+          memberData.interacting.location.x,
+          memberData.interacting.location.y,
+          memberData.interacting.location.plane,
+        ]);
+      }
     }
   }
 }

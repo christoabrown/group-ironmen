@@ -12,15 +12,18 @@ export class CollectionLogPage extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.playerName = this.getAttribute("player-name");
     this.pageId = parseInt(this.getAttribute("page-id"));
-    this.pageInfo = collectionLog.info.pages.find((page) => page[1] === this.pageId);
+    this.pageInfo = collectionLog.pageInfo(this.pageId);
     this.pageTitle = this.pageInfo[2];
     this.pageCountLabels = this.pageInfo[3];
     this.pageItems = collectionLog.pageItems.get(this.pageId);
-    this.playerData = collectionLog.logs.find((log) => log.page_id === this.pageId);
+
+    const playerLog = collectionLog.playerLogs.get(this.playerName);
+    this.completionCounts = playerLog?.getPage(this.pageId)?.completion_counts || [];
     this.unlockedItems = collectionLog.unlockedItems;
-    this.unlockedItemsCount = collectionLog.unlockedItemsCountByPage.get(this.pageId) || 0;
-    this.completionStateClass = collectionLog.completionStateClass(this.pageId);
+    this.unlockedItemsCount = collectionLog.completionCountForPage(this.playerName, this.pageId);
+    this.completionStateClass = collectionLog.completionStateClass(this.playerName, this.pageId);
 
     const tab = this.pageInfo[0];
     if (tab === 2) {

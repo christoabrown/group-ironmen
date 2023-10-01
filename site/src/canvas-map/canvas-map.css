@@ -1,4 +1,15 @@
 canvas-map {
   display: block;
   touch-action: none;
+  cursor: grab;
+}
+
+canvas-map.dragging {
+  cursor: grabbing;
+}
+
+.canvas-map__coordinates {
+  position: fixed;
+  bottom: 0;
+  left: 8px;
 }

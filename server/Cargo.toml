@@ -28,9 +28,8 @@ regex = "1.5.5"
 arc-swap = "1.5.0"
 reqwest = { version = "0.11.14", features = ["json"] }
 
-# Enable a small amount of optimization in debug mode
 [profile.dev]
-opt-level = 1
+opt-level = 0
 
 # Enable high optimizations for dependencies but not for our code:
 [profile.dev.package."*"]

@@ -44,6 +44,7 @@ export class MapPage extends BaseElement {
   }
 
   handlePlaneSelect() {
+    this.worldMap.stopFollowingPlayer();
     this.worldMap.showPlane(this.getSelectedPlane());
   }
 

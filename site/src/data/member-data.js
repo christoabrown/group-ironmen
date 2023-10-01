@@ -5,6 +5,15 @@ import { pubsub } from "./pubsub";
 import { utility } from "../utility";
 import { AchievementDiary } from "./diaries";
 
+const playerColors = [
+  "hsl(41, 100%, 40%)", // yellow
+  "hsl(151, 69%, 26%)", // green
+  "hsl(210, 50%, 40%)", // blue
+  "hsl(355, 76%, 36%)", // red
+  "hsl(288, 65%, 19%)", // purple
+];
+let currentColor = 0;
+
 export class MemberData {
   constructor(name) {
     this.name = name;
@@ -16,6 +25,11 @@ export class MemberData {
       seedVault: new Map(),
     };
     this.inactive = false;
+
+    this.color = playerColors[currentColor];
+    currentColor = (currentColor + 1) % playerColors.length;
+    // Store the hue for player-icon
+    this.hue = this.color.substring(this.color.indexOf("(") + 1, this.color.indexOf(","));
   }
 
   update(memberData) {
