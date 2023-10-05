@@ -49,8 +49,6 @@ export function map(itemId) {
         }
       }
     }
-
-    // console.log(JSON.stringify(Object.fromEntries(mappings), null, 4));
   }
 
   const mapping = mappings.get(parseInt(itemId));

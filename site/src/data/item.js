@@ -79,9 +79,6 @@ export class Item {
     let price = 0;
 
     const mappedItems = map(this.id);
-    if (this.id == 11849) {
-      // console.log(mappedItems);
-    }
     if (mappedItems === null) {
       price += Item.gePrices[this.id] || 0;
     } else {
