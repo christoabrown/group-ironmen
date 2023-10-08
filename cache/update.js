@@ -255,7 +255,7 @@ class ItemMapping {
 }
 
 export class ItemMappingList {
-	static async mapping() {
+	static mapping() {
 		const itemMappings = {};
 ${contents}
 	return itemMappings;
@@ -473,7 +473,6 @@ async function moveResults() {
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
   await buildItemMapper();
-  await retry(() => fs.renameSync('./item-mapping-list.js', siteItemMappingPath), true);
 
   const xteasLocation = await convertXteasToRuneliteFormat();
   await dumpMapData(xteasLocation);
