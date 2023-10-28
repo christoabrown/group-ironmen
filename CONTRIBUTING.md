@@ -1,2 +1,3 @@
 - Copy ~/.runelite/cache to cache directory.
+- Copy ~/.runelite/jagexcache/oldschool/LIVE to cache/cache directory.
 - Download latest xteas.json from https://archive.runestats.com/osrs/ and put it in the cache directory.
