@@ -13,20 +13,19 @@ export class CollectionLogPage extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.playerName = this.getAttribute("player-name");
-    this.pageId = parseInt(this.getAttribute("page-id"));
-    this.pageInfo = collectionLog.pageInfo(this.pageId);
-    this.pageTitle = this.pageInfo[2];
-    this.pageCountLabels = this.pageInfo[3];
-    this.pageItems = collectionLog.pageItems.get(this.pageId);
+    this.tabId = parseInt(this.getAttribute("tab-id"));
+    this.pageName = this.getAttribute("page-name");
+    this.pageInfo = collectionLog.pageInfo(this.pageName);
+    this.pageTitle = this.pageInfo.name;
+    this.pageCountLabels = this.pageInfo.completion_labels;
+    this.pageItems = collectionLog.pageItems.get(this.pageName);
 
     const playerLog = collectionLog.playerLogs.get(this.playerName);
-    this.completionCounts = playerLog?.getPage(this.pageId)?.completion_counts || [];
-    this.unlockedItems = collectionLog.unlockedItems;
-    this.unlockedItemsCount = collectionLog.completionCountForPage(this.playerName, this.pageId);
-    this.completionStateClass = collectionLog.completionStateClass(this.playerName, this.pageId);
+    this.completionCounts = playerLog?.getPage(this.pageName)?.completion_counts || [];
+    this.unlockedItemsCount = collectionLog.completionCountForPage(this.playerName, this.pageName);
+    this.completionStateClass = collectionLog.completionStateClass(this.playerName, this.pageName);
 
-    const tab = this.pageInfo[0];
-    if (tab === 2) {
+    if (this.tabId === 2) {
       // Clues tab
       if (this.pageTitle.startsWith("Shared")) {
         this.pageTitleLink = "https://oldschool.runescape.wiki/w/Collection_log#Shared_Treasure_Trail_Rewards";

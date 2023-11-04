@@ -16,7 +16,7 @@ export class CollectionLog extends BaseElement {
     loadingScreenManager.showLoadingScreen();
     this.playerName = this.getAttribute("player-name");
     await this.init();
-    this.totalUniqueItems = collectionLog.totalUniqueItems();
+    this.totalUniqueItems = collectionLog.totalUniqueItems;
     this.unlockedUniqueItems = collectionLog.totalUnlockedItems(this.playerName);
     this.render();
 

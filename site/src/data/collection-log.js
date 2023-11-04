@@ -19,17 +19,17 @@ class PlayerLog {
         itemSet.add(items[i]);
       }
 
-      this.unlockedItemsCountByPage.set(log.page_id, itemSet.size);
+      this.unlockedItemsCountByPage.set(log.page_name, itemSet.size);
     }
   }
 
-  isLogComplete(pageId) {
-    return this.unlockedItemsCountByPage.get(pageId) === collectionLog.pageItems.get(pageId).length;
+  isLogComplete(pageName) {
+    return this.unlockedItemsCountByPage.get(pageName) === collectionLog.pageItems.get(pageName).length;
   }
 
-  completionStateClass(pageId) {
-    const unlockedItemsCount = this.unlockedItemsCountByPage.get(pageId);
-    const totalItemsInPage = collectionLog.pageItems.get(pageId).length;
+  completionStateClass(pageName) {
+    const unlockedItemsCount = this.unlockedItemsCountByPage.get(pageName);
+    const totalItemsInPage = collectionLog.pageItems.get(pageName).length;
     if (totalItemsInPage === unlockedItemsCount) {
       return "collection-log__complete";
     } else if (unlockedItemsCount > 0) {
@@ -39,8 +39,8 @@ class PlayerLog {
     return "collection-log__not-started";
   }
 
-  getPage(pageId) {
-    return this.logs.find((log) => log.page_id === pageId);
+  getPage(pageName) {
+    return this.logs.find((log) => log.page_name === pageName);
   }
 }
 
@@ -50,14 +50,18 @@ class CollectionLog {
   async initLogInfo() {
     if (this.info) return;
     this.info = await api.getCollectionLogInfo();
-
     this.pageItems = new Map();
-    for (const item of this.info.items) {
-      const pageId = item[0];
-      const itemId = item[1];
-      if (!this.pageItems.has(pageId)) this.pageItems.set(pageId, []);
-      this.pageItems.get(pageId).push(itemId);
+
+    const uniqueItems = new Set();
+
+    for (const tab of this.info) {
+      for (const page of tab.pages) {
+        page.items.forEach((item) => uniqueItems.add(item.id));
+        this.pageItems.set(page.name, page.items);
+      }
     }
+
+    this.totalUniqueItems = uniqueItems.size;
   }
 
   async load() {
@@ -71,24 +75,34 @@ class CollectionLog {
     this.playerNames = Array.from(this.playerLogs.keys());
   }
 
+  tabName(tabId) {
+    switch (tabId) {
+      case 0:
+        return "Bosses";
+      case 1:
+        return "Raids";
+      case 2:
+        return "Clues";
+      case 3:
+        return "Minigames";
+      case 4:
+        return "Other";
+    }
+  }
+
   loadPlayer(playerName) {
     // Storing this here so we don't have to create a bunch of copies in the collection-log-item component
     this.otherPlayers = this.playerNames.filter((x) => x !== playerName);
   }
 
-  isLogComplete(playerName, pageId) {
+  isLogComplete(playerName, pageName) {
     const playerLog = this.playerLogs.get(playerName);
-    return playerLog?.isLogComplete(pageId) || false;
+    return playerLog?.isLogComplete(pageName) || false;
   }
 
-  completionStateClass(playerName, pageId) {
+  completionStateClass(playerName, pageName) {
     const playerLog = this.playerLogs.get(playerName);
-    return playerLog?.completionStateClass(pageId) || "collection-log__not-started";
-  }
-
-  // The amount of unique items in the game's collection log, not from the player unlocks
-  totalUniqueItems() {
-    return new Set(this.info.items.map((item) => item[1])).size;
+    return playerLog?.completionStateClass(pageName) || "collection-log__not-started";
   }
 
   totalUnlockedItems(playerName) {
@@ -96,17 +110,23 @@ class CollectionLog {
     return playerLog?.unlockedItems.size || 0;
   }
 
-  pageSize(pageId) {
-    return this.pageItems.get(pageId).length;
+  pageSize(pageName) {
+    return this.pageItems.get(pageName).length;
   }
 
-  completionCountForPage(playerName, pageId) {
+  completionCountForPage(playerName, pageName) {
     const playerLog = this.playerLogs.get(playerName);
-    return playerLog?.unlockedItemsCountByPage.get(pageId) || 0;
+    return playerLog?.unlockedItemsCountByPage.get(pageName) || 0;
   }
 
-  pageInfo(pageId) {
-    return this.info.pages.find((page) => page[1] === pageId);
+  pageInfo(pageName) {
+    for (const tab of this.info) {
+      for (const page of tab.pages) {
+        if (page.name === pageName) return page;
+      }
+    }
+
+    return null;
   }
 
   unlockedItemCount(playerName, itemId) {
