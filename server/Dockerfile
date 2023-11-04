@@ -1,7 +1,7 @@
 ###############################################
 # Backend Image
 ###############################################
-FROM rust:1.67 as builder
+FROM rust:1.73 as builder
 WORKDIR /app
 COPY src ./src
 COPY Cargo.toml .
