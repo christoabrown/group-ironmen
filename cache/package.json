@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "update": "node update.js"
+    "update": "cp -r ~/.runelite/cache/ cache/ && cp -r ~/.runelite/jagexcache/oldschool/LIVE/ cache/cache/ && node update.js"
   },
   "author": "",
   "license": "ISC",
