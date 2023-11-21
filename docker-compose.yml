@@ -9,6 +9,9 @@ services:
     ports:
       - 4000:4000 # replace this if using a docker-compatible reverse proxy like traefik
   group-ironmen-tracker-backend:
+    # build:
+      # context: ./server
+      # dockerfile: Dockerfile
     image: chrisleeeee/group-ironmen-tracker-backend
     environment:
       - PG_USER=${PG_USER}
