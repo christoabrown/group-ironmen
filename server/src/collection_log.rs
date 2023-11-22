@@ -158,6 +158,8 @@ lazy_static! {
         (25621, 10880), // black stachel
         (25622, 10881), // gold satchel
         (25623, 10882), // rune satchel
+        (25624, 13273), // unsired pet
+        (25630, 12854), // Flamtaer bag
     ]);
 
     pub static ref COLLECTION_LOG_DATA: String = {
