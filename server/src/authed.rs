@@ -97,7 +97,7 @@ pub async fn update_group_member(
     if !in_group {
         return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
     }
-    let group_member_inner: GroupMember = group_member.into_inner();
+    let mut group_member_inner: GroupMember = group_member.into_inner();
 
     validate_member_prop_length("stats", &group_member_inner.stats, 7, 7)?;
     validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 3)?;
@@ -111,7 +111,7 @@ pub async fn update_group_member(
     validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
     validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
     validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
-    validate_collection_log(&collection_log_info, &group_member_inner.collection_log)?;
+    validate_collection_log(&collection_log_info, &mut group_member_inner.collection_log)?;
 
     db::update_group_member(&client, auth.group_id, group_member_inner, collection_log_info).await?;
     Ok(HttpResponse::Ok().finish())

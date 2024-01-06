@@ -10,19 +10,19 @@ class ExampleData {
   enable() {
     this.disable();
     this.reset();
-    utility.callOnInterval(() => {
-      let plane = this.members["Zezima"].coordinates[2];
-      plane += 1;
-      if (plane > 3) plane = 0;
-      this.members["Zezima"].coordinates = [
-        this.members["Zezima"].coordinates[0] + 1,
-        this.members["Zezima"].coordinates[1],
-        plane,
-      ];
-    }, 1000);
     this.intervals = [
       utility.callOnInterval(this.doHealthUpdate.bind(this), 3000),
       utility.callOnInterval(this.doXpDrop.bind(this), 2000),
+      utility.callOnInterval(() => {
+        let plane = this.members["Zezima"].coordinates[2];
+        plane += 1;
+        if (plane > 3) plane = 0;
+        this.members["Zezima"].coordinates = [
+          this.members["Zezima"].coordinates[0] + 1,
+          this.members["Zezima"].coordinates[1],
+          plane,
+        ];
+      }, 1000),
     ];
   }
 

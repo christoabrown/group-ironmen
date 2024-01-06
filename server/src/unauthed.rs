@@ -2,9 +2,9 @@ use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
-use crate::collection_log::CollectionLogInfo;
+use crate::collection_log::COLLECTION_LOG_DATA;
 use crate::validators::valid_name;
-use actix_web::{get, post, web, Error, HttpResponse};
+use actix_web::{get, post, web, Error, HttpResponse, http::header::ContentType};
 use arc_swap::{ArcSwap, ArcSwapAny};
 use deadpool_postgres::{Client, Pool};
 use lazy_static::lazy_static;
@@ -188,6 +188,8 @@ pub async fn captcha_enabled(config: web::Data<Config>) -> Result<HttpResponse, 
 }
 
 #[get("collection-log-info")]
-pub async fn collection_log_info(collection_log_info: web::Data<CollectionLogInfo>) -> Result<web::Json<CollectionLogInfo>, Error> {
-    Ok(web::Json((*collection_log_info.into_inner()).clone()))
+pub async fn collection_log_info() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type(ContentType::json())
+        .body((&**COLLECTION_LOG_DATA).clone())
 }

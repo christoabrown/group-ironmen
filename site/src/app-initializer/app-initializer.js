@@ -20,37 +20,52 @@ export class AppInitializer extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-
     this.initializeApp();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.cleanup();
+  }
+
+  cleanup() {
     api.disable();
+    // Unpublish everything to prevent any data leaking over into another session
+    pubsub.unpublishAll();
+    exampleData.disable();
+    api.exampleDataEnabled = false;
+    loadingScreenManager.hideLoadingScreen();
   }
 
   async initializeApp() {
+    this.cleanup();
     loadingScreenManager.showLoadingScreen();
     await Promise.all([ItemData.loadItems(), Item.loadGePrices(), Quest.loadQuests(), AchievementDiary.loadDiaries()]);
     const group = storage.getGroup();
 
-    if (group.groupName === "@EXAMPLE") {
-      exampleData.enable();
-      api.exampleDataEnabled = true;
-      api.enable();
-      loadingScreenManager.hideLoadingScreen();
-      return;
-    } else {
-      exampleData.disable();
-      api.exampleDataEnabled = false;
-    }
-
+    // Make sure this component is still connected after loading the above. We don't want to start
+    // making requests for group data if the user navigated away before the preload completed.
     if (this.isConnected) {
-      const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
-      api.enable(group.groupName, group.groupToken);
-      await firstDataEvent;
+      if (group.groupName === "@EXAMPLE") {
+        await this.loadExampleData();
+      } else {
+        await this.loadGroup(group);
+      }
+
       loadingScreenManager.hideLoadingScreen();
     }
+  }
+
+  async loadExampleData() {
+    exampleData.enable();
+    api.exampleDataEnabled = true;
+    await api.enable();
+  }
+
+  async loadGroup(group) {
+    const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
+    await api.enable(group.groupName, group.groupToken);
+    await firstDataEvent;
   }
 }
 

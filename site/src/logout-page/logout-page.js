@@ -18,8 +18,6 @@ export class LogoutPage extends BaseElement {
     exampleData.disable();
     api.disable();
     storage.clearGroup();
-    // Unpublish everything to prevent any data leaking over into another session
-    pubsub.unpublishAll();
     window.history.pushState("", "", "/");
   }
 

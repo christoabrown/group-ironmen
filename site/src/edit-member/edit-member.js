@@ -61,7 +61,7 @@ export class EditMember extends BaseElement {
       loadingScreenManager.showLoadingScreen();
       const result = await api.renameMember(originalName, newName);
       if (result.ok) {
-        api.restart();
+        await api.restart();
         await pubsub.waitUntilNextEvent("get-group-data", false);
       } else {
         const message = await result.text();
@@ -84,7 +84,7 @@ export class EditMember extends BaseElement {
           loadingScreenManager.showLoadingScreen();
           const result = await api.removeMember(this.member.name);
           if (result.ok) {
-            api.restart();
+            await api.restart();
             await pubsub.waitUntilNextEvent("get-group-data", false);
           } else {
             const message = await result.text();
@@ -108,7 +108,7 @@ export class EditMember extends BaseElement {
       loadingScreenManager.showLoadingScreen();
       const result = await api.addMember(this.input.value);
       if (result.ok) {
-        api.restart();
+        await api.restart();
         await pubsub.waitUntilNextEvent("get-group-data", false);
       } else {
         const message = await result.text();

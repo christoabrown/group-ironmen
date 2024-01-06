@@ -59,24 +59,28 @@ class Api {
   async restart() {
     const groupName = this.groupName;
     const groupToken = this.groupToken;
-    this.disable();
-    this.enable(groupName, groupToken);
+    await this.enable(groupName, groupToken);
   }
 
   async enable(groupName, groupToken) {
+    await this.disable();
     this.nextCheck = new Date(0).toISOString();
     this.setCredentials(groupName, groupToken);
 
     if (!this.enabled) {
       this.enabled = true;
-      if (!this.exampleDataEnabled) {
-        await pubsub.waitForAllEvents("item-data-loaded", "quest-data-loaded");
-      }
-      this.getGroupInterval = utility.callOnInterval(this.getGroupData.bind(this), 1000);
+      // getGroupInterval is a Promise so we can make sure this method does not leak
+      // any intervals with multiple calls to .enable(). This could be possible because of
+      // the wait for the item and quest data loads before we create the interval.
+      this.getGroupInterval = pubsub.waitForAllEvents("item-data-loaded", "quest-data-loaded").then(() => {
+        return utility.callOnInterval(this.getGroupData.bind(this), 1000);
+      });
     }
+
+    await this.getGroupInterval;
   }
 
-  disable() {
+  async disable() {
     this.enabled = false;
     this.groupName = undefined;
     this.groupToken = undefined;
@@ -84,7 +88,7 @@ class Api {
     groupData.groupItems = {};
     groupData.filters = [""];
     if (this.getGroupInterval) {
-      window.clearInterval(this.getGroupInterval);
+      window.clearInterval(await this.getGroupInterval);
     }
   }
 
@@ -103,7 +107,7 @@ class Api {
       });
       if (!response.ok) {
         if (response.status === 401) {
-          this.disable();
+          await this.disable();
           window.history.pushState("", "", "/login");
           pubsub.publish("get-group-data");
         }

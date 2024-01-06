@@ -9,10 +9,9 @@ use crate::models::{
     SHARED_MEMBER,
 };
 use crate::collection_log::{
-    COLLECTION_TAB_PAGES,
-    COLLECTION_LOG_ITEMS,
     CollectionLogInfo,
     CollectionLog,
+    COLLECTION_LOG_INFO
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -724,13 +723,6 @@ WHERE m.group_id=$1
 }
 
 pub async fn get_collection_log_info(client: &Client) -> Result<CollectionLogInfo, ApiError> {
-    let tab_info_stmt = client.prepare_cached(r#"SELECT tab_id, name FROM groupironman.collection_tab"#).await?;
-    let tab_info_rows = client.query(&tab_info_stmt, &[]).await?;
-    let mut tabs: Vec<(i16, String)> = vec![];
-    for row in tab_info_rows {
-        tabs.push((row.try_get("tab_id")?, row.try_get("name")?));
-    }
-
     let page_info_stmt = client.prepare_cached(r#"SELECT tab_id, page_id, page_name FROM groupironman.collection_page"#).await?;
     let page_info_rows = client.query(&page_info_stmt, &[]).await?;
     let mut pages: Vec<(i16, i16, String)> = vec![];
@@ -738,26 +730,20 @@ pub async fn get_collection_log_info(client: &Client) -> Result<CollectionLogInf
         pages.push((row.try_get("tab_id")?, row.try_get("page_id")?, row.try_get("page_name")?));
     }
 
-    let items_info_stmt = client.prepare_cached(r#"SELECT page_id, item_id FROM groupironman.collection_items"#).await?;
-    let items_info_rows = client.query(&items_info_stmt, &[]).await?;
-    let mut items: Vec<(i16, i32)> = vec![];
-    for row in items_info_rows {
-        items.push((row.try_get("page_id")?, row.try_get("item_id")?));
-    }
-
-    Ok(CollectionLogInfo::new(tabs, pages, items))
+    Ok(CollectionLogInfo::new(pages))
 }
 
 pub async fn get_collection_log_for_group(client: &Client, group_id: i64) -> Result<HashMap<String, Vec<CollectionLog>>, ApiError> {
         let collection_log_stmt = client.prepare_cached(r#"
-SELECT page_id,
+SELECT groupironman.collection_log.page_id,
+       page_name,
        items,
        counts,
        groupironman.members.member_name,
        groupironman.members.member_id
 FROM groupironman.collection_log
-INNER JOIN groupironman.members
-ON groupironman.collection_log.member_id = groupironman.members.member_id
+INNER JOIN groupironman.members ON groupironman.collection_log.member_id = groupironman.members.member_id
+INNER JOIN groupironman.collection_page ON groupironman.collection_page.page_id = groupironman.collection_log.page_id
 WHERE groupironman.collection_log.group_id=$1
 "#).await?;
     let collection_log_rows = client.query(&collection_log_stmt, &[&group_id]).await.map_err(ApiError::GetCollectionLogError)?;
@@ -788,8 +774,7 @@ WHERE groupironman.collection_log_new.group_id=$1
         let page_id = row.try_get("page_id")?;
         let page = CollectionLog {
             tab: -1,
-            page_name: "".to_string(),
-            page_id,
+            page_name: row.try_get("page_name")?,
             completion_counts: row.try_get("counts")?,
             items: row.try_get("items")?,
             new_items: new_items_lookup.remove(&(member_id, page_id)).unwrap_or(Vec::new())
@@ -1059,14 +1044,16 @@ CREATE TABLE IF NOT EXISTS groupironman.collection_page (
         &[],
     ).await?;
 
-    for collection_tab_page in COLLECTION_TAB_PAGES.iter() {
-        client.execute(
-            r#"
+    for tab in COLLECTION_LOG_INFO.iter() {
+        for page in tab.pages.iter() {
+            client.execute(
+                r#"
 INSERT INTO groupironman.collection_page (tab_id, page_name) VALUES ($1, $2)
 ON CONFLICT (tab_id, page_name) DO NOTHING
 "#,
-            &[&collection_tab_page.0, &collection_tab_page.1],
-        ).await?;
+                &[&tab.tabId, &page.name],
+            ).await?;
+        }
     }
 
     client.execute(
@@ -1102,28 +1089,10 @@ CREATE TABLE IF NOT EXISTS groupironman.collection_log_new (
 
     client.execute(
         r#"
-CREATE TABLE IF NOT EXISTS groupironman.collection_items (
-    page_id SMALLSERIAL,
-    item_id INTEGER,
-
-    PRIMARY KEY (page_id, item_id)
-);
+DROP TABLE IF EXISTS groupironman.collection_items;
 "#,
         &[]
     ).await?;
-
-    let page_id_stmt = client.prepare_cached("SELECT page_id FROM groupironman.collection_page WHERE tab_id=$1 AND page_name=$2").await?;
-    for collection_log_item in COLLECTION_LOG_ITEMS.iter() {
-        let page_id: i16 = client.query_one(&page_id_stmt, &[&collection_log_item.0, &collection_log_item.1]).await?.try_get(0)?;
-
-        client.execute(
-            r#"
-INSERT INTO groupironman.collection_items (page_id, item_id) VALUES ($1, $2)
-ON CONFLICT (page_id, item_id) DO NOTHING
-"#,
-            &[&page_id, &collection_log_item.3]
-        ).await?;
-    }
 
     // Adding group id column to collection_log table so we can query the whole group's log
     add_group_id_column(client, "collection_log").await?;

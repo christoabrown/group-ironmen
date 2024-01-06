@@ -88,10 +88,10 @@ pub fn validate_member_prop_length<T>(prop_name: &str, value: &Option<Vec<T>>, m
     }
 }
 
-pub fn validate_collection_log(collection_log_info: &actix_web::web::Data<CollectionLogInfo>, collection_logs: &Option<Vec<CollectionLog>>) -> Result<(), ApiError> {
+pub fn validate_collection_log(collection_log_info: &actix_web::web::Data<CollectionLogInfo>, collection_logs: &mut Option<Vec<CollectionLog>>) -> Result<(), ApiError> {
     match collection_logs {
         None => Ok(()),
-        Some (x) => {
+        Some (ref mut x) => {
             for collection_log in x {
                 let page_id = collection_log_info.page_name_to_id(&collection_log.page_name);
                 let result = match page_id {
@@ -103,7 +103,8 @@ pub fn validate_collection_log(collection_log_info: &actix_web::web::Data<Collec
                         }
 
                         for i in (0..collection_log.items.len()).step_by(2) {
-                            let item_id = collection_log.items[i];
+                            let item_id = collection_log_info.remap_item_id(collection_log.items[i]);
+                            collection_log.items[i] = item_id;
                             if !collection_log_info.has_item(*id, item_id) {
                                 return Err(ApiError::GroupMemberValidationError(format!("collection log {} does not have item id {}", collection_log.page_name, item_id)));
                             }

@@ -15,7 +15,7 @@
 
     <div class="collection-log__main">
       <div class="collection-log__tab-buttons">
-        ${collectionLog.info.tabs.map((tab) => `<button tab-id="${tab[0]}">${tab[1]}</button>`).join('')}
+        ${collectionLog.info.map((tab) => `<button tab-id="${tab.tabId}">${collectionLog.tabName(tab.tabId)}</button>`).join('')}
       </div>
 
       <div class="collection-log__tab-container">
