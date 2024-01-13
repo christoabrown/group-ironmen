@@ -57,26 +57,18 @@ async function run() {
     quest.miniquest = true;
   });
 
-  const knownUnknownQuests = new Set([
-    `Recipe for Disaster/Another Cook's Quest`,
-    `Recipe for Disaster/Freeing the Goblin generals`,
-    `Recipe for Disaster/Freeing the Mountain Dwarf`,
-    `Recipe for Disaster/Freeing Evil Dave`,
-    `Recipe for Disaster/Freeing Pirate Pete`,
-    `Recipe for Disaster/Freeing the Lumbridge Guide`,
-    `Recipe for Disaster/Freeing Sir Amik Varze`,
-    `Recipe for Disaster/Freeing King Awowogei`,
-    `Recipe for Disaster/Freeing Skrach Uglogwee`,
-    `Recipe for Disaster/Defeating the Culinaromancer`
-  ]);
   const result = {};
   for (const quest of [...freeToPlayQuests, ...memberQuests, ...miniQuests]) {
     if (!questNameToIdMap.has(quest.name)) {
-      if (!knownUnknownQuests.has(quest.name)) {
-        console.error(`quest mapping is missing quest ${quest.name} from the wiki`);
-      }
+      console.error(`quest mapping is missing quest ${quest.name} from the wiki`);
       continue;
     }
+
+    // The points come from the subquests, setting this to 0 so we don't count the points twice
+    if (quest.name === 'Recipe for Disaster') {
+      quest.points = 0;
+    }
+
     result[questNameToIdMap.get(quest.name)] = quest;
   }
 

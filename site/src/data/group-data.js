@@ -2,7 +2,7 @@ import { pubsub } from "./pubsub";
 import { MemberData } from "./member-data";
 import { Item } from "./item";
 import { SkillName } from "./skill";
-import { QuestState } from "./quest";
+import { QuestState, Quest } from "./quest";
 import { utility } from "../utility";
 
 export class GroupData {
@@ -291,29 +291,12 @@ export class GroupData {
   static transformQuestsFromStorage(quests) {
     if (quests === undefined || quests === null) return;
 
-    const runeliteQuestIdMap = new Map([
-      [170, "180"], // The Garden of Death
-      [171, "2306"], // Into the Tombs
-      [172, "2307"], // Recipe for Disaster - Another Cook's Quest
-      [173, "2308"], // Recipe for Disaster - Mountain Dwarf
-      [174, "2309"], // Recipe for Disaster - Wartface & Bentnoze
-      [175, "2310"], // Recipe for Disaster - Pirate Pete
-      [176, "2311"], // Recipe for Disaster - Lumbridge Guide
-      [177, "2312"], // Recipe for Disaster - Evil Dave
-      [178, "2313"], // Recipe for Disaster - Skrach Uglogwee
-      [179, "2314"], // Recipe for Disaster - Sir Amik Varze
-      [180, "2315"], // Recipe for Disaster - King Awowogei
-      [181, "2316"], // Recipe for Disaster - Culinaromancer
-      [182, "2338"], // Secrets of the North
-      [183, "2343"], // Desert Treasure II
-      [184, "3250"], // His Faithful Servants
-    ]);
-
     const result = {};
     const questStates = Object.keys(QuestState);
+    const questIds = Quest.questIds;
     for (let i = 0; i < quests.length; ++i) {
       const questState = quests[i];
-      const questId = runeliteQuestIdMap.get(i) || i.toString();
+      const questId = questIds[i];
       result[questId] = questStates[questState];
     }
     return result;
