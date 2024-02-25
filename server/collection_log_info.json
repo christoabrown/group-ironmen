@@ -1096,6 +1096,22 @@
         ]
       },
       {
+        "name": "Scurrius",
+        "completion_labels": [
+          "Scurrius kills"
+        ],
+        "items": [
+          {
+            "id": 28801,
+            "name": "Scurry"
+          },
+          {
+            "id": 28798,
+            "name": "Scurrius' spine"
+          }
+        ]
+      },
+      {
         "name": "Skotizo",
         "completion_labels": [
           "Skotizo kills"
@@ -5686,6 +5702,10 @@
         "completion_labels": [],
         "items": [
           {
+            "id": 28801,
+            "name": "Scurry"
+          },
+          {
             "id": 25602,
             "name": "Tiny tempor"
           },
@@ -7243,6 +7263,10 @@
           {
             "id": 13576,
             "name": "Dragon warhammer"
+          },
+          {
+            "id": 28813,
+            "name": "Broken zombie axe"
           },
           {
             "id": 13071,
