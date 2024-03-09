@@ -75,19 +75,27 @@ export class Quest {
     Quest.questData = await response.json();
     Quest.freeToPlayQuests = {};
     Quest.memberQuests = {};
+    Quest.miniQuests = {};
     Quest.lookupByName = new Map();
+    Quest.questIds = Object.keys(Quest.questData)
+      .map((s) => parseInt(s))
+      .sort((a, b) => a - b);
     let totalQuestPoints = 0;
+
     for (const [questId, questData] of Object.entries(Quest.questData)) {
       questData.sortName = utility.removeArticles(questData.name);
       questData.points = parseInt(questData.points);
       totalQuestPoints += questData.points;
-      if (questData.member === false) {
+      if (questData.miniquest) {
+        Quest.miniQuests[questId] = questData;
+      } else if (questData.member === false) {
         Quest.freeToPlayQuests[questId] = questData;
       } else {
         Quest.memberQuests[questId] = questData;
       }
       Quest.lookupByName.set(questData.name, questId);
     }
+
     Quest.totalPoints = totalQuestPoints;
 
     pubsub.publish("quest-data-loaded");

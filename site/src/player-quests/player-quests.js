@@ -16,6 +16,11 @@ ${this.questSectionHtml(Quest.freeToPlayQuests)}
 ${this.questSectionHtml(Quest.memberQuests)}
 `;
 
+    const miniQuestsHtml = `
+<h4 class="player-quests__section-header">Miniquests</h4>
+${this.questSectionHtml(Quest.miniQuests)}
+`;
+
     return `{{player-quests.html}}`;
   }
 
