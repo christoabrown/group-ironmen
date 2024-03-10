@@ -13,7 +13,6 @@
     "express": "^4.17.1",
     "express-winston": "^4.2.0",
     "glob": "^7.2.0",
-    "husky": "^7.0.2",
     "jsdom": "^17.0.0",
     "prettier": "^2.4.1",
     "terser": "^5.16.5",
@@ -30,9 +29,7 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "fix": "npm run lint -- --fix",
-    "generate-component": "node scripts/generate-component.js",
-    "prepare": "cd .. && husky install site/.husky",
-    "precommit": "npm run format:check && npm run lint"
+    "generate-component": "node scripts/generate-component.js"
   },
   "author": "Christopher Brown"
 }
