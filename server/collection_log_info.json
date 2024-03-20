@@ -538,6 +538,46 @@
         ]
       },
       {
+        "name": "Fortis Colosseum",
+        "completion_labels": [
+          "Sol Heredit kills"
+        ],
+        "items": [
+          {
+            "id": 28960,
+            "name": "Smol heredit"
+          },
+          {
+            "id": 28947,
+            "name": "Dizana's quiver (uncharged)"
+          },
+          {
+            "id": 28933,
+            "name": "Sunfire fanatic helm"
+          },
+          {
+            "id": 28919,
+            "name": "Tonalztics of ralos (uncharged)"
+          },
+          {
+            "id": 28936,
+            "name": "Sunfire fanatic cuirass"
+          },
+          {
+            "id": 28939,
+            "name": "Sunfire fanatic chausses"
+          },
+          {
+            "id": 28924,
+            "name": "Sunfire splinters"
+          },
+          {
+            "id": 28942,
+            "name": "Echo crystal"
+          }
+        ]
+      },
+      {
         "name": "The Gauntlet",
         "completion_labels": [
           "Gauntlet completion count",
@@ -907,6 +947,66 @@
           {
             "id": 28334,
             "name": "Awakener's orb"
+          }
+        ]
+      },
+      {
+        "name": "Moons of Peril",
+        "completion_labels": [
+          "Lunar Chests opened"
+        ],
+        "items": [
+          {
+            "id": 29025,
+            "name": "Blood moon tassets"
+          },
+          {
+            "id": 29028,
+            "name": "Blood moon helm"
+          },
+          {
+            "id": 28997,
+            "name": "Dual macuahuitl"
+          },
+          {
+            "id": 29000,
+            "name": "Eclipse atlatl"
+          },
+          {
+            "id": 29004,
+            "name": "Eclipse moon chestplate"
+          },
+          {
+            "id": 29007,
+            "name": "Eclipse moon tassets"
+          },
+          {
+            "id": 29010,
+            "name": "Eclipse moon helm"
+          },
+          {
+            "id": 29013,
+            "name": "Blue moon chestplate"
+          },
+          {
+            "id": 29016,
+            "name": "Blue moon tassets"
+          },
+          {
+            "id": 29019,
+            "name": "Blue moon helm"
+          },
+          {
+            "id": 28988,
+            "name": "Blue moon spear"
+          },
+          {
+            "id": 29022,
+            "name": "Blood moon chestplate"
+          },
+          {
+            "id": 28991,
+            "name": "Atlatl dart"
           }
         ]
       },
@@ -5758,6 +5858,14 @@
             "name": "Pet penance queen"
           },
           {
+            "id": 28960,
+            "name": "Smol heredit"
+          },
+          {
+            "id": 28962,
+            "name": "Quetzin"
+          },
+          {
             "id": 13225,
             "name": "Tzrek-jad"
           },
@@ -6373,6 +6481,38 @@
           {
             "id": 19610,
             "name": "Monkey tail"
+          }
+        ]
+      },
+      {
+        "name": "Hunter Guild",
+        "completion_labels": [
+          "Rumours Completed"
+        ],
+        "items": [
+          {
+            "id": 29265,
+            "name": "Guild hunter top"
+          },
+          {
+            "id": 28962,
+            "name": "Quetzin"
+          },
+          {
+            "id": 29267,
+            "name": "Guild hunter legs"
+          },
+          {
+            "id": 29269,
+            "name": "Guild hunter boots"
+          },
+          {
+            "id": 29309,
+            "name": "Huntsman's kit"
+          },
+          {
+            "id": 29263,
+            "name": "Guild hunter headwear"
           }
         ]
       },
@@ -7023,6 +7163,10 @@
           {
             "id": 4123,
             "name": "Steel boots"
+          },
+          {
+            "id": 29084,
+            "name": "Sulphur blades"
           },
           {
             "id": 11037,
