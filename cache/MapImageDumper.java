@@ -254,8 +254,8 @@ public class MapImageDumper
                 image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
             }
 
-        // drawMap(image, z);
-        // drawObjects(image, z);
+        drawMap(image, z);
+        drawObjects(image, z);
         dumpMapIcons(z);
 
         return image;
