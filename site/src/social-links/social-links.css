@@ -9,6 +9,5 @@ social-links a {
 }
 
 social-links a + a {
-  margin-left: 0.75em;
-  margin-top: 0.2em;
+  margin-left: 0.5em;
 }
