@@ -15,7 +15,7 @@ export class CollectionLogTab extends BaseElement {
     this.playerName = this.getAttribute("player-name");
     this.tabId = parseInt(this.getAttribute("tab-id"));
     this.pages = collectionLog.info[this.tabId].pages;
-    this.pages.sort((a, b) => a.name.localeCompare(b.name));
+    this.pages.sort((a, b) => a.sortName.localeCompare(b.sortName));
     this.render();
 
     this.pageContainer = this.querySelector(".collection-log__page-container");

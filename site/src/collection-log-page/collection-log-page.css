@@ -13,7 +13,7 @@ collection-log-page {
 
 .collection-log__page-items {
   display: grid;
-  --collection-log__columns: 7;
+  --collection-log__columns: 6;
   grid-template-columns: repeat(var(--collection-log__columns), 1fr);
   padding: 2px 8px;
   overflow-y: auto;
@@ -21,12 +21,6 @@ collection-log-page {
 }
 
 @media only screen and (max-width: 800px) {
-  .collection-log__page-items {
-    --collection-log__columns: 6;
-  }
-}
-
-@media only screen and (max-width: 700px) {
   .collection-log__page-items {
     --collection-log__columns: 5;
   }

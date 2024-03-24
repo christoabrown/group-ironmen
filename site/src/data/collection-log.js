@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { utility } from "../utility";
 
 class PlayerLog {
   constructor(playerName, logs) {
@@ -58,6 +59,8 @@ class CollectionLog {
       for (const page of tab.pages) {
         page.items.forEach((item) => uniqueItems.add(item.id));
         this.pageItems.set(page.name, page.items);
+
+        page.sortName = utility.removeArticles(page.name);
       }
     }
 
