@@ -55,12 +55,12 @@ export class CanvasMap extends BaseElement {
         progress: 1,
       }),
       zoom: new Animation({
-        current: 1,
-        target: 1,
+        current: 0.95,
+        target: 0.95,
         progress: 1,
       }),
-      maxZoom: 6,
-      minZoom: 1,
+      maxZoom: 6.05,
+      minZoom: 0.95,
       isDragging: false,
     };
     this.cursor = {
@@ -95,7 +95,19 @@ export class CanvasMap extends BaseElement {
       this.validTiles.push(new Set(x));
     }
 
-    this.locations = data.icons;
+    this.locations = {};
+    for (const tileRegionX of Object.keys(data.icons)) {
+      const x = parseInt(tileRegionX);
+      this.locations[x] = {};
+      for (const tileRegionY of Object.keys(data.icons[tileRegionX])) {
+        const y = parseInt(tileRegionY);
+        this.locations[x][y] = {};
+        for (const spriteIndex of Object.keys(data.icons[tileRegionX][tileRegionY])) {
+          this.locations[x][y][parseInt(spriteIndex)] = data.icons[tileRegionX][tileRegionY][spriteIndex];
+        }
+      }
+    }
+
     this.locationIconsSheet = new Image();
     this.locationIconsSheet.src = "/map/icons/map_icons.webp";
     this.locationIconsSheet.onload = () => {
@@ -195,7 +207,7 @@ export class CanvasMap extends BaseElement {
 
     if (this.updateRequested && elapsed > 0) {
       // Handle the camera panning
-      const panStopThreshold = 0.005;
+      const panStopThreshold = 0.001;
       const speed = this.cursor.dx * this.cursor.dx + this.cursor.dy * this.cursor.dy;
       if (!this.camera.isDragging) {
         if (speed > panStopThreshold) {
@@ -375,22 +387,27 @@ export class CanvasMap extends BaseElement {
     if (!this.locations) return;
     const imageSize = 15;
     const imageSizeHalf = imageSize / 2;
+    // Scale the location icons down with zoom down up to a maximum. Larger number here means a smaller icon.
+    const scale = Math.min(this.camera.zoom.current, 3);
+    const shift = imageSizeHalf / scale;
+    const destinationSize = imageSize / scale;
+
     for (const tile of this.tilesInView) {
-      const locations = this.locations[tile.regionX.toString()]?.[tile.regionY.toString()];
+      const locations = this.locations[tile.regionX]?.[tile.regionY];
       if (locations) {
         for (const [spriteIndex, coordinates] of Object.entries(locations)) {
           for (let i = 0; i < coordinates.length; i += 2) {
             const [x, y] = this.gamePositionToCanvas(coordinates[i], coordinates[i + 1]);
             this.ctx.drawImage(
               this.locationIconsSheet,
-              imageSize * parseInt(spriteIndex),
+              imageSize * spriteIndex,
               0,
               imageSize,
               imageSize,
-              x - imageSizeHalf,
-              y - imageSizeHalf,
-              imageSize,
-              imageSize
+              x - shift,
+              y - shift,
+              destinationSize,
+              destinationSize
             );
           }
         }
@@ -662,7 +679,16 @@ export class CanvasMap extends BaseElement {
     } else {
       newZoom = Math.min(Math.max(options.zoom, this.camera.minZoom), this.camera.maxZoom);
     }
+
+    // There is a bit of jitter with the map icons when the zoom level is an integer. Not sure why
+    // so just adjusting the number a little here to fix that.
+    if (Number.isInteger(newZoom)) {
+      newZoom -= 0.002;
+    }
+
     const zoomDelta = newZoom - this.camera.zoom.target;
+    if (zoomDelta === 0) return;
+
     const width = this.canvas.width;
     const height = this.canvas.height;
 
