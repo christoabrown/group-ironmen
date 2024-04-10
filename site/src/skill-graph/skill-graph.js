@@ -241,7 +241,7 @@ export class SkillGraph extends BaseElement {
     const earliestDateInPeriod = SkillGraph.truncatedDateForPeriod(this.dates[0], this.period);
     const datesOutsideOfPeriod = [];
     for (const skillData of playerSkillData) {
-      const date = skillData.time;
+      const date = SkillGraph.truncatedDateForPeriod(skillData.time, this.period);
       bucketedSkillData.set(date.getTime(), skillData.data);
 
       if (date < earliestDateInPeriod) {
