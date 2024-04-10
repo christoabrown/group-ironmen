@@ -316,7 +316,7 @@ o  static truncatedDateForPeriod(date, period) {
     }
 
     if (period === "Year") {
-      t.setMonth(t.getUTCMonth(), 1);
+      t.setMonth(t.getMonth(), 1);
     }
 
     return t;
