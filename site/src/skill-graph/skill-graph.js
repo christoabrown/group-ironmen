@@ -307,16 +307,16 @@ export class SkillGraph extends BaseElement {
     return result;
   }
 
-  static truncatedDateForPeriod(date, period) {
+o  static truncatedDateForPeriod(date, period) {
     const t = new Date(date);
-    t.setUTCMinutes(0, 0, 0);
+    t.setMinutes(0, 0, 0);
 
     if (period !== "Day") {
-      t.setUTCHours(0);
+      t.setHours(0);
     }
 
     if (period === "Year") {
-      t.setUTCMonth(t.getUTCMonth(), 1);
+      t.setMonth(t.getUTCMonth(), 1);
     }
 
     return t;
