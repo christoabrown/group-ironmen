@@ -404,8 +404,8 @@ export class CanvasMap extends BaseElement {
               0,
               imageSize,
               imageSize,
-              x - shift,
-              y - shift,
+              Math.round(x - shift),
+              Math.round(y - shift),
               destinationSize,
               destinationSize
             );
