@@ -307,7 +307,7 @@ export class SkillGraph extends BaseElement {
     return result;
   }
 
-o  static truncatedDateForPeriod(date, period) {
+  static truncatedDateForPeriod(date, period) {
     const t = new Date(date);
     t.setMinutes(0, 0, 0);
 
