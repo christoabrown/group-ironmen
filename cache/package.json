@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "update": "./prepare.sh && node update.js"
+    "update": "./prepare.sh && node update.js && (cd ../site && npm run bundle)"
   },
   "author": "",
   "license": "ISC",
