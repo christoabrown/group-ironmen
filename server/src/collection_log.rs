@@ -40,6 +40,7 @@ pub struct CollectionLogPageInfo {
     pub items: Vec<CollectionLogItemInfo>
 }
 
+#[allow(non_snake_case)]
 #[derive(Deserialize)]
 pub struct CollectionLogTabInfo {
     pub tabId: i16,

@@ -474,7 +474,7 @@ export class CanvasMap extends BaseElement {
               // around the tiles.
               this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
             }
-            this.ctx.drawImage(tile, 0, 0, imageSize, imageSize, tileWorldX, -tileWorldY, imageSize, imageSize);
+            this.ctx.drawImage(tile, tileWorldX, -tileWorldY);
           } catch {}
         } else if (!tile.onload) {
           tile.onload = (...args) => {
