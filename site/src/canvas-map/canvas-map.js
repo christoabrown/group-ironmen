@@ -108,6 +108,19 @@ export class CanvasMap extends BaseElement {
       }
     }
 
+    this.mapLabels = {};
+    for (const tileRegionX of Object.keys(data.labels)) {
+      const x = parseInt(tileRegionX);
+      this.mapLabels[x] = {};
+      for (const tileRegionY of Object.keys(data.labels[tileRegionX])) {
+        const y = parseInt(tileRegionY);
+        this.mapLabels[x][y] = {};
+        for (const z of Object.keys(data.labels[tileRegionX][tileRegionY])) {
+          this.mapLabels[x][y][parseInt(z)] = data.labels[tileRegionX][tileRegionY][z];
+        }
+      }
+    }
+
     this.locationIconsSheet = new Image();
     this.locationIconsSheet.src = "/map/icons/map_icons.webp";
     this.locationIconsSheet.onload = () => {
@@ -269,6 +282,7 @@ export class CanvasMap extends BaseElement {
       const isPanningABigDistance = !zooming && distanceLeftToTravel > 10;
       this.drawTilesInCurrentView(!isPanningABigDistance);
       this.drawLocations();
+      this.drawMapAreaLabels();
 
       this.drawTileMarkers(this.playerMarkers.values(), {
         fillColor: "#348feb",
@@ -409,6 +423,44 @@ export class CanvasMap extends BaseElement {
               destinationSize,
               destinationSize
             );
+          }
+        }
+      }
+    }
+  }
+
+  drawMapAreaLabels() {
+    if (!this.mapLabels) return;
+    this.mapLabelImages = this.mapLabelImages || new Map();
+    const scale = Math.min(this.camera.zoom.current, 2);
+
+    for (const tile of this.tilesInView) {
+      const labels = this.mapLabels[tile.regionX]?.[tile.regionY]?.[this.plane - 1];
+      if (labels) {
+        for (let i = 0; i < labels.length; i += 3) {
+          const [x, y] = this.gamePositionToCanvas(labels[i], labels[i + 1]);
+          const labelId = labels[i + 2];
+
+          const key = this.cantor(x, y);
+          let mapLabelImage = this.mapLabelImages.get(key);
+          if (!mapLabelImage) {
+            mapLabelImage = new Image();
+            mapLabelImage.src = `/map/labels/${labelId}.webp`;
+            this.mapLabelImages.set(key, mapLabelImage);
+          }
+
+          mapLabelImage.loaded = mapLabelImage.loaded || mapLabelImage.complete;
+          if (mapLabelImage.loaded) {
+            const width = mapLabelImage.width / scale;
+            const height = mapLabelImage.height / scale;
+            const shiftX = width / 2;
+
+            this.ctx.drawImage(mapLabelImage, Math.round(x - shiftX), y, Math.round(width), Math.round(height));
+          } else if (!mapLabelImage.onload) {
+            mapLabelImage.onload = (...args) => {
+              mapLabelImage.loaded = true;
+              this.requestUpdate();
+            };
           }
         }
       }

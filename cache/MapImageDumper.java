@@ -42,10 +42,12 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.cache.definitions.AreaDefinition;
+import net.runelite.cache.definitions.FontDefinition;
 import net.runelite.cache.definitions.ObjectDefinition;
 import net.runelite.cache.definitions.OverlayDefinition;
 import net.runelite.cache.definitions.SpriteDefinition;
 import net.runelite.cache.definitions.UnderlayDefinition;
+import net.runelite.cache.definitions.WorldMapElementDefinition;
 import net.runelite.cache.definitions.loaders.OverlayLoader;
 import net.runelite.cache.definitions.loaders.SpriteLoader;
 import net.runelite.cache.definitions.loaders.UnderlayLoader;
@@ -76,6 +78,7 @@ import com.google.gson.Gson;
 @Accessors(chain = true)
 public class MapImageDumper
 {
+    private static String outputDirectory;
     private static final int MAP_SCALE = 4; // this squared is the number of pixels per map square
     private static final int BLEND = 5; // number of surrounding tiles for ground blending
 
@@ -96,10 +99,10 @@ public class MapImageDumper
     private final RegionLoader regionLoader;
     private final AreaManager areas;
     private final SpriteManager sprites;
+    private final FontManager fonts;
+    private final WorldMapManager worldMapManager;
     private RSTextureProvider rsTextureProvider;
     private final ObjectManager objectManager;
-
-    private static String outputDirectory;
 
     @Getter
     @Setter
@@ -123,6 +126,10 @@ public class MapImageDumper
 
     @Getter
     @Setter
+    private boolean renderLabels = true;
+
+    @Getter
+    @Setter
     private boolean transparency = true;
 
     @Getter
@@ -140,6 +147,8 @@ public class MapImageDumper
         this.regionLoader = regionLoader;
         this.areas = new AreaManager(store);
         this.sprites = new SpriteManager(store);
+        this.fonts = new FontManager(store);
+        this.worldMapManager = new WorldMapManager(store);
         this.objectManager = new ObjectManager(store);
     }
 
@@ -222,6 +231,8 @@ public class MapImageDumper
         areas.load();
         sprites.load();
         loadSprites();
+        fonts.load();
+        worldMapManager.load();
 
         return this;
     }
@@ -257,6 +268,8 @@ public class MapImageDumper
         drawMap(image, z);
         drawObjects(image, z);
         dumpMapIcons(z);
+        // drawMapIcons(image, z);
+        // drawMapLabels(image, z);
 
         return image;
     }
@@ -270,6 +283,29 @@ public class MapImageDumper
             }
 
         drawObjects(image, Region.X * dx, Region.Y * -dy, neighbor, z);
+    }
+
+    public BufferedImage drawRegion(Region region, int z)
+    {
+        int pixelsX = Region.X * MAP_SCALE;
+        int pixelsY = Region.Y * MAP_SCALE;
+
+        BufferedImage image = new BufferedImage(pixelsX, pixelsY, transparency ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+
+        drawMap(image, 0, 0, z, region);
+
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), -1, -1, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), -1, 0, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), -1, 1, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 0, -1, z);
+        drawObjects(image, 0, 0, region, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 0, 1, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 1, -1, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 1, 0, z);
+        drawNeighborObjects(image, region.getRegionX(), region.getRegionY(), 1, 1, z);
+        drawMapIcons(image, 0, 0, region, z);
+
+        return image;
     }
 
     private void drawMap(BufferedImage image, int drawBaseX, int drawBaseY, int z, Region region)
@@ -856,6 +892,101 @@ public class MapImageDumper
             }
     }
 
+    private void drawMapIcons(BufferedImage image, int drawBaseX, int drawBaseY, Region region, int z)
+    {
+        int baseX = region.getBaseX();
+        int baseY = region.getBaseY();
+
+        Graphics2D graphics = image.createGraphics();
+
+        drawMapIcons(image, region, z, drawBaseX, drawBaseY);
+
+        if (labelRegions)
+            {
+                graphics.setColor(Color.WHITE);
+                String str = baseX + "," + baseY + " (" + region.getRegionX() + "," + region.getRegionY() + ")";
+                graphics.drawString(str, drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE + graphics.getFontMetrics().getHeight());
+            }
+
+        if (outlineRegions)
+            {
+                graphics.setColor(Color.WHITE);
+                graphics.drawRect(drawBaseX * MAP_SCALE, drawBaseY * MAP_SCALE, Region.X * MAP_SCALE, Region.Y * MAP_SCALE);
+            }
+
+        graphics.dispose();
+    }
+
+    private void drawMapIcons(BufferedImage image, int z)
+    {
+        // map icons
+        for (Region region : regionLoader.getRegions())
+            {
+                int baseX = region.getBaseX();
+                int baseY = region.getBaseY();
+
+                // to pixel X
+                int drawBaseX = baseX - regionLoader.getLowestX().getBaseX();
+
+                // to pixel Y. top most y is 0, but the top most
+                // region has the greatest y, so invert
+                int drawBaseY = regionLoader.getHighestY().getBaseY() - baseY;
+
+                drawMapIcons(image, drawBaseX, drawBaseY, region, z);
+            }
+    }
+
+    private void drawMapLabels(BufferedImage image, int z)
+    {
+        if (!renderLabels)
+            {
+                return;
+            }
+
+        FontName[] fontSizes = new FontName[] { FontName.VERDANA_11,  FontName.VERDANA_13,  FontName.VERDANA_15 };
+        List<WorldMapElementDefinition> elements = worldMapManager.getElements();
+        for (WorldMapElementDefinition element : elements)
+            {
+                AreaDefinition area = areas.getArea(element.getAreaDefinitionId());
+                Position worldPosition = element.getWorldPosition();
+                if (area == null || area.getName() == null || worldPosition.getZ() != z)
+                    {
+                        continue;
+                    }
+
+                FontName fontSize = fontSizes[area.getTextScale()];
+                FontDefinition font = fonts.findFontByName(fontSize.getName());
+                String areaLabel = area.getName();
+                String[] lines = areaLabel.split("<br>");
+                int ascent = 0;
+
+                for (String line : lines)
+                    {
+                        int advance = 0;
+                        int stringWidth = font.stringWidth(line);
+                        for (int i = 0; i < line.length(); ++i)
+                            {
+                                char c = line.charAt(i);
+                                SpriteDefinition sprite = sprites.findSpriteByArchiveName(fontSize.getName(), c);
+                                if (sprite.getWidth() != 0 && sprite.getHeight() != 0)
+                                    {
+                                        int drawX = worldPosition.getX() - regionLoader.getLowestX().getBaseX();
+                                        int drawY = regionLoader.getHighestY().getBaseY() - worldPosition.getY() + Region.Y - 2;
+                                        blitGlyph(image,
+                                                  (drawX * MAP_SCALE) + advance - (stringWidth / 2),
+                                                  (drawY * MAP_SCALE) + ascent - (font.getAscent() / 2),
+                                                  area.getTextColor(),
+                                                  sprite
+                                                  );
+                                    }
+
+                                advance += font.getAdvances()[c];
+                            }
+                        ascent += font.getAscent() / 2;
+                    }
+            }
+    }
+
     private void dumpMapIcons(int z) {
         Map<Integer, List<Integer>> icons = new HashMap<>();
 
@@ -1012,53 +1143,70 @@ public class MapImageDumper
             }
     }
 
-    // private void drawMapIcons(BufferedImage img, Region region, int z, int drawBaseX, int drawBaseY)
-    // {
-    //     if (!renderIcons)
-    //         {
-    //             return;
-    //         }
+    private void drawMapIcons(BufferedImage img, Region region, int z, int drawBaseX, int drawBaseY)
+    {
+        if (!renderIcons)
+            {
+                return;
+            }
 
-    //     for (Location location : region.getLocations())
-    //         {
-    //             int localX = location.getPosition().getX() - region.getBaseX();
-    //             int localY = location.getPosition().getY() - region.getBaseY();
-    //             boolean isBridge = (region.getTileSetting(1, localX, localY) & 2) != 0;
+        for (Location location : region.getLocations())
+            {
+                int localX = location.getPosition().getX() - region.getBaseX();
+                int localY = location.getPosition().getY() - region.getBaseY();
 
-    //             int tileZ = z + (isBridge ? 1 : 0);
-    //             int localZ = location.getPosition().getZ();
-    //             if (z != 0 && localZ != tileZ)
-    //                 {
-    //                     // draw all icons on z=0
-    //                     continue;
-    //                 }
+                if (z != location.getPosition().getZ())
+                    {
+                        continue;
+                    }
 
-    //             ObjectDefinition od = findObject(location.getId());
+                ObjectDefinition od = findObject(location.getId());
 
-    //             assert od != null;
+                assert od != null;
 
-    //             int drawX = drawBaseX + localX;
-    //             int drawY = drawBaseY + (Region.Y - 1 - localY);
+                int drawX = drawBaseX + localX;
+                int drawY = drawBaseY + (Region.Y - 1 - localY);
 
-    //             if (od.getMapAreaId() != -1)
-    //                 {
-    //                     AreaDefinition area = areas.getArea(od.getMapAreaId());
-    //                     if (area.name != null) {
-    //                         log.info("{}", area);
-    //                     }
-                        
-    //                     assert area != null;
+                if (od.getMapAreaId() != -1)
+                    {
+                        AreaDefinition area = areas.getArea(od.getMapAreaId());
+                        assert area != null;
 
-    //                     SpriteDefinition sprite = sprites.findSprite(area.spriteId, 0);
-    //                     assert sprite != null;
+                        SpriteDefinition sprite = sprites.findSprite(area.spriteId, 0);
+                        assert sprite != null;
 
-    //                     blitIcon(img,
-    //                              2 + (drawX * MAP_SCALE) - (sprite.getMaxWidth() / 2),
-    //                              2 + (drawY * MAP_SCALE) - (sprite.getMaxHeight() / 2),
-    //                              sprite);
-    //                 }
-    //         }
-    // }
+                        blitIcon(img,
+                                 (drawX * MAP_SCALE) - (sprite.getMaxWidth() / 2),
+                                 (drawY * MAP_SCALE) - (sprite.getMaxHeight() / 2),
+                                 sprite);
+                    }
+            }
+
+        // Draw the intermap link icons which are not stored with the map locations
+        List<WorldMapElementDefinition> elements = worldMapManager.getElements();
+        for (WorldMapElementDefinition element : elements)
+            {
+                AreaDefinition area = areas.getArea(element.getAreaDefinitionId());
+                Position worldPosition = element.getWorldPosition();
+                int regionX = worldPosition.getX() / Region.X;
+                int regionY = worldPosition.getY() / Region.Y;
+
+                if (area == null || area.getName() != null || worldPosition.getZ() != z || regionX != region.getRegionX() || regionY != region.getRegionY())
+                    {
+                        continue;
+                    }
+
+                int localX = worldPosition.getX() - region.getBaseX();
+                int localY = worldPosition.getY() - region.getBaseY();
+                int drawX = drawBaseX + localX;
+                int drawY = drawBaseY + (Region.Y - 1 - localY);
+                SpriteDefinition sprite = sprites.findSprite(area.spriteId, 0);
+                blitIcon(img,
+                         (drawX * MAP_SCALE) - (sprite.getMaxWidth() / 2),
+                         (drawY * MAP_SCALE) - (sprite.getMaxHeight() / 2),
+                         sprite);
+            }
+    }
 
     private void loadRegions() throws IOException
     {
@@ -1158,5 +1306,28 @@ public class MapImageDumper
                             }
                     }
             }
+    }
+
+    private void blitGlyph(BufferedImage dst, int x, int y, int color, SpriteDefinition glyph)
+    {
+        int[] pixels = glyph.getPixels();
+        int[] shadowPixels = new int[pixels.length];
+        for (int i = 0; i < pixels.length; ++i)
+            {
+                if (pixels[i] != 0)
+                    {
+                        pixels[i] = color;
+                        shadowPixels[i] = 0xFF000000;
+                    }
+            }
+        SpriteDefinition shadow = new SpriteDefinition();
+        shadow.setPixels(shadowPixels);
+        shadow.setOffsetX(glyph.getOffsetX());
+        shadow.setOffsetY(glyph.getOffsetY());
+        shadow.setWidth(glyph.getWidth());
+        shadow.setHeight(glyph.getHeight());
+
+        blitIcon(dst, x + 1, y + 1, shadow);
+        blitIcon(dst, x, y, glyph);
     }
 }

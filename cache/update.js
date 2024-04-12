@@ -19,8 +19,10 @@ const cacheJarOutputDir = `${cacheProjectPath}/target`;
 const osrsCacheDirectory = './cache/cache';
 const siteItemDataPath = '../site/public/data/item_data.json';
 const siteMapIconMetaPath = "../site/public/data/map_icons.json";
+const siteMapLabelMetaPath = "../site/public/data/map_labels.json";
 const siteItemImagesPath = '../site/public/icons/items';
 const siteMapImagesPath = '../site/public/map';
+const siteMapLabelsPath = '../site/public/map/labels';
 const siteMapIconPath = "../site/public/map/icons/map_icons.webp";
 const tileSize = 256;
 
@@ -251,6 +253,26 @@ async function dumpMapData(xteasLocation) {
   execRuneliteCache(`--cachedir ${osrsCacheDirectory} --xteapath ${xteasLocation} --outputdir ./map-data`);
 }
 
+async function dumpMapLabels() {
+  console.log('\nStep: Dumping map labels');
+  const mapLabelDumper = fs.readFileSync('./MapLabelDumper.java', 'utf8');
+  fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/MapLabelDumper.java`, mapLabelDumper);
+  await setMainClassInCachePom('net.runelite.cache.MapLabelDumper');
+  buildCacheProject();
+  execRuneliteCache(`--cachedir ${osrsCacheDirectory} --outputdir ./map-data/labels`);
+
+  const mapLabels = glob.sync("./map-data/labels/*.png");
+  let p = [];
+  for (const mapLabel of mapLabels) {
+    p.push(new Promise(async (resolve) => {
+      const mapLabelImageData = await sharp(mapLabel).webp({ lossless: true }).toBuffer();
+      fs.unlinkSync(mapLabel);
+      await sharp(mapLabelImageData).webp({ lossless: true, effort: 6 }).toFile(mapLabel.replace(".png", ".webp")).then(resolve);
+    }));
+  }
+  await Promise.all(p);
+}
+
 async function tilePlane(plane) {
   await retry(() => fs.rmSync('./output_files', { recursive: true, force: true }));
   const planeImage = sharp(`./map-data/img-${plane}.png`, { limitInputPixels: false }).flip();
@@ -353,6 +375,7 @@ async function moveResults() {
 
   await moveFiles('./item-images/*.webp', siteItemImagesPath);
   await moveFiles("./map-data/tiles/*.webp", siteMapImagesPath);
+  await moveFiles("./map-data/labels/*.webp", siteMapLabelsPath);
 
   // Create a tile sheet of the map icons
   const mapIcons = glob.sync("./map-data/icons/*.png");
@@ -404,6 +427,28 @@ async function moveResults() {
   }
 
   fs.writeFileSync(siteMapIconMetaPath, JSON.stringify(locationByRegion));
+
+  // Do the same for map labels
+  const mapLabelsMeta = JSON.parse(fs.readFileSync("./map-data/labels/map-labels.json", 'utf8'));
+  const labelByRegion = {};
+
+  for (let i = 0; i < mapLabelsMeta.length; ++i) {
+    const coordinates = mapLabelsMeta[i];
+    const x = coordinates[0] + 128;
+    const y = coordinates[1] + 1;
+    const z = coordinates[2];
+
+    const regionX = Math.floor(x / 64);
+    const regionY = Math.floor(y / 64);
+
+    labelByRegion[regionX] = labelByRegion[regionX] || {};
+    labelByRegion[regionX][regionY] = labelByRegion[regionX][regionY] || {};
+    labelByRegion[regionX][regionY][z] = labelByRegion[regionX][regionY][z] || [];
+
+    labelByRegion[regionX][regionY][z].push(x, y, i);
+  }
+
+  fs.writeFileSync(siteMapLabelMetaPath, JSON.stringify(labelByRegion));
 }
 
 (async () => {
@@ -415,6 +460,7 @@ async function moveResults() {
   const xteasLocation = await convertXteasToRuneliteFormat();
   await dumpMapData(xteasLocation);
   await generateMapTiles();
+  await dumpMapLabels();
 
   await moveResults();
 })();

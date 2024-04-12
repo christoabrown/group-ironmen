@@ -23,9 +23,12 @@ const mapJsonPlugin = {
 
     const icons = JSON.parse(fs.readFileSync("public/data/map_icons.json", 'utf8'));
 
+    const labels = JSON.parse(fs.readFileSync("public/data/map_labels.json", 'utf8'));
+
     const result = {
       tiles,
-      icons
+      icons,
+      labels
     };
 
     fs.writeFileSync('public/data/map.json', JSON.stringify(result));
