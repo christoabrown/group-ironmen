@@ -1130,7 +1130,7 @@ ORDER BY GREATEST(
             }
         }
 
-        transaction.execute("CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA public", &[]).await?;
+        transaction.execute("CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA public", &[]).await.ok();
         transaction.execute("ALTER TABLE groupironman.members ALTER COLUMN member_name TYPE citext", &[]).await?;
 
         commit_migration(&transaction, "member_name_citext").await?;
