@@ -790,18 +790,18 @@ WHERE groupironman.collection_log_new.group_id=$1
     Ok(result)
 }
 
-pub async fn add_group_id_column(client: &mut Client, table_name: &str) -> Result<(), ApiError> {
-    client.execute(&format!(r#"
+pub async fn add_group_id_column(transaction: &Transaction<'_>, table_name: &str) -> Result<(), ApiError> {
+    transaction.execute(&format!(r#"
 ALTER TABLE groupironman.{}
 ADD COLUMN IF NOT EXISTS group_id BIGINT DEFAULT NULL
     "#, table_name), &[]).await?;
-    client.execute(&format!(r#"
+    transaction.execute(&format!(r#"
 UPDATE groupironman.{} as c SET group_id=g.group_id
 FROM groupironman.members AS g
 WHERE c.group_id IS NULL AND c.member_id=g.member_id
 "#, table_name), &[]).await?;
 
-    client.execute(&format!(r#"
+    transaction.execute(&format!(r#"
 DO $$
 BEGIN
 
@@ -822,86 +822,34 @@ END $$
     Ok(())
 }
 
-pub async fn update_schema(client: &mut Client) -> Result<(), ApiError> {
-    let encrypted_member_table_exists: bool = client
-        .query_one(
-            r#"
-SELECT EXISTS (
-  SELECT FROM pg_tables WHERE schemaname='groupironman' AND tablename='members_encrypted'
-);
-"#,
-            &[],
-        )
+pub async fn has_migration_run(client: &mut Client, name: &str) -> Result<bool, ApiError> {
+    let count: i64 = client
+        .query_one("SELECT COUNT(*) FROM groupironman.migrations WHERE name=$1", &[&name])
         .await?
         .try_get(0)?;
-    if !encrypted_member_table_exists {
+
+    Ok(if count > 0 { true } else { false })
+}
+
+pub async fn commit_migration(transaction: &Transaction<'_>, name: &str) -> Result<(), ApiError> {
+    transaction.execute("INSERT INTO groupironman.migrations (name, date) VALUES($1, NOW())", &[&name]).await?;
+
+    Ok(())
+}
+
+pub async fn update_schema(client: &mut Client) -> Result<(), ApiError> {
+    client.execute(
+        r#"
+CREATE TABLE IF NOT EXISTS groupironman.migrations (
+    name TEXT,
+    date TIMESTAMPTZ
+)
+"#,
+        &[]
+    ).await?;
+
+    if !has_migration_run(client, "add_groups_version_column").await? {
         let transaction = client.transaction().await?;
-        // Just in case the table does not exist
-        transaction
-            .execute(
-                r#"
-CREATE TABLE IF NOT EXISTS groupironman.members (
-  group_id BIGSERIAL REFERENCES groupironman.groups(group_id),
-  member_name TEXT,
-
-  stats_last_update TIMESTAMPTZ,
-  stats TEXT NOT NULL default '{}'::TEXT,
-
-  coordinates_last_update TIMESTAMPTZ,
-  coordinates TEXT NOT NULL default '{}'::TEXT,
-
-  skills_last_update TIMESTAMPTZ,
-  skills TEXT NOT NULL default '{}'::TEXT,
-
-  quests_last_update TIMESTAMPTZ,
-  quests TEXT NOT NULL default '{}'::TEXT,
-
-  inventory_last_update TIMESTAMPTZ,
-  inventory TEXT NOT NULL default '[]'::TEXT,
-
-  equipment_last_update TIMESTAMPTZ,
-  equipment TEXT NOT NULL default '[]'::TEXT,
-
-  bank_last_update TIMESTAMPTZ,
-  bank TEXT NOT NULL default '[]'::TEXT,
-
-  rune_pouch_last_update TIMESTAMPTZ,
-  rune_pouch TEXT NOT NULL default '{}'::TEXT,
-
-  interacting_last_update TIMESTAMPTZ,
-  interacting TEXT NOT NULL default '{}'::TEXT,
-
-  seed_vault_last_update TIMESTAMPTZ,
-  seed_vault TEXT NOT NULL default '{}'::TEXT,
-
-  PRIMARY KEY (group_id, member_name)
-);
-"#,
-                &[],
-            )
-            .await?;
-        transaction
-            .execute(
-                r#"
-ALTER TABLE groupironman.members RENAME TO members_encrypted
-"#,
-                &[],
-            )
-            .await?;
-        transaction
-            .execute(
-                r#"
-ALTER TABLE groupironman.members_encrypted
-ADD COLUMN IF NOT EXISTS rune_pouch_last_update TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS rune_pouch TEXT NOT NULL default '{}'::TEXT,
-ADD COLUMN IF NOT EXISTS interacting_last_update TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS interacting TEXT NOT NULL default '{}'::TEXT,
-ADD COLUMN IF NOT EXISTS seed_vault_last_update TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS seed_vault TEXT NOT NULL default '{}'::TEXT
-"#,
-                &[],
-            )
-            .await?;
         transaction
             .execute(
                 r#"
@@ -910,12 +858,16 @@ ALTER TABLE groupironman.groups ADD COLUMN IF NOT EXISTS version INTEGER default
                 &[],
             )
             .await?;
+
+        commit_migration(&transaction, "add_groups_version_column").await?;
         transaction.commit().await?;
     }
 
-    client
-        .execute(
-            r#"
+    if !has_migration_run(client, "create_members_table").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .execute(
+                r#"
 CREATE TABLE IF NOT EXISTS groupironman.members (
   member_id BIGSERIAL PRIMARY KEY,
   group_id BIGSERIAL REFERENCES groupironman.groups(group_id),
@@ -952,29 +904,43 @@ CREATE TABLE IF NOT EXISTS groupironman.members (
   interacting TEXT
 );
 "#,
-            &[],
-        )
-        .await?;
-    client.execute(r#"
+                &[],
+            )
+            .await?;
+
+        transaction.execute(r#"
 CREATE UNIQUE INDEX IF NOT EXISTS members_groupid_name_idx ON groupironman.members (group_id, member_name);
 "#, &[]).await?;
 
-    // Adding new columns for new types of data
-    client
-        .execute(
-            r#"
+        commit_migration(&transaction, "create_members_table").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "add_diary_vars").await? {
+        let transaction = client.transaction().await?;
+        // Adding new columns for new types of data
+        transaction
+            .execute(
+                r#"
 ALTER TABLE groupironman.members
 ADD COLUMN IF NOT EXISTS diary_vars_last_update TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS diary_vars INTEGER[62]
 "#,
-            &[],
-        )
-        .await?;
+                &[],
+            )
+            .await?;
 
-    let periods = vec!["day", "month", "year"];
-    for period in periods {
-        let create_skills_aggregate = format!(
-            r#"
+        commit_migration(&transaction, "add_diary_vars").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "add_skill_periods").await? {
+        let transaction = client.transaction().await?;
+
+        let periods = vec!["day", "month", "year"];
+        for period in periods {
+            let create_skills_aggregate = format!(
+                r#"
 CREATE TABLE IF NOT EXISTS groupironman.skills_{} (
     member_id BIGSERIAL REFERENCES groupironman.members(member_id),
     time TIMESTAMPTZ,
@@ -983,43 +949,50 @@ CREATE TABLE IF NOT EXISTS groupironman.skills_{} (
     PRIMARY KEY (member_id, time)
 );
 "#,
-            period
-        );
-        client.execute(&create_skills_aggregate, &[]).await?;
-    }
+                period
+            );
+            transaction.execute(&create_skills_aggregate, &[]).await?;
+        }
 
-    client
-        .execute(
-            r#"
+        transaction
+            .execute(
+                r#"
 CREATE TABLE IF NOT EXISTS groupironman.aggregation_info (
     type TEXT PRIMARY KEY,
     last_aggregation TIMESTAMPTZ NOT NULL DEFAULT TIMESTAMP WITH TIME ZONE 'epoch'
 );
 "#,
-            &[],
-        )
-        .await?;
-    client
-        .execute(
-            r#"
+                &[],
+            )
+            .await?;
+        transaction
+            .execute(
+                r#"
 INSERT INTO groupironman.aggregation_info (type) VALUES ('skills')
 ON CONFLICT (type) DO NOTHING
 "#,
-            &[],
-        )
-        .await?;
+                &[],
+            )
+            .await?;
 
-    client.execute(
-        r#"
+        commit_migration(&transaction, "add_skill_periods").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "add_collection_log").await? {
+        let transaction = client.transaction().await?;
+
+        transaction.execute(
+            r#"
 CREATE TABLE IF NOT EXISTS groupironman.collection_tab (
     tab_id SMALLSERIAL PRIMARY KEY,
     name TEXT NOT NULL
 )
 "#,
-        &[],
-    ).await?;
-    client.execute(
-        r#"
+            &[],
+        ).await?;
+        transaction.execute(
+            r#"
 INSERT INTO groupironman.collection_tab (tab_id, name) VALUES
     (0, 'Bosses'),
     (1, 'Raids'),
@@ -1028,11 +1001,11 @@ INSERT INTO groupironman.collection_tab (tab_id, name) VALUES
     (4, 'Other')
 ON CONFLICT (tab_id) DO NOTHING
 "#,
-        &[],
-    ).await?;
+            &[],
+        ).await?;
 
-    client.execute(
-        r#"
+        transaction.execute(
+            r#"
 CREATE TABLE IF NOT EXISTS groupironman.collection_page (
     page_id SMALLSERIAL PRIMARY KEY,
     tab_id SMALLSERIAL REFERENCES groupironman.collection_tab(tab_id),
@@ -1041,23 +1014,23 @@ CREATE TABLE IF NOT EXISTS groupironman.collection_page (
     UNIQUE(tab_id, page_name)
 )
 "#,
-        &[],
-    ).await?;
+            &[],
+        ).await?;
 
-    for tab in COLLECTION_LOG_INFO.iter() {
-        for page in tab.pages.iter() {
-            client.execute(
-                r#"
+        for tab in COLLECTION_LOG_INFO.iter() {
+            for page in tab.pages.iter() {
+                transaction.execute(
+                    r#"
 INSERT INTO groupironman.collection_page (tab_id, page_name) VALUES ($1, $2)
 ON CONFLICT (tab_id, page_name) DO NOTHING
 "#,
-                &[&tab.tabId, &page.name],
-            ).await?;
+                    &[&tab.tabId, &page.name],
+                ).await?;
+            }
         }
-    }
 
-    client.execute(
-        r#"
+        transaction.execute(
+            r#"
 CREATE TABLE IF NOT EXISTS groupironman.collection_log (
     member_id BIGSERIAL REFERENCES groupironman.members(member_id),
     page_id SMALLSERIAL REFERENCES groupironman.collection_page(page_id),
@@ -1069,11 +1042,11 @@ CREATE TABLE IF NOT EXISTS groupironman.collection_log (
     PRIMARY KEY (member_id, page_id)
 )
 "#,
-        &[],
-    ).await?;
+            &[],
+        ).await?;
 
-    client.execute(
-        r#"
+        transaction.execute(
+            r#"
 CREATE TABLE IF NOT EXISTS groupironman.collection_log_new (
     member_id BIGSERIAL REFERENCES groupironman.members(member_id),
     page_id SMALLSERIAL REFERENCES groupironman.collection_page(page_id),
@@ -1084,19 +1057,85 @@ CREATE TABLE IF NOT EXISTS groupironman.collection_log_new (
     PRIMARY KEY (member_id, page_id)
 )
 "#,
-        &[],
-    ).await?;
+            &[],
+        ).await?;
 
-    client.execute(
-        r#"
+        transaction.execute(
+            r#"
 DROP TABLE IF EXISTS groupironman.collection_items;
 "#,
-        &[]
-    ).await?;
+            &[]
+        ).await?;
 
-    // Adding group id column to collection_log table so we can query the whole group's log
-    add_group_id_column(client, "collection_log").await?;
-    add_group_id_column(client, "collection_log_new").await?;
+        // Adding group id column to collection_log table so we can query the whole group's log
+        add_group_id_column(&transaction, "collection_log").await?;
+        add_group_id_column(&transaction, "collection_log_new").await?;
+
+        commit_migration(&transaction, "add_collection_log").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "member_name_citext").await? {
+        let transaction = client.transaction().await?;
+
+        // We need to rename members in groups which would violate the unique constraint after
+        // we make the column case insensitive.
+        let duplicates = transaction.query(
+            r#"
+SELECT a.group_id, a.member_id, a.member_name FROM groupironman.members a
+INNER JOIN (
+	SELECT group_id, lower(member_name) as member_name, COUNT(*) FROM groupironman.members
+	GROUP BY group_id, lower(member_name)
+	HAVING COUNT(*) > 1
+) b
+ON a.group_id=b.group_id AND lower(a.member_name)=lower(b.member_name)
+ORDER BY GREATEST(
+	stats_last_update,
+	coordinates_last_update,
+	skills_last_update,
+	quests_last_update,
+	inventory_last_update,
+	equipment_last_update,
+	bank_last_update,
+	rune_pouch_last_update,
+	interacting_last_update,
+	seed_vault_last_update,
+	diary_vars_last_update
+) ASC;
+"#, &[]).await?;
+
+        let mut already_encounted: HashSet<String> = HashSet::new();
+        for row in duplicates {
+            let group_id: i64 = row.try_get("group_id")?;
+            let member_id: i64 = row.try_get("member_id")?;
+            let member_name: String = row.try_get("member_name")?;
+            let member_name_lower: String = member_name.to_lowercase();
+
+            let key = format!("{}::{}", group_id, member_name_lower);
+            // Skip the first encounter with the duplicate name since that is the entry
+            // with the most recent update.
+            if !already_encounted.insert(key) {
+                log::info!("Renaming duplicate member name '{}' in group '{}'", member_name, group_id);
+
+                for _ in 1..5 {
+                    let uuid = uuid::Uuid::new_v4().to_hyphenated().to_string();
+                    let new_name = &uuid[..uuid.find("-").unwrap()];
+                    log::info!("Trying new name '{}'", new_name);
+                    match transaction
+                        .execute("UPDATE groupironman.members SET member_name=$1 WHERE member_id=$2", &[&new_name, &member_id]).await {
+                            Ok(_) => break,
+                            Err(_) => ()
+                        }
+                }
+            }
+        }
+
+        transaction.execute("CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA public", &[]).await.ok();
+        transaction.execute("ALTER TABLE groupironman.members ALTER COLUMN member_name TYPE citext", &[]).await?;
+
+        commit_migration(&transaction, "member_name_citext").await?;
+        transaction.commit().await?;
+    }
 
     Ok(())
 }

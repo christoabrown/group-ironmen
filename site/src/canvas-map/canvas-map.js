@@ -55,12 +55,12 @@ export class CanvasMap extends BaseElement {
         progress: 1,
       }),
       zoom: new Animation({
-        current: 0.95,
-        target: 0.95,
+        current: 1,
+        target: 1,
         progress: 1,
       }),
-      maxZoom: 6.05,
-      minZoom: 0.95,
+      maxZoom: 6,
+      minZoom: 1,
       isDragging: false,
     };
     this.cursor = {
@@ -104,6 +104,19 @@ export class CanvasMap extends BaseElement {
         this.locations[x][y] = {};
         for (const spriteIndex of Object.keys(data.icons[tileRegionX][tileRegionY])) {
           this.locations[x][y][parseInt(spriteIndex)] = data.icons[tileRegionX][tileRegionY][spriteIndex];
+        }
+      }
+    }
+
+    this.mapLabels = {};
+    for (const tileRegionX of Object.keys(data.labels)) {
+      const x = parseInt(tileRegionX);
+      this.mapLabels[x] = {};
+      for (const tileRegionY of Object.keys(data.labels[tileRegionX])) {
+        const y = parseInt(tileRegionY);
+        this.mapLabels[x][y] = {};
+        for (const z of Object.keys(data.labels[tileRegionX][tileRegionY])) {
+          this.mapLabels[x][y][parseInt(z)] = data.labels[tileRegionX][tileRegionY][z];
         }
       }
     }
@@ -193,7 +206,7 @@ export class CanvasMap extends BaseElement {
   }
 
   requestUpdate() {
-    this.updateRequested = true;
+    this.updateRequested = 1;
   }
 
   cantor(x, y) {
@@ -205,7 +218,7 @@ export class CanvasMap extends BaseElement {
     const elapsed = timestamp - this.previousFrameTime;
     this.previousFrameTime = timestamp;
 
-    if (this.updateRequested && elapsed > 0) {
+    if (this.updateRequested-- > 0 && elapsed > 0) {
       // Handle the camera panning
       const panStopThreshold = 0.001;
       const speed = this.cursor.dx * this.cursor.dx + this.cursor.dy * this.cursor.dy;
@@ -269,6 +282,7 @@ export class CanvasMap extends BaseElement {
       const isPanningABigDistance = !zooming && distanceLeftToTravel > 10;
       this.drawTilesInCurrentView(!isPanningABigDistance);
       this.drawLocations();
+      this.drawMapAreaLabels();
 
       this.drawTileMarkers(this.playerMarkers.values(), {
         fillColor: "#348feb",
@@ -287,7 +301,7 @@ export class CanvasMap extends BaseElement {
       this.drawCursorTile();
     }
 
-    this.updateRequested = doAnotherUpdate;
+    this.updateRequested = doAnotherUpdate ? Math.max(1, this.updateRequested) : this.updateRequested;
     window.requestAnimationFrame(this.update);
   }
 
@@ -415,6 +429,44 @@ export class CanvasMap extends BaseElement {
     }
   }
 
+  drawMapAreaLabels() {
+    if (!this.mapLabels) return;
+    this.mapLabelImages = this.mapLabelImages || new Map();
+    const scale = Math.min(this.camera.zoom.current, 2);
+
+    for (const tile of this.tilesInView) {
+      const labels = this.mapLabels[tile.regionX]?.[tile.regionY]?.[this.plane - 1];
+      if (labels) {
+        for (let i = 0; i < labels.length; i += 3) {
+          const [x, y] = this.gamePositionToCanvas(labels[i], labels[i + 1]);
+          const labelId = labels[i + 2];
+
+          const key = this.cantor(x, y);
+          let mapLabelImage = this.mapLabelImages.get(key);
+          if (!mapLabelImage) {
+            mapLabelImage = new Image();
+            mapLabelImage.src = `/map/labels/${labelId}.webp`;
+            this.mapLabelImages.set(key, mapLabelImage);
+          }
+
+          mapLabelImage.loaded = mapLabelImage.loaded || mapLabelImage.complete;
+          if (mapLabelImage.loaded) {
+            const width = mapLabelImage.width / scale;
+            const height = mapLabelImage.height / scale;
+            const shiftX = width / 2;
+
+            this.ctx.drawImage(mapLabelImage, Math.round(x - shiftX), y, Math.round(width), Math.round(height));
+          } else if (!mapLabelImage.onload) {
+            mapLabelImage.onload = (...args) => {
+              mapLabelImage.loaded = true;
+              this.requestUpdate();
+            };
+          }
+        }
+      }
+    }
+  }
+
   drawTilesInCurrentView(loadNewTiles) {
     const s = this.tileSize * this.camera.zoom.current;
     const top = this.camera.y.current / s;
@@ -474,7 +526,7 @@ export class CanvasMap extends BaseElement {
               // around the tiles.
               this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
             }
-            this.ctx.drawImage(tile, 0, 0, imageSize, imageSize, tileWorldX, -tileWorldY, imageSize, imageSize);
+            this.ctx.drawImage(tile, tileWorldX, -tileWorldY);
           } catch {}
         } else if (!tile.onload) {
           tile.onload = (...args) => {
@@ -675,15 +727,15 @@ export class CanvasMap extends BaseElement {
 
     let newZoom;
     if (options.zoom === undefined) {
-      newZoom = Math.min(Math.max(this.camera.zoom.target + options.delta, this.camera.minZoom), this.camera.maxZoom);
+      // mouse zoom
+      if (options.delta > 0) {
+        newZoom = Math.min(Math.max(Math.round(this.camera.zoom.target) + 1, this.camera.minZoom), this.camera.maxZoom);
+      } else {
+        newZoom = Math.min(Math.max(Math.round(this.camera.zoom.target) - 1, this.camera.minZoom), this.camera.maxZoom);
+      }
     } else {
+      // touch zoom
       newZoom = Math.min(Math.max(options.zoom, this.camera.minZoom), this.camera.maxZoom);
-    }
-
-    // There is a bit of jitter with the map icons when the zoom level is an integer. Not sure why
-    // so just adjusting the number a little here to fix that.
-    if (Number.isInteger(newZoom)) {
-      newZoom -= 0.002;
     }
 
     const zoomDelta = newZoom - this.camera.zoom.target;
@@ -700,7 +752,6 @@ export class CanvasMap extends BaseElement {
     const wx = (-x - this.camera.x.target) / (width * this.camera.zoom.target);
     const wy = (y - this.camera.y.target) / (height * this.camera.zoom.target);
 
-    const zoomAnimationTime = 100;
     this.camera.x.goTo(this.camera.x.target - wx * width * zoomDelta, options.animationTime || 1);
     this.camera.y.goTo(this.camera.y.target - wy * height * zoomDelta, options.animationTime || 1);
     this.camera.zoom.goTo(newZoom, options.animationTime || 1);

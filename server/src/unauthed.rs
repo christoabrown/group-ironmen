@@ -191,5 +191,5 @@ pub async fn captcha_enabled(config: web::Data<Config>) -> Result<HttpResponse, 
 pub async fn collection_log_info() -> HttpResponse {
     HttpResponse::Ok()
         .content_type(ContentType::json())
-        .body((&**COLLECTION_LOG_DATA).clone())
+        .body(&**COLLECTION_LOG_DATA)
 }
