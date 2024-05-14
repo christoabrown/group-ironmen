@@ -280,9 +280,22 @@ export class CanvasMap extends BaseElement {
           Math.abs((this.camera.y.target - this.camera.y.current) / this.camera.y.time)) /
         this.camera.zoom.current;
       const isPanningABigDistance = !zooming && distanceLeftToTravel > 10;
-      this.drawTilesInCurrentView(!isPanningABigDistance);
+
+      const s = this.tileSize * this.camera.zoom.current;
+      const top = this.camera.y.current / s;
+      const left = this.camera.x.current / s;
+      const right = left + this.canvas.width / s;
+      const bottom = top - this.canvas.height / s;
+      this.view = {
+        left: Math.floor(left),
+        right: Math.ceil(right),
+        top: Math.ceil(top),
+        bottom: Math.floor(bottom),
+      };
+
+      this.drawMapSquaresInView(!isPanningABigDistance);
       this.drawLocations();
-      this.drawMapAreaLabels();
+      this.drawMapAreaLabels(!isPanningABigDistance);
 
       this.drawTileMarkers(this.playerMarkers.values(), {
         fillColor: "#348feb",
@@ -429,65 +442,53 @@ export class CanvasMap extends BaseElement {
     }
   }
 
-  drawMapAreaLabels() {
+  drawMapAreaLabels(loadNewImages) {
     if (!this.mapLabels) return;
     this.mapLabelImages = this.mapLabelImages || new Map();
     const scale = Math.min(this.camera.zoom.current, 2);
 
-    for (const tile of this.tilesInView) {
-      const labels = this.mapLabels[tile.regionX]?.[tile.regionY]?.[this.plane - 1];
-      if (labels) {
-        for (let i = 0; i < labels.length; i += 3) {
-          const [x, y] = this.gamePositionToCanvas(labels[i], labels[i + 1]);
-          const labelId = labels[i + 2];
+    for (let tileX = this.view.left - 1; tileX < this.view.right + 1; ++tileX) {
+      for (let tileY = this.view.top + 1; tileY > this.view.bottom; --tileY) {
+        const labels = this.mapLabels[tileX]?.[tileY]?.[this.plane - 1];
+        if (labels) {
+          for (let i = 0; i < labels.length; i += 3) {
+            const [x, y] = this.gamePositionToCanvas(labels[i], labels[i + 1]);
+            const labelId = labels[i + 2];
 
-          const key = this.cantor(x, y);
-          let mapLabelImage = this.mapLabelImages.get(key);
-          if (!mapLabelImage) {
-            mapLabelImage = new Image();
-            mapLabelImage.src = `/map/labels/${labelId}.webp`;
-            this.mapLabelImages.set(key, mapLabelImage);
-          }
+            const key = this.cantor(x, y);
+            let mapLabelImage = this.mapLabelImages.get(key);
+            if (!mapLabelImage && loadNewImages) {
+              mapLabelImage = new Image();
+              mapLabelImage.src = `/map/labels/${labelId}.webp`;
+              this.mapLabelImages.set(key, mapLabelImage);
+            } else if (!mapLabelImage && !loadNewImages) {
+              continue;
+            }
 
-          mapLabelImage.loaded = mapLabelImage.loaded || mapLabelImage.complete;
-          if (mapLabelImage.loaded) {
-            const width = mapLabelImage.width / scale;
-            const height = mapLabelImage.height / scale;
-            const shiftX = width / 2;
+            mapLabelImage.loaded = mapLabelImage.loaded || mapLabelImage.complete;
+            if (mapLabelImage.loaded) {
+              const width = mapLabelImage.width / scale;
+              const height = mapLabelImage.height / scale;
+              const shiftX = width / 2;
 
-            this.ctx.drawImage(mapLabelImage, Math.round(x - shiftX), y, Math.round(width), Math.round(height));
-          } else if (!mapLabelImage.onload) {
-            mapLabelImage.onload = (...args) => {
-              mapLabelImage.loaded = true;
-              this.requestUpdate();
-            };
+              this.ctx.drawImage(mapLabelImage, Math.round(x - shiftX), y, Math.round(width), Math.round(height));
+            } else if (!mapLabelImage.onload) {
+              mapLabelImage.onload = (...args) => {
+                mapLabelImage.loaded = true;
+                this.requestUpdate();
+              };
+            }
           }
         }
       }
     }
   }
 
-  drawTilesInCurrentView(loadNewTiles) {
-    const s = this.tileSize * this.camera.zoom.current;
-    const top = this.camera.y.current / s;
-    const left = this.camera.x.current / s;
-    const right = left + this.canvas.width / s;
-    const bottom = top - this.canvas.height / s;
-    const region = {
-      left: Math.floor(left),
-      right: Math.ceil(right),
-      top: Math.ceil(top),
-      bottom: Math.floor(bottom),
-    };
-    this.drawTilesInRegion(region, loadNewTiles);
-    this.ctx.globalAlpha = 1;
-  }
-
-  drawTilesInRegion(region, loadNewTiles) {
-    const top = region.top;
-    const left = region.left;
-    const right = region.right;
-    const bottom = region.bottom;
+  drawMapSquaresInView(loadNewTiles) {
+    const top = this.view.top;
+    const left = this.view.left;
+    const right = this.view.right;
+    const bottom = this.view.bottom;
     const tiles = this.tiles[this.plane - 1];
     const imageSize = this.tileSize;
     this.tilesInView = [];
@@ -539,6 +540,8 @@ export class CanvasMap extends BaseElement {
         }
       }
     }
+
+    this.ctx.globalAlpha = 1;
   }
 
   showPlane(plane) {
@@ -727,11 +730,15 @@ export class CanvasMap extends BaseElement {
 
     let newZoom;
     if (options.zoom === undefined) {
-      // mouse zoom
+      // Calculate a zoom change that keeps this.tileSize * zoom an integer value.
+      // We don't want the canvas to have a zoom in the transform that makes the map tiles
+      // a non integer size or it will cause black border to show around them.
+      const targetTileSize = this.tileSize * options.delta;
+      const delta = Math.round(targetTileSize) / this.tileSize;
       if (options.delta > 0) {
-        newZoom = Math.min(Math.max(Math.round(this.camera.zoom.target) + 1, this.camera.minZoom), this.camera.maxZoom);
+        newZoom = Math.min(Math.max(this.camera.zoom.target + delta, this.camera.minZoom), this.camera.maxZoom);
       } else {
-        newZoom = Math.min(Math.max(Math.round(this.camera.zoom.target) - 1, this.camera.minZoom), this.camera.maxZoom);
+        newZoom = Math.min(Math.max(this.camera.zoom.target + delta, this.camera.minZoom), this.camera.maxZoom);
       }
     } else {
       // touch zoom

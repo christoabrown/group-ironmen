@@ -4755,6 +4755,10 @@
             "name": "Graceful cape"
           },
           {
+            "id": 29482,
+            "name": "Brimhaven voucher"
+          },
+          {
             "id": 21067,
             "name": "Graceful top"
           },
@@ -5733,12 +5737,28 @@
         "completion_labels": [],
         "items": [
           {
+            "id": 29472,
+            "name": "Prospector helmet"
+          },
+          {
             "id": 21697,
             "name": "Ash covered tome"
           },
           {
+            "id": 29474,
+            "name": "Prospector jacket"
+          },
+          {
+            "id": 29476,
+            "name": "Prospector legs"
+          },
+          {
             "id": 21541,
             "name": "Volcanic mine teleport"
+          },
+          {
+            "id": 29478,
+            "name": "Prospector boots"
           },
           {
             "id": 25615,
@@ -7111,6 +7131,10 @@
           {
             "id": 4111,
             "name": "Mystic robe top (light)"
+          },
+          {
+            "id": 29455,
+            "name": "Teleport anchoring scroll"
           },
           {
             "id": 23056,
