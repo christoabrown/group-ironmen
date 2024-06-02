@@ -58,7 +58,7 @@ export class AppRoute extends BaseElement {
     this.outlet.appendChild(this.page);
   }
 
-  disable(disableWrapper) {
+  disable() {
     if (!this.active) return;
     this.active = false;
     if (this.page) {

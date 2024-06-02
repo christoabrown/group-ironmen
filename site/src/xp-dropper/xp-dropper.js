@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { Skill } from "../data/skill";
 
 export class XpDropper extends BaseElement {
   constructor() {

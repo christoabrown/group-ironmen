@@ -1,4 +1,3 @@
-import { SkillName } from "./skill";
 import { utility } from "../utility";
 
 export class AchievementDiary {

@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { groupData } from "../data/group-data";
 
 export class InventoryItem extends BaseElement {
   constructor() {
@@ -37,6 +36,7 @@ export class InventoryItem extends BaseElement {
     }
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const item = this.item;
     let playerHtml = "";
@@ -53,6 +53,7 @@ export class InventoryItem extends BaseElement {
 
     return `{{inventory-item.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   playerHtml(playerName) {
     const quantity = this.item.quantities[playerName];

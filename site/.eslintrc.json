@@ -13,7 +13,7 @@
       { "blankLine": "always", "prev": "import", "next": "let" }
     ],
     "lines-between-class-members": ["error", "always"],
-    "no-unused-vars": "off",
+    "no-unused-vars": "error",
     "no-console": ["error", { "allow": ["warn", "error"] }],
     "no-empty": "off"
   },

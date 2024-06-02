@@ -1,6 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
-import { SkillName, Skill } from "../data/skill";
-import { utility } from "../utility";
+// eslint-disable-next-line no-unused-vars
+import { Skill } from "../data/skill";
 
 export class SkillBox extends BaseElement {
   constructor() {

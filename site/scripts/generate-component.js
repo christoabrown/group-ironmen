@@ -39,9 +39,11 @@ export class ${pascalCase} extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     return \`{{${componentName}.html}}\`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();

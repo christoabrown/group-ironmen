@@ -1,6 +1,5 @@
 /* global Chart */
 import { BaseElement } from "../base-element/base-element";
-import { utility } from "../utility";
 import { Skill, SkillName } from "../data/skill";
 
 export class SkillGraph extends BaseElement {

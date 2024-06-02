@@ -473,7 +473,7 @@ export class CanvasMap extends BaseElement {
 
               this.ctx.drawImage(mapLabelImage, Math.round(x - shiftX), y, Math.round(width), Math.round(height));
             } else if (!mapLabelImage.onload) {
-              mapLabelImage.onload = (...args) => {
+              mapLabelImage.onload = () => {
                 mapLabelImage.loaded = true;
                 this.requestUpdate();
               };
@@ -530,7 +530,7 @@ export class CanvasMap extends BaseElement {
             this.ctx.drawImage(tile, tileWorldX, -tileWorldY);
           } catch {}
         } else if (!tile.onload) {
-          tile.onload = (...args) => {
+          tile.onload = () => {
             tile.animation = new Animation({ current: 0, target: 1, time: 300 });
             tile.loaded = true;
             this.requestUpdate();
@@ -611,7 +611,7 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
-  onPointerUp(_event) {
+  onPointerUp() {
     this.stopDragging();
   }
 

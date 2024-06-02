@@ -1,6 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
 import { AchievementDiary } from "../data/diaries";
-import { Quest, QuestState } from "../data/quest";
 import { Skill } from "../data/skill";
 
 export class DiaryDialog extends BaseElement {

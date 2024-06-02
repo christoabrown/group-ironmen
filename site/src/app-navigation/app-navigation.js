@@ -6,10 +6,12 @@ export class AppNavigation extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const group = storage.getGroup();
     return `{{app-navigation.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();

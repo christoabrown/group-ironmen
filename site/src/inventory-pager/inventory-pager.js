@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { Item } from "../data/item";
 import { groupData } from "../data/group-data";
 import quickselect from "../quick-select";
 
@@ -33,6 +32,7 @@ export class InventoryPager extends BaseElement {
     this.searchElement.searchInput.value = groupData.textFilter;
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     let pageButtonsHtml = "";
     const numberOfPages = this.numberOfPages;
@@ -42,6 +42,7 @@ export class InventoryPager extends BaseElement {
     }
     return `{{inventory-pager.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   render() {
     super.render();

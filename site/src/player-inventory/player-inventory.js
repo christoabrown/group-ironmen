@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { utility } from "../utility";
 
 export class PlayerInventory extends BaseElement {
   constructor() {

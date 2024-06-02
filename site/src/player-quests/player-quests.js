@@ -6,6 +6,7 @@ export class PlayerQuests extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const freeToPlayQuestsHtml = `
 <h4 class="player-quests__section-header">Free Quests</h4>
@@ -23,6 +24,7 @@ ${this.questSectionHtml(Quest.miniQuests)}
 
     return `{{player-quests.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();
@@ -51,7 +53,8 @@ ${this.questSectionHtml(Quest.miniQuests)}
       return a[1].sortName.localeCompare(b[1].sortName);
     });
 
-    for (const [questId, questData] of questsDataEntries) {
+    // eslint-disable-next-line no-unused-vars
+    for (const [questId, _questData] of questsDataEntries) {
       const quest = this.getQuestById(questId);
       result += `
 <a href="${quest.wikiLink}" target="_blank" rel="noopener noreferrer">
