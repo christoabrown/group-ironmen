@@ -1,7 +1,7 @@
-import { Item } from "./data/item";
-
 class Utility {
-  constructor() {}
+  constructor() {
+    this.tagRegexp = /<[^>]*>/gi;
+  }
 
   callOnInterval(fn, interval, callImmediate = true) {
     if (callImmediate) {
@@ -93,6 +93,10 @@ class Utility {
       sum += arr[i];
     }
     return sum / arr.length;
+  }
+
+  removeTags(s) {
+    return s?.replace(this.tagRegexp, "");
   }
 }
 const utility = new Utility();
