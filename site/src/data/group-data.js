@@ -133,7 +133,7 @@ export class GroupData {
   }
 
   isExactItem(item, filter) {
-    const [_, filterWord, ...rest] = filter.split('"');
+    const filterWord = filter.replaceAll('"', "");
 
     // Normal item search
     if (item.name.toLowerCase() === filterWord || item.id.toString() === filterWord) {

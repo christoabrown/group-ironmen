@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { api } from "../data/api";
 import { storage } from "../data/storage";
 
 export class MenHomepage extends BaseElement {

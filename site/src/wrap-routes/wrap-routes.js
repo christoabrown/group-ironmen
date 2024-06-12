@@ -1,7 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { router } from "../router";
-
-const routeGroups = [];
 
 export class WrapRoutes extends BaseElement {
   constructor() {

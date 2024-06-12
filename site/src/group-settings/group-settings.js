@@ -6,11 +6,13 @@ export class GroupSettings extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const selectedPanelDockSide = appearance.getLayout();
     const style = appearance.getTheme();
     return `{{group-settings.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();

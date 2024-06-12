@@ -39,7 +39,7 @@ export class BaseElement extends HTMLElement {
     }
   }
 
-  handleMouseOut(mouseEvent) {
+  handleMouseOut() {
     this.showingTooltip = false;
     tooltipManager.hideTooltip();
   }

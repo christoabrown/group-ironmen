@@ -106,6 +106,7 @@ export class MemberData {
     }
 
     if (memberData.interacting) {
+      memberData.interacting.name = utility.removeTags(memberData.interacting.name);
       this.interacting = memberData.interacting;
       this.publishUpdate("interacting");
     }

@@ -339,7 +339,7 @@ ul {
 }
 
 .rsborder {
-  border-image: url(/ui/border.png) 32 32 / 32px / 4px round;
+  border-image: url(/ui/border.png) 32 32 / 32px / 3px 4px 4px 3px round;
   border-style: solid;
   border-radius: 4px;
 }

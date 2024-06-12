@@ -5,6 +5,7 @@ export class MenInput extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const id = this.getAttribute("input-id");
     const placeholder = this.getAttribute("placeholder-text");
@@ -13,6 +14,7 @@ export class MenInput extends BaseElement {
     const maxLength = parseInt(this.getAttribute("max-length")) || 16;
     return `{{men-input.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();

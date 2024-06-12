@@ -2,7 +2,6 @@ import { BaseElement } from "../base-element/base-element";
 import { storage } from "../data/storage";
 import { api } from "../data/api";
 import { exampleData } from "../data/example-data";
-import { pubsub } from "../data/pubsub";
 
 export class LogoutPage extends BaseElement {
   constructor() {

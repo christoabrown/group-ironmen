@@ -1,5 +1,3 @@
-import { pubsub } from "./data/pubsub";
-
 class Appearance {
   constructor() {
     if (window.matchMedia) {

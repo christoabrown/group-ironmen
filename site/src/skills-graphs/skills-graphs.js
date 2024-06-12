@@ -9,6 +9,7 @@ export class SkillsGraphs extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const skillNames = Object.values(SkillName).sort((a, b) => {
       if (a === "Overall") return -1;
@@ -17,6 +18,7 @@ export class SkillsGraphs extends BaseElement {
     });
     return `{{skills-graphs.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();

@@ -47,7 +47,7 @@ class Api {
     return `${this.baseUrl}/collection-log-info`;
   }
 
-  collectionLogDataUrl(playerName) {
+  collectionLogDataUrl() {
     return `${this.baseUrl}/group/${this.groupName}/collection-log`;
   }
 

@@ -34,7 +34,6 @@ export class Animation {
       return false;
     }
 
-    const current = this.current;
     const target = this.target;
     let progress = this.progress;
     const time = this.time;

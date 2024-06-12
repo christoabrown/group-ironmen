@@ -6,10 +6,12 @@ export class SetupInstructions extends BaseElement {
     super();
   }
 
+  /* eslint-disable no-unused-vars */
   html() {
     const group = storage.getGroup();
     return `{{setup-instructions.html}}`;
   }
+  /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();
