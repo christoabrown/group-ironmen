@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "update": "./prepare.sh && node update.js"
+    "update": "./prepare.sh && (cd ../site && node scripts/quest-scrapper.js) && node update.js"
   },
   "author": "",
   "license": "ISC",
