@@ -59,6 +59,10 @@ async function run() {
 
   const result = {};
   for (const quest of [...freeToPlayQuests, ...memberQuests, ...miniQuests]) {
+    if (quest.name.includes('Quick guide')) {
+      continue;
+    }
+
     if (!questNameToIdMap.has(quest.name)) {
       console.error(`quest mapping is missing quest ${quest.name} from the wiki`);
       continue;
