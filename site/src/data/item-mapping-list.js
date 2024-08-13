@@ -155,6 +155,9 @@ export class ItemMappingList {
 	itemMappings.ITEM_ELDER_CHAOS_HOOD = new ItemMapping(ItemData.runeliteKeyList()['ELDER_CHAOS_HOOD'], ItemData.runeliteKeyList()['ELDER_CHAOS_HOOD_OR']);
 	itemMappings.ITEM_ELDER_CHAOS_TOP = new ItemMapping(ItemData.runeliteKeyList()['ELDER_CHAOS_TOP'], ItemData.runeliteKeyList()['ELDER_CHAOS_TOP_OR']);
 	itemMappings.ITEM_ELDER_CHAOS_ROBE = new ItemMapping(ItemData.runeliteKeyList()['ELDER_CHAOS_ROBE'], ItemData.runeliteKeyList()['ELDER_CHAOS_ROBE_OR']);
+	itemMappings.ITEM_TRAILBLAZER_RELOADED_BLOWPIPE_ORNAMENT_KIT = new ItemMapping(ItemData.runeliteKeyList()['TRAILBLAZER_RELOADED_BLOWPIPE_ORNAMENT_KIT'], ItemData.runeliteKeyList()['BLAZING_BLOWPIPE'], ItemData.runeliteKeyList()['BLAZING_BLOWPIPE_EMPTY']);
+	itemMappings.ITEM_DINHS_BULWARK = new ItemMapping(ItemData.runeliteKeyList()['DINHS_BULWARK'], ItemData.runeliteKeyList()['DINHS_BLAZING_BULWARK']);
+	itemMappings.ITEM_TRAILBLAZER_RELOADED_BULWARK_ORNAMENT_KIT = new ItemMapping(ItemData.runeliteKeyList()['TRAILBLAZER_RELOADED_BULWARK_ORNAMENT_KIT'], ItemData.runeliteKeyList()['DINHS_BLAZING_BULWARK']);
 
 	// Ensouled heads
 	itemMappings.ITEM_ENSOULED_GOBLIN_HEAD = new ItemMapping(ItemData.runeliteKeyList()['ENSOULED_GOBLIN_HEAD_13448'], ItemData.runeliteKeyList()['ENSOULED_GOBLIN_HEAD']);
@@ -209,6 +212,7 @@ export class ItemMappingList {
 	itemMappings.ITEM_SKILLS_NECKLACE = new ItemMapping(ItemData.runeliteKeyList()['SKILLS_NECKLACE'], ItemData.runeliteKeyList()['SKILLS_NECKLACE1'], ItemData.runeliteKeyList()['SKILLS_NECKLACE2'], ItemData.runeliteKeyList()['SKILLS_NECKLACE3'], ItemData.runeliteKeyList()['SKILLS_NECKLACE5']);
 	itemMappings.ITEM_RING_OF_DUELING = new ItemMapping(ItemData.runeliteKeyList()['RING_OF_DUELING8'], ItemData.runeliteKeyList()['RING_OF_DUELING1'], ItemData.runeliteKeyList()['RING_OF_DUELING2'], ItemData.runeliteKeyList()['RING_OF_DUELING3'], ItemData.runeliteKeyList()['RING_OF_DUELING4'], ItemData.runeliteKeyList()['RING_OF_DUELING5'], ItemData.runeliteKeyList()['RING_OF_DUELING6'], ItemData.runeliteKeyList()['RING_OF_DUELING7']);
 	itemMappings.ITEM_GAMES_NECKLACE = new ItemMapping(ItemData.runeliteKeyList()['GAMES_NECKLACE8'], ItemData.runeliteKeyList()['GAMES_NECKLACE1'], ItemData.runeliteKeyList()['GAMES_NECKLACE2'], ItemData.runeliteKeyList()['GAMES_NECKLACE3'], ItemData.runeliteKeyList()['GAMES_NECKLACE4'], ItemData.runeliteKeyList()['GAMES_NECKLACE5'], ItemData.runeliteKeyList()['GAMES_NECKLACE6'], ItemData.runeliteKeyList()['GAMES_NECKLACE7']);
+	itemMappings.ITEM_RING_OF_THE_ELEMENTS = new ItemMapping(ItemData.runeliteKeyList()['RING_OF_THE_ELEMENTS'], ItemData.runeliteKeyList()['RING_OF_THE_ELEMENTS_26818']);
 
 	// Degradable/charged weaponry/armour
 	itemMappings.ITEM_ABYSSAL_WHIP = new ItemMapping(ItemData.runeliteKeyList()['ABYSSAL_WHIP'], ItemData.runeliteKeyList()['VOLCANIC_ABYSSAL_WHIP'], ItemData.runeliteKeyList()['FROZEN_ABYSSAL_WHIP'], ItemData.runeliteKeyList()['ABYSSAL_WHIP_OR']);
@@ -217,7 +221,7 @@ export class ItemMappingList {
 	itemMappings.ITEM_TRIDENT_OF_THE_SEAS_E = new ItemMapping(ItemData.runeliteKeyList()['UNCHARGED_TRIDENT_E'], ItemData.runeliteKeyList()['TRIDENT_OF_THE_SEAS_E']);
 	itemMappings.ITEM_TRIDENT_OF_THE_SWAMP = new ItemMapping(ItemData.runeliteKeyList()['UNCHARGED_TOXIC_TRIDENT'], ItemData.runeliteKeyList()['TRIDENT_OF_THE_SWAMP']);
 	itemMappings.ITEM_TRIDENT_OF_THE_SWAMP_E = new ItemMapping(ItemData.runeliteKeyList()['UNCHARGED_TOXIC_TRIDENT_E'], ItemData.runeliteKeyList()['TRIDENT_OF_THE_SWAMP_E']);
-	itemMappings.ITEM_TOXIC_BLOWPIPE = new ItemMapping(ItemData.runeliteKeyList()['TOXIC_BLOWPIPE_EMPTY'], ItemData.runeliteKeyList()['TOXIC_BLOWPIPE']);
+	itemMappings.ITEM_TOXIC_BLOWPIPE = new ItemMapping(ItemData.runeliteKeyList()['TOXIC_BLOWPIPE_EMPTY'], ItemData.runeliteKeyList()['TOXIC_BLOWPIPE'], ItemData.runeliteKeyList()['BLAZING_BLOWPIPE_EMPTY'], ItemData.runeliteKeyList()['BLAZING_BLOWPIPE']);
 	itemMappings.ITEM_TOXIC_STAFF_OFF_THE_DEAD = new ItemMapping(ItemData.runeliteKeyList()['TOXIC_STAFF_UNCHARGED'], ItemData.runeliteKeyList()['TOXIC_STAFF_OF_THE_DEAD']);
 	itemMappings.ITEM_SERPENTINE_HELM = new ItemMapping(ItemData.runeliteKeyList()['SERPENTINE_HELM_UNCHARGED'], ItemData.runeliteKeyList()['SERPENTINE_HELM'], ItemData.runeliteKeyList()['TANZANITE_HELM_UNCHARGED'], ItemData.runeliteKeyList()['TANZANITE_HELM'], ItemData.runeliteKeyList()['MAGMA_HELM_UNCHARGED'], ItemData.runeliteKeyList()['MAGMA_HELM']);
 	itemMappings.ITEM_DRAGONFIRE_SHIELD = new ItemMapping(ItemData.runeliteKeyList()['DRAGONFIRE_SHIELD_11284'], ItemData.runeliteKeyList()['DRAGONFIRE_SHIELD']);
@@ -239,6 +243,19 @@ export class ItemMappingList {
 	itemMappings.ITEM_TUMEKENS_SHADOW = new ItemMapping(ItemData.runeliteKeyList()['TUMEKENS_SHADOW_UNCHARGED'], ItemData.runeliteKeyList()['TUMEKENS_SHADOW']);
 	itemMappings.ITEM_PHARAOHS_SCEPTRE = new ItemMapping(ItemData.runeliteKeyList()['PHARAOHS_SCEPTRE_UNCHARGED'], true, 1, ItemData.runeliteKeyList()['PHARAOHS_SCEPTRE']);
 	itemMappings.ITEM_VENATOR_BOW = new ItemMapping(ItemData.runeliteKeyList()['VENATOR_BOW_UNCHARGED'], ItemData.runeliteKeyList()['VENATOR_BOW']);
+	itemMappings.ITEM_TONALZTICS_OF_RALOS = new ItemMapping(ItemData.runeliteKeyList()['TONALZTICS_OF_RALOS_UNCHARGED'], ItemData.runeliteKeyList()['TONALZTICS_OF_RALOS']);
+	itemMappings.ITEM_GUARDIAN_BOOTS = new ItemMapping(ItemData.runeliteKeyList()['GUARDIAN_BOOTS'], ItemData.runeliteKeyList()['ECHO_BOOTS']);
+
+	// Lunar Chest armour
+	itemMappings.ITEM_BLUE_MOON_HELM = new ItemMapping(ItemData.runeliteKeyList()['BLUE_MOON_HELM'], ItemData.runeliteKeyList()['BLUE_MOON_HELM_29041']);
+	itemMappings.ITEM_BLUE_MOON_CHESTPLATE = new ItemMapping(ItemData.runeliteKeyList()['BLUE_MOON_CHESTPLATE'], ItemData.runeliteKeyList()['BLUE_MOON_CHESTPLATE_29037']);
+	itemMappings.ITEM_BLUE_MOON_TASSETS = new ItemMapping(ItemData.runeliteKeyList()['BLUE_MOON_TASSETS'], ItemData.runeliteKeyList()['BLUE_MOON_TASSETS_29039']);
+	itemMappings.ITEM_ECLIPSE_MOON_HELM = new ItemMapping(ItemData.runeliteKeyList()['ECLIPSE_MOON_HELM'], ItemData.runeliteKeyList()['ECLIPSE_MOON_HELM_29035']);
+	itemMappings.ITEM_ECLIPSE_MOON_CHESTPLATE = new ItemMapping(ItemData.runeliteKeyList()['ECLIPSE_MOON_CHESTPLATE'], ItemData.runeliteKeyList()['ECLIPSE_MOON_CHESTPLATE_29031']);
+	itemMappings.ITEM_ECLIPSE_MOON_TASSETS = new ItemMapping(ItemData.runeliteKeyList()['ECLIPSE_MOON_TASSETS'], ItemData.runeliteKeyList()['ECLIPSE_MOON_TASSETS_29033']);
+	itemMappings.ITEM_BLOOD_MOON_HELM = new ItemMapping(ItemData.runeliteKeyList()['BLOOD_MOON_HELM'], ItemData.runeliteKeyList()['BLOOD_MOON_HELM_29047']);
+	itemMappings.ITEM_BLOOD_MOON_CHESTPLATE = new ItemMapping(ItemData.runeliteKeyList()['BLOOD_MOON_CHESTPLATE'], ItemData.runeliteKeyList()['BLOOD_MOON_CHESTPLATE_29043']);
+	itemMappings.ITEM_BLOOD_MOON_TASSETS = new ItemMapping(ItemData.runeliteKeyList()['BLOOD_MOON_TASSETS'], ItemData.runeliteKeyList()['BLOOD_MOON_TASSETS_29045']);
 
 	// Tombs of Amascut gear
 	itemMappings.ITEM_ELIDINIS_WARD = new ItemMapping(ItemData.runeliteKeyList()['ELIDINIS_WARD'], ItemData.runeliteKeyList()['ELIDINIS_WARD_F'], ItemData.runeliteKeyList()['ELIDINIS_WARD_OR']);
