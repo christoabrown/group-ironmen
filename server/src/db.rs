@@ -1137,5 +1137,23 @@ ORDER BY GREATEST(
         transaction.commit().await?;
     }
 
+    {
+        let transaction = client.transaction().await?;
+
+        for tab in COLLECTION_LOG_INFO.iter() {
+            for page in tab.pages.iter() {
+                transaction.execute(
+                    r#"
+INSERT INTO groupironman.collection_page (tab_id, page_name) VALUES ($1, $2)
+ON CONFLICT (tab_id, page_name) DO NOTHING
+"#,
+                    &[&tab.tabId, &page.name],
+                ).await?;
+            }
+        }
+
+        transaction.commit().await?;
+    }
+
     Ok(())
 }
