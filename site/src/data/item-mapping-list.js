@@ -113,7 +113,7 @@ export class ItemMappingList {
 	itemMappings.ITEM_RUNE_CROSSBOW = new ItemMapping(ItemData.runeliteKeyList()['RUNE_CROSSBOW'], ItemData.runeliteKeyList()['RUNE_CROSSBOW_OR']);
 
 	// Godsword ornament kits
-	itemMappings.ITEM_ARMADYL_GODSWORD = new ItemMapping(ItemData.runeliteKeyList()['ARMADYL_GODSWORD'], ItemData.runeliteKeyList()['ARMADYL_GODSWORD_OR']);
+	itemMappings.ITEM_ARMADYL_GODSWORD = new ItemMapping(ItemData.runeliteKeyList()['ARMADYL_GODSWORD'], ItemData.runeliteKeyList()['ARMADYL_GODSWORD_OR'], ItemData.runeliteKeyList()['ARMADYL_GODSWORD_DEADMAN']);
 	itemMappings.ITEM_ARMADYL_GODSWORD_ORNAMENT_KIT = new ItemMapping(ItemData.runeliteKeyList()['ARMADYL_GODSWORD_ORNAMENT_KIT'], ItemData.runeliteKeyList()['ARMADYL_GODSWORD_OR']);
 	itemMappings.ITEM_BANDOS_GODSWORD = new ItemMapping(ItemData.runeliteKeyList()['BANDOS_GODSWORD'], ItemData.runeliteKeyList()['BANDOS_GODSWORD_OR']);
 	itemMappings.ITEM_BANDOS_GODSWORD_ORNAMENT_KIT = new ItemMapping(ItemData.runeliteKeyList()['BANDOS_GODSWORD_ORNAMENT_KIT'], ItemData.runeliteKeyList()['BANDOS_GODSWORD_OR']);
@@ -273,7 +273,7 @@ export class ItemMappingList {
 	itemMappings.ITEM_INFINITY_HAT_DARK_COLOUR_KIT = new ItemMapping(ItemData.runeliteKeyList()['DARK_INFINITY_COLOUR_KIT'], ItemData.runeliteKeyList()['DARK_INFINITY_HAT']);
 
 	// Miscellaneous ornament kits
-	itemMappings.ITEM_DARK_BOW = new ItemMapping(ItemData.runeliteKeyList()['DARK_BOW'], ItemData.runeliteKeyList()['DARK_BOW_12765'], ItemData.runeliteKeyList()['DARK_BOW_12766'], ItemData.runeliteKeyList()['DARK_BOW_12767'], ItemData.runeliteKeyList()['DARK_BOW_12768'], ItemData.runeliteKeyList()['DARK_BOW_20408'], ItemData.runeliteKeyList()['DARK_BOW_BH']);
+	itemMappings.ITEM_DARK_BOW = new ItemMapping(ItemData.runeliteKeyList()['DARK_BOW'], ItemData.runeliteKeyList()['DARK_BOW_12765'], ItemData.runeliteKeyList()['DARK_BOW_12766'], ItemData.runeliteKeyList()['DARK_BOW_12767'], ItemData.runeliteKeyList()['DARK_BOW_12768'], ItemData.runeliteKeyList()['DARK_BOW_20408'], ItemData.runeliteKeyList()['DARK_BOW_BH'], ItemData.runeliteKeyList()['DARK_BOW_DEADMAN']);
 	itemMappings.ITEM_ODIUM_WARD = new ItemMapping(ItemData.runeliteKeyList()['ODIUM_WARD'], ItemData.runeliteKeyList()['ODIUM_WARD_12807']);
 	itemMappings.ITEM_MALEDICTION_WARD = new ItemMapping(ItemData.runeliteKeyList()['MALEDICTION_WARD'], ItemData.runeliteKeyList()['MALEDICTION_WARD_12806']);
 	itemMappings.ITEM_STEAM_BATTLESTAFF = new ItemMapping(ItemData.runeliteKeyList()['STEAM_BATTLESTAFF'], ItemData.runeliteKeyList()['STEAM_BATTLESTAFF_12795']);
@@ -281,6 +281,7 @@ export class ItemMappingList {
 	itemMappings.ITEM_TZHAARKETOM = new ItemMapping(ItemData.runeliteKeyList()['TZHAARKETOM'], ItemData.runeliteKeyList()['TZHAARKETOM_T']);
 	itemMappings.ITEM_TZHAARKETOM_ORNAMENT_KIT = new ItemMapping(ItemData.runeliteKeyList()['TZHAARKETOM_ORNAMENT_KIT'], ItemData.runeliteKeyList()['TZHAARKETOM_T']);
 	itemMappings.ITEM_DRAGON_HUNTER_CROSSBOW = new ItemMapping(ItemData.runeliteKeyList()['DRAGON_HUNTER_CROSSBOW'], ItemData.runeliteKeyList()['DRAGON_HUNTER_CROSSBOW_B'], ItemData.runeliteKeyList()['DRAGON_HUNTER_CROSSBOW_T']);
+	itemMappings.ITEM_VOIDWAKER = new ItemMapping(ItemData.runeliteKeyList()['VOIDWAKER'], ItemData.runeliteKeyList()['VOIDWAKER_DEADMAN']);
 
 	// Slayer helm/black mask
 	itemMappings.ITEM_BLACK_MASK = new ItemMapping(ItemData.runeliteKeyList()['BLACK_MASK'], true, 1, ItemData.runeliteKeyList()['BLACK_MASK'], ItemData.runeliteKeyList()['SLAYER_HELMET']);
@@ -295,8 +296,8 @@ export class ItemMappingList {
 	itemMappings.ITEM_TWISTED_HORNS = new ItemMapping(ItemData.runeliteKeyList()['TWISTED_HORNS'], ItemData.runeliteKeyList()['TWISTED_SLAYER_HELMET'], ItemData.runeliteKeyList()['TWISTED_SLAYER_HELMET_I'], ItemData.runeliteKeyList()['TWISTED_SLAYER_HELMET_I_25191'], ItemData.runeliteKeyList()['TWISTED_SLAYER_HELMET_I_26681']);
 	itemMappings.ITEM_ELDRITCH_ORB = new ItemMapping(ItemData.runeliteKeyList()['ELDRITCH_ORB'], ItemData.runeliteKeyList()['ELDRITCH_NIGHTMARE_STAFF']);
 	itemMappings.ITEM_HARMONISED_ORB = new ItemMapping(ItemData.runeliteKeyList()['HARMONISED_ORB'], ItemData.runeliteKeyList()['HARMONISED_NIGHTMARE_STAFF']);
-	itemMappings.ITEM_VOLATILE_ORB = new ItemMapping(ItemData.runeliteKeyList()['VOLATILE_ORB'], ItemData.runeliteKeyList()['VOLATILE_NIGHTMARE_STAFF']);
-	itemMappings.ITEM_NIGHTMARE_STAFF = new ItemMapping(ItemData.runeliteKeyList()['NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['ELDRITCH_NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['HARMONISED_NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['VOLATILE_NIGHTMARE_STAFF']);
+	itemMappings.ITEM_VOLATILE_ORB = new ItemMapping(ItemData.runeliteKeyList()['VOLATILE_ORB'], ItemData.runeliteKeyList()['VOLATILE_NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['VOLATILE_NIGHTMARE_STAFF_DEADMAN']);
+	itemMappings.ITEM_NIGHTMARE_STAFF = new ItemMapping(ItemData.runeliteKeyList()['NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['ELDRITCH_NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['HARMONISED_NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['VOLATILE_NIGHTMARE_STAFF'], ItemData.runeliteKeyList()['VOLATILE_NIGHTMARE_STAFF_DEADMAN']);
 	itemMappings.ITEM_GHARZI_RAPIER = new ItemMapping(ItemData.runeliteKeyList()['GHRAZI_RAPIER'], ItemData.runeliteKeyList()['HOLY_GHRAZI_RAPIER']);
 	itemMappings.ITEM_MASTER_SCROLL_BOOK = new ItemMapping(ItemData.runeliteKeyList()['MASTER_SCROLL_BOOK_EMPTY'], ItemData.runeliteKeyList()['MASTER_SCROLL_BOOK']);
 	itemMappings.ITEM_ARCANE_SIGIL = new ItemMapping(ItemData.runeliteKeyList()['ARCANE_SIGIL'], ItemData.runeliteKeyList()['ELIDINIS_WARD_F'], ItemData.runeliteKeyList()['ELIDINIS_WARD_OR']);
