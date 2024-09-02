@@ -273,6 +273,15 @@ async function dumpMapLabels() {
   await Promise.all(p);
 }
 
+async function dumpCollectionLog() {
+  console.log('\nStep: Dumping collection log');
+  const collectionLogDumper = fs.readFileSync('./CollectionLogDumper.java', 'utf8');
+  fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/CollectionLogDumper.java`, collectionLogDumper);
+  await setMainClassInCachePom('net.runelite.cache.CollectionLogDumper');
+  buildCacheProject();
+  execRuneliteCache(`--cachedir ${osrsCacheDirectory} --outputdir ../server`);
+}
+
 async function tilePlane(plane) {
   await retry(() => fs.rmSync('./output_files', { recursive: true, force: true }));
   const planeImage = sharp(`./map-data/img-${plane}.png`, { limitInputPixels: false }).flip();
@@ -461,6 +470,7 @@ async function moveResults() {
   await dumpMapData(xteasLocation);
   await generateMapTiles();
   await dumpMapLabels();
+  await dumpCollectionLog();
 
   await moveResults();
 })();
