@@ -99,6 +99,30 @@
         ]
       },
       {
+        "name": "Amoxliatl",
+        "completion_labels": [
+          "Amoxliatl kills"
+        ],
+        "items": [
+          {
+            "id": 30154,
+            "name": "Moxi"
+          },
+          {
+            "id": 29889,
+            "name": "Glacial temotli"
+          },
+          {
+            "id": 29892,
+            "name": "Pendant of ates (inert)"
+          },
+          {
+            "id": 29895,
+            "name": "Frozen tear"
+          }
+        ]
+      },
+      {
         "name": "Araxxor",
         "completion_labels": [
           "Araxxor kills"
@@ -775,6 +799,38 @@
           {
             "id": 22881,
             "name": "Attas seed"
+          }
+        ]
+      },
+      {
+        "name": "The Hueycoatl",
+        "completion_labels": [
+          "Hueycoatl kills"
+        ],
+        "items": [
+          {
+            "id": 30152,
+            "name": "Huberte"
+          },
+          {
+            "id": 30070,
+            "name": "Dragon hunter wand"
+          },
+          {
+            "id": 30066,
+            "name": "Tome of earth (empty)"
+          },
+          {
+            "id": 30068,
+            "name": "Soiled page"
+          },
+          {
+            "id": 30085,
+            "name": "Hueycoatl hide"
+          },
+          {
+            "id": 30088,
+            "name": "Huasca seed"
           }
         ]
       },
@@ -5453,6 +5509,42 @@
         ]
       },
       {
+        "name": "Mastering Mixology",
+        "completion_labels": [
+          "Orders fulfilled"
+        ],
+        "items": [
+          {
+            "id": 29974,
+            "name": "Prescription goggles"
+          },
+          {
+            "id": 29978,
+            "name": "Alchemist labcoat"
+          },
+          {
+            "id": 29982,
+            "name": "Alchemist pants"
+          },
+          {
+            "id": 29986,
+            "name": "Alchemist gloves"
+          },
+          {
+            "id": 29990,
+            "name": "Alchemist\u0027s amulet"
+          },
+          {
+            "id": 29996,
+            "name": "Reagent pouch"
+          },
+          {
+            "id": 30002,
+            "name": "Pre-pot device (disassembled)"
+          }
+        ]
+      },
+      {
         "name": "Pest Control",
         "completion_labels": [],
         "items": [
@@ -6116,6 +6208,14 @@
           {
             "id": 29836,
             "name": "Nid"
+          },
+          {
+            "id": 30152,
+            "name": "Huberte"
+          },
+          {
+            "id": 30154,
+            "name": "Moxi"
           }
         ]
       },
@@ -6312,6 +6412,44 @@
           {
             "id": 2995,
             "name": "Chompy bird hat"
+          }
+        ]
+      },
+      {
+        "name": "Colossal Wyrm Agility",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 30040,
+            "name": "Colossal wyrm teleport scroll"
+          },
+          {
+            "id": 30042,
+            "name": "Calcified acorn"
+          },
+          {
+            "id": 30045,
+            "name": "Graceful hood"
+          },
+          {
+            "id": 30051,
+            "name": "Graceful top"
+          },
+          {
+            "id": 30054,
+            "name": "Graceful legs"
+          },
+          {
+            "id": 30057,
+            "name": "Graceful gloves"
+          },
+          {
+            "id": 30060,
+            "name": "Graceful boots"
+          },
+          {
+            "id": 30048,
+            "name": "Graceful cape"
           }
         ]
       },
@@ -7431,6 +7569,18 @@
           {
             "id": 29806,
             "name": "Aranea boots"
+          },
+          {
+            "id": 29889,
+            "name": "Glacial temotli"
+          },
+          {
+            "id": 29892,
+            "name": "Pendant of ates (inert)"
+          },
+          {
+            "id": 29895,
+            "name": "Frozen tear"
           }
         ]
       },
