@@ -522,7 +522,7 @@ async function moveResults() {
 }
 
 (async () => {
-  await setupRunelite();
+  // await setupRunelite();
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);

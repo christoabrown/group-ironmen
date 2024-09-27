@@ -1,0 +1,42 @@
+name: Update cache
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "14 * * * *"
+
+jobs:
+  cache:
+    runs-on: macos-15
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Checkout runelite
+        uses: actions/checkout@v4
+        with:
+          repository: runelite/runelite
+          path: cache/runelite
+
+      - uses: actions/setup-node@v4
+
+      - run: npm install
+        working-directory: ./cache
+
+      - run: npm install
+        working-directory: ./site
+
+      - run: npm run update
+        working-directory: ./cache
+
+      - name: Check if there are changes
+        id: changes
+        run: echo "::set-output name=changed::$(git status --porcelain | wc -l)"
+
+      - name: Create pull requests
+        if: steps.changes.outputs.changed != 0
+        uses: peter-evans/create-pull-request@v4
+        with:
+          commit-message: dump latest game data
+          title: Dump latest game data
+          branch: update-cache
