@@ -282,6 +282,7 @@ export class ItemMappingList {
 	itemMappings.ITEM_TZHAARKETOM_ORNAMENT_KIT = new ItemMapping(ItemData.runeliteKeyList()['TZHAARKETOM_ORNAMENT_KIT'], ItemData.runeliteKeyList()['TZHAARKETOM_T']);
 	itemMappings.ITEM_DRAGON_HUNTER_CROSSBOW = new ItemMapping(ItemData.runeliteKeyList()['DRAGON_HUNTER_CROSSBOW'], ItemData.runeliteKeyList()['DRAGON_HUNTER_CROSSBOW_B'], ItemData.runeliteKeyList()['DRAGON_HUNTER_CROSSBOW_T']);
 	itemMappings.ITEM_VOIDWAKER = new ItemMapping(ItemData.runeliteKeyList()['VOIDWAKER'], ItemData.runeliteKeyList()['VOIDWAKER_DEADMAN']);
+	itemMappings.ITEM_AMULET_OF_RANCOUR = new ItemMapping(ItemData.runeliteKeyList()['AMULET_OF_RANCOUR'], ItemData.runeliteKeyList()['AMULET_OF_RANCOUR_S']);
 
 	// Slayer helm/black mask
 	itemMappings.ITEM_BLACK_MASK = new ItemMapping(ItemData.runeliteKeyList()['BLACK_MASK'], true, 1, ItemData.runeliteKeyList()['BLACK_MASK'], ItemData.runeliteKeyList()['SLAYER_HELMET']);
