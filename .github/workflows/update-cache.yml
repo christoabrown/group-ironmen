@@ -7,7 +7,7 @@ on:
 
 jobs:
   cache:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
