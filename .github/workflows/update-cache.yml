@@ -29,14 +29,11 @@ jobs:
       - run: npm run update
         working-directory: ./cache
 
-      - name: Check if there are changes
-        id: changes
-        run: echo "::set-output name=changed::$(git status --porcelain | wc -l)"
-
       - name: Create pull requests
-        if: steps.changes.outputs.changed != 0
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v7
         with:
           commit-message: dump latest game data
           title: Dump latest game data
+          body:
           branch: update-cache
+          delete-branch: true
