@@ -3,7 +3,7 @@ name: Update cache
 on:
   workflow_dispatch:
   schedule:
-    - cron: "14 * * * *"
+    - cron: "51 * * * *"
 
 jobs:
   cache:
