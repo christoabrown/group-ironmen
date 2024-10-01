@@ -47,7 +47,7 @@ const createImageHashes = {
     for (const image of images) {
       const fileBuffer = fs.readFileSync(`public/${image}`);
 
-      hashes[`/${image}`] = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+      hashes[`/${image}`] = crypto.createHash('sha256').update(fileBuffer).digest('hex').substring(0, 7);
     }
 
     fs.writeFileSync('public/data/images.json', JSON.stringify(hashes));
