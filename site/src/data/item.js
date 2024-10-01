@@ -24,7 +24,7 @@ export class Item {
         }
       }
     }
-    return `/icons/items/${imageId}.webp`;
+    return utility.image(`/icons/items/${imageId}.webp`);
   }
 
   static itemName(itemId) {

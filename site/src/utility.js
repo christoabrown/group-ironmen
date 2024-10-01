@@ -1,6 +1,14 @@
 class Utility {
   constructor() {
     this.tagRegexp = /<[^>]*>/gi;
+    this.loadImages();
+  }
+
+  async loadImages() {
+    this.images = {};
+
+    const response = await fetch("/data/images.json");
+    this.images = await response.json();
   }
 
   callOnInterval(fn, interval, callImmediate = true) {
@@ -98,7 +106,12 @@ class Utility {
   removeTags(s) {
     return s?.replace(this.tagRegexp, "");
   }
+
+  image(src) {
+    return `${src}?id=${this.images[src]}`
+  }
 }
+
 const utility = new Utility();
 
 export { utility };
