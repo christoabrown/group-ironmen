@@ -7,8 +7,17 @@ class Utility {
   async loadImages() {
     this.images = {};
 
-    const response = await fetch("/data/images.json");
-    this.images = await response.json();
+    const localData = localStorage.getItem('images');
+    if (localData) {
+      this.images = JSON.parse(localData);
+    }
+
+    const response = await fetch('/data/images.json');
+    const data = await response.json();
+
+    this.images = data;
+
+    localStorage.setItem('images', JSON.stringify(data));
   }
 
   callOnInterval(fn, interval, callImmediate = true) {
@@ -22,7 +31,7 @@ class Utility {
     let nextCall = Date.now() + interval;
     return setInterval(async () => {
       const now = Date.now();
-      if (now >= nextCall && document.visibilityState === "visible") {
+      if (now >= nextCall && document.visibilityState === 'visible') {
         nextCall = Infinity;
 
         try {
@@ -38,29 +47,29 @@ class Utility {
 
   formatShortQuantity(quantity) {
     if (quantity >= 1000000000) {
-      return Math.floor(quantity / 1000000000) + "B";
+      return Math.floor(quantity / 1000000000) + 'B';
     } else if (quantity >= 10000000) {
-      return Math.floor(quantity / 1000000) + "M";
+      return Math.floor(quantity / 1000000) + 'M';
     } else if (quantity >= 100000) {
-      return Math.floor(quantity / 1000) + "K";
+      return Math.floor(quantity / 1000) + 'K';
     }
     return quantity;
   }
 
   formatVeryShortQuantity(quantity) {
     if (quantity >= 1000 && quantity < 100000) {
-      return Math.floor(quantity / 1000) + "K";
+      return Math.floor(quantity / 1000) + 'K';
     }
 
     return this.formatShortQuantity(quantity);
   }
 
   removeArticles(str) {
-    const articles = ["a", "the", "an"];
-    const words = str.split(" ");
+    const articles = ['a', 'the', 'an'];
+    const words = str.split(' ');
     if (words.length <= 1) return str;
     if (articles.includes(words[0].toLowerCase())) {
-      return words.splice(1).join(" ");
+      return words.splice(1).join(' ');
     }
     return str;
   }
@@ -86,7 +95,7 @@ class Utility {
   }
 
   setsEqual(a, b) {
-    if (!a || !b) return false;
+    if (! a || ! b) return false;
     return a.size === b.size && [...a].every((x) => b.has(x));
   }
 
@@ -104,11 +113,11 @@ class Utility {
   }
 
   removeTags(s) {
-    return s?.replace(this.tagRegexp, "");
+    return s?.replace(this.tagRegexp, '');
   }
 
   image(src) {
-    return `${src}?id=${this.images[src]}`
+    return `${src}?id=${this.images[src]}`;
   }
 }
 
