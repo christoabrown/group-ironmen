@@ -76980,22 +76980,22 @@
   "29868": {
     "name": "Emissary hood",
     "runeliteKey": "EMISSARY_HOOD",
-    "highalch": 60
+    "highalch": 0
   },
   "29870": {
     "name": "Emissary robe top",
     "runeliteKey": "EMISSARY_ROBE_TOP",
-    "highalch": 60
+    "highalch": 0
   },
   "29872": {
     "name": "Emissary robe bottom",
     "runeliteKey": "EMISSARY_ROBE_BOTTOM",
-    "highalch": 60
+    "highalch": 0
   },
   "29874": {
     "name": "Emissary sandals",
     "runeliteKey": "EMISSARY_SANDALS",
-    "highalch": 60
+    "highalch": 0
   },
   "29876": {
     "name": "Stone tablet",
@@ -77130,12 +77130,12 @@
   "29912": {
     "name": "Butler's tray",
     "runeliteKey": "BUTLERS_TRAY",
-    "highalch": 60
+    "highalch": 0
   },
   "29913": {
     "name": "Butler's tray",
     "runeliteKey": "BUTLERS_TRAY_29913",
-    "highalch": 60
+    "highalch": 0
   },
   "29914": {
     "name": "Butler's uniform",
@@ -77190,12 +77190,12 @@
   "29928": {
     "name": "Wine labels",
     "runeliteKey": "WINE_LABELS",
-    "highalch": 18
+    "highalch": 0
   },
   "29929": {
     "name": "Ram mask",
     "runeliteKey": "RAM_MASK",
-    "highalch": 18
+    "highalch": 0
   },
   "29930": {
     "name": "Wolf mask",
@@ -77205,22 +77205,22 @@
   "29931": {
     "name": "Bird mask",
     "runeliteKey": "BIRD_MASK",
-    "highalch": 18
+    "highalch": 0
   },
   "29932": {
     "name": "Jaguar mask",
     "runeliteKey": "JAGUAR_MASK",
-    "highalch": 18
+    "highalch": 0
   },
   "29933": {
     "name": "Snake mask",
     "runeliteKey": "SNAKE_MASK",
-    "highalch": 18
+    "highalch": 0
   },
   "29934": {
     "name": "Ram mask",
     "runeliteKey": "RAM_MASK_29934",
-    "highalch": 60
+    "highalch": 0
   },
   "29936": {
     "name": "Wolf mask",
@@ -77230,17 +77230,17 @@
   "29938": {
     "name": "Bird mask",
     "runeliteKey": "BIRD_MASK_29938",
-    "highalch": 60
+    "highalch": 0
   },
   "29940": {
     "name": "Jaguar mask",
     "runeliteKey": "JAGUAR_MASK_29940",
-    "highalch": 60
+    "highalch": 0
   },
   "29942": {
     "name": "Snake mask",
     "runeliteKey": "SNAKE_MASK_29942",
-    "highalch": 60
+    "highalch": 0
   },
   "29944": {
     "name": "Blackbird red",
@@ -77378,13 +77378,13 @@
     "highalch": 0
   },
   "30000": {
-    "name": "Pre-pot device",
-    "runeliteKey": "PREPOT_DEVICE",
+    "name": "Chugging barrel",
+    "runeliteKey": "CHUGGING_BARREL",
     "highalch": 60
   },
   "30002": {
-    "name": "Pre-pot device (disassembled)",
-    "runeliteKey": "PREPOT_DEVICE_DISASSEMBLED",
+    "name": "Chugging barrel (disassembled)",
+    "runeliteKey": "CHUGGING_BARREL_DISASSEMBLED",
     "highalch": 600
   },
   "30005": {
@@ -77520,7 +77520,7 @@
   "30037": {
     "name": "Grape barrel",
     "runeliteKey": "GRAPE_BARREL",
-    "highalch": 18
+    "highalch": 0
   },
   "30038": {
     "name": "Termites",
@@ -77828,11 +77828,11 @@
   "30156": {
     "name": "Butler's tray",
     "runeliteKey": "BUTLERS_TRAY_30156",
-    "highalch": 18
+    "highalch": 0
   },
   "30157": {
     "name": "Butler's tray",
     "runeliteKey": "BUTLERS_TRAY_30157",
-    "highalch": 18
+    "highalch": 0
   }
 }
