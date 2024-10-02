@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
 
       - name: Checkout runelite
         uses: actions/checkout@v4
@@ -29,11 +31,7 @@ jobs:
       - run: npm run update
         working-directory: ./cache
 
-      - name: Create pull requests
-        uses: peter-evans/create-pull-request@v7
+      - name: Commit latest game data
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit-message: dump latest game data
-          title: Dump latest game data
-          body:
-          branch: update-cache
-          delete-branch: true
+          commit_message: dump latest game data
