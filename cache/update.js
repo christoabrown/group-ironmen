@@ -216,7 +216,7 @@ async function buildItemDataJson() {
     }
   }
   console.log(`${itemsMadeNonAlchable} items were updated to be unalchable`);
-  fs.writeFileSync('./item_data.json', JSON.stringify(includedItems));
+  fs.writeFileSync('./item_data.json', JSON.stringify(includedItems, null, 2));
 
   return allIncludedItemIds;
 }
@@ -496,7 +496,7 @@ async function moveResults() {
     }
   }
 
-  fs.writeFileSync(siteMapIconMetaPath, JSON.stringify(locationByRegion));
+  fs.writeFileSync(siteMapIconMetaPath, JSON.stringify(locationByRegion, null, 2));
 
   // Do the same for map labels
   const mapLabelsMeta = JSON.parse(fs.readFileSync("./map-data/labels/map-labels.json", 'utf8'));
@@ -518,7 +518,7 @@ async function moveResults() {
     labelByRegion[regionX][regionY][z].push(x, y, i);
   }
 
-  fs.writeFileSync(siteMapLabelMetaPath, JSON.stringify(labelByRegion));
+  fs.writeFileSync(siteMapLabelMetaPath, JSON.stringify(labelByRegion, null, 2));
 }
 
 (async () => {

@@ -32,7 +32,7 @@ const mapJsonPlugin = {
       labels
     };
 
-    fs.writeFileSync('public/data/map.json', JSON.stringify(result));
+    fs.writeFileSync('public/data/map.json', JSON.stringify(result, null, 2));
   }
 }
 
@@ -50,7 +50,7 @@ const createImageHashes = {
       hashes[`/${image}`] = crypto.createHash('sha256').update(fileBuffer).digest('hex').substring(0, 7);
     }
 
-    fs.writeFileSync('public/data/images.json', JSON.stringify(hashes));
+    fs.writeFileSync('public/data/images.json', JSON.stringify(hashes, null, 2));
   }
 }
 

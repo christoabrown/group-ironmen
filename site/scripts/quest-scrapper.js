@@ -77,7 +77,7 @@ async function run() {
   }
 
 
-  fs.writeFileSync('./public/data/quest_data.json', JSON.stringify(result));
+  fs.writeFileSync('./public/data/quest_data.json', JSON.stringify(result, null, 2));
 }
 
 run();
