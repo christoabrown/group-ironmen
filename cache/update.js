@@ -116,15 +116,6 @@ function buildCacheProject() {
   exec(`mvn install -Dmaven.test.skip=true -f pom.xml`, { cwd: cacheProjectPath });
 }
 
-async function setupRunelite() {
-  console.log('Step: Setting up runelite');
-  if (!fs.existsSync(runelitePath)) {
-    exec(`git clone "git@github.com:runelite/runelite.git"`);
-  }
-  exec(`git fetch origin master`, { cwd: runelitePath });
-  exec(`git reset --hard origin/master`, { cwd: runelitePath });
-}
-
 async function dumpItemData() {
   console.log('\nStep: Unpacking item data from cache');
   await setMainClassInCachePom('net.runelite.cache.Cache');
@@ -522,7 +513,6 @@ async function moveResults() {
 }
 
 (async () => {
-  // await setupRunelite();
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
