@@ -9,13 +9,11 @@ jobs:
   cache:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout this repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT }}
 
-      - name: Checkout runelite
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: runelite/runelite
           path: cache/runelite
@@ -28,10 +26,31 @@ jobs:
       - run: npm install
         working-directory: ./site
 
+      - run: |
+          id=$(curl -s https://archive.openrs2.org/caches.json | jq -r '[.[] | select(.game=="oldschool" and .environment=="live" and .language=="en" and (.sources | contains(["Jagex"]))) | .id] | max')
+          echo "CACHE_ID=$id" >> $GITHUB_ENV
+
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: cache/cache
+          key: cache-${{ env.CACHE_ID }}
+
+      - run: curl -o cache/cache/xteas.json https://archive.openrs2.org/caches/runescape/$CACHE_ID/keys.json
+        if: steps.cache.outputs.cache-hit != 'true'
+
+      - run: curl -o cache/cache/disk.zip https://archive.openrs2.org/caches/runescape/$CACHE_ID/disk.zip
+        if: steps.cache.outputs.cache-hit != 'true'
+
+      - run: unzip cache/cache/disk.zip -d cache/cache
+        if: steps.cache.outputs.cache-hit != 'true'
+
+      - run: node scripts/quest-scraper.js
+        working-directory: ./site
+
       - run: npm run update
         working-directory: ./cache
 
-      - name: Commit latest game data
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: dump latest game data

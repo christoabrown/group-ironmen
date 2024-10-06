@@ -1,7 +1,10 @@
 name: Push Frontend Docker Image
 
 on:
+  workflow_dispatch:
   push:
+    paths:
+      - 'site/**'
     branches: [ master ]
 
 jobs:

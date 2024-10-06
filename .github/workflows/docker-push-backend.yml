@@ -1,7 +1,10 @@
 name: Push Backend Docker Image
 
 on:
+  workflow_dispatch:
   push:
+    paths:
+      - 'server/**'
     branches: [ master ]
 
 jobs:
