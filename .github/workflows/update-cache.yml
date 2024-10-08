@@ -1,24 +1,35 @@
-name: Update cache
+name: Dump game data
+
+# Run locally: act -W .github/workflows/update-cache.yml -s GITHUB_TOKEN="$(gh auth token)" --container-architecture linux/amd64 -b workflow_dispatch
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "51 * * * *"
+    - cron: 51 * * * *
 
 jobs:
   cache:
     runs-on: ubuntu-latest
+
     steps:
+      - run: git clean -ffdX
+        if: '${{ env.ACT }}'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Maven Action
+        uses: s4u/setup-maven-action@v1.15.0
+
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT }}
+          token: '${{ secrets.PAT }}'
 
       - uses: actions/checkout@v4
         with:
           repository: runelite/runelite
           path: cache/runelite
-
-      - uses: actions/setup-node@v4
 
       - run: npm install
         working-directory: ./cache
@@ -34,7 +45,7 @@ jobs:
         id: cache
         with:
           path: cache/cache
-          key: cache-${{ env.CACHE_ID }}
+          key: 'cache-${{ env.CACHE_ID }}'
 
       - run: curl -o cache/cache/xteas.json https://archive.openrs2.org/caches/runescape/$CACHE_ID/keys.json
         if: steps.cache.outputs.cache-hit != 'true'
@@ -50,7 +61,10 @@ jobs:
 
       - run: npm run update
         working-directory: ./cache
+        env:
+            FULL_DUMP: ${{ ! steps.cache.outputs.cache-hit }}
 
       - uses: stefanzweifel/git-auto-commit-action@v5
+        if: '${{ ! env.ACT }}'
         with:
           commit_message: dump latest game data

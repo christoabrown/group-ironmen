@@ -434,6 +434,10 @@ async function moveResults() {
   await retry(() => fs.renameSync('./item-mapping-list.js', siteItemMappingPath), true);
   fs.copyFileSync(`${runelitePath}/runelite-client/src/main/resources/item_variations.json`, siteVariationDataPath);
 
+  if (process.env.FULL_DUMP !== 'true') {
+    return;
+  }
+
   await moveFiles('./item-images/*.webp', siteItemImagesPath);
   await moveFiles("./map-data/tiles/*.webp", siteMapImagesPath);
   await moveFiles("./map-data/labels/*.webp", siteMapLabelsPath);
@@ -515,14 +519,16 @@ async function moveResults() {
 (async () => {
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
-  await dumpItemImages(allIncludedItemIds);
   await buildItemMapper();
 
-  const xteasLocation = await convertXteasToRuneliteFormat();
-  await dumpMapData(xteasLocation);
-  await generateMapTiles();
-  await dumpMapLabels();
-  await dumpCollectionLog();
+  if (process.env.FULL_DUMP === 'true') {
+    await dumpItemImages(allIncludedItemIds);
+    const xteasLocation = await convertXteasToRuneliteFormat();
+    await dumpMapData(xteasLocation);
+    await generateMapTiles();
+    await dumpMapLabels();
+  }
 
+  await dumpCollectionLog();
   await moveResults();
 })();
