@@ -23,6 +23,7 @@ export class MemberData {
       equipment: new Map(),
       runePouch: new Map(),
       seedVault: new Map(),
+      pohWardrobe: new Map(),
     };
     this.inactive = false;
 
@@ -118,6 +119,13 @@ export class MemberData {
       updatedAttributes.add("seedVault");
     }
 
+    if (memberData.poh_wardrobe) {
+      this.pohWardrobe = Item.parseItemData(memberData.poh_wardrobe);
+      this.updateItemQuantitiesIn("pohWardrobe");
+      this.publishUpdate("pohWardrobe");
+      updatedAttributes.add("pohWardrobe");
+    }
+
     if (memberData.diary_vars) {
       this.diaries = AchievementDiary.parseDiaryData(memberData.diary_vars);
       this.publishUpdate("diaries");
@@ -136,7 +144,8 @@ export class MemberData {
       (this.itemQuantities.equipment.get(itemId) || 0) +
       (this.itemQuantities.inventory.get(itemId) || 0) +
       (this.itemQuantities.runePouch.get(itemId) || 0) +
-      (this.itemQuantities.seedVault.get(itemId) || 0)
+      (this.itemQuantities.seedVault.get(itemId) || 0) +
+      (this.itemQuantities.pohWardrobe.get(itemId) || 0)
     );
   }
 
@@ -150,7 +159,7 @@ export class MemberData {
 
   *allItems() {
     const yieldedIds = new Set();
-    for (const item of this.itemsIn("inventory", "bank", "equipment", "runePouch", "seedVault")) {
+    for (const item of this.itemsIn("inventory", "bank", "equipment", "runePouch", "seedVault", "pohWardrobe")) {
       if (!yieldedIds.has(item.id)) {
         yieldedIds.add(item.id);
         yield item;
