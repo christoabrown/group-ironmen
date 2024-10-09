@@ -77295,27 +77295,27 @@
   "29971": {
     "name": "Apprentice potion pack",
     "runeliteKey": "APPRENTICE_POTION_PACK",
-    "highalch": 87
+    "highalch": 0
   },
   "29972": {
     "name": "Adept potion pack",
     "runeliteKey": "ADEPT_POTION_PACK",
-    "highalch": 120
+    "highalch": 0
   },
   "29973": {
     "name": "Expert potion pack",
     "runeliteKey": "EXPERT_POTION_PACK",
-    "highalch": 240
+    "highalch": 0
   },
   "29974": {
     "name": "Prescription goggles",
     "runeliteKey": "PRESCRIPTION_GOGGLES",
-    "highalch": 192
+    "highalch": 0
   },
   "29976": {
     "name": "Prescription goggles",
     "runeliteKey": "PRESCRIPTION_GOGGLES_29976",
-    "highalch": 192
+    "highalch": 0
   },
   "29978": {
     "name": "Alchemist labcoat",
@@ -77345,17 +77345,17 @@
   "29988": {
     "name": "Alchemist's amulet",
     "runeliteKey": "ALCHEMISTS_AMULET",
-    "highalch": 630
+    "highalch": 0
   },
   "29990": {
     "name": "Alchemist's amulet",
     "runeliteKey": "ALCHEMISTS_AMULET_29990",
-    "highalch": 630
+    "highalch": 0
   },
   "29992": {
     "name": "Alchemist's amulet",
     "runeliteKey": "ALCHEMISTS_AMULET_29992",
-    "highalch": 630
+    "highalch": 0
   },
   "29993": {
     "name": "Aldarium",
@@ -77365,7 +77365,7 @@
   "29996": {
     "name": "Reagent pouch",
     "runeliteKey": "REAGENT_POUCH",
-    "highalch": 60
+    "highalch": 0
   },
   "29998": {
     "name": "Open reagent pouch",
@@ -77380,12 +77380,12 @@
   "30000": {
     "name": "Chugging barrel",
     "runeliteKey": "CHUGGING_BARREL",
-    "highalch": 60
+    "highalch": 0
   },
   "30002": {
     "name": "Chugging barrel (disassembled)",
     "runeliteKey": "CHUGGING_BARREL_DISASSEMBLED",
-    "highalch": 600
+    "highalch": 0
   },
   "30005": {
     "name": "Mox paste",
