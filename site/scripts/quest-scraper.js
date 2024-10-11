@@ -2,30 +2,7 @@ const { JSDOM } = require('jsdom');
 const axios = require('axios');
 const fs = require('fs');
 
-const questJava = fs.readFileSync('../cache/runelite/runelite-api/src/main/java/net/runelite/api/Quest.java');
-const questsMapping = {
-  '2307': 'Recipe for Disaster/Another Cook\'s Quest',
-  '2308': 'Recipe for Disaster/Freeing the Mountain Dwarf',
-  '2309': 'Recipe for Disaster/Freeing the Goblin generals',
-  '2310': 'Recipe for Disaster/Freeing Pirate Pete',
-  '2311': 'Recipe for Disaster/Freeing the Lumbridge Guide',
-  '2312': 'Recipe for Disaster/Freeing Evil Dave',
-  '2313': 'Recipe for Disaster/Freeing Skrach Uglogwee',
-  '2314': 'Recipe for Disaster/Freeing Sir Amik Varze',
-  '2315': 'Recipe for Disaster/Freeing King Awowogei',
-  '2316': 'Recipe for Disaster/Defeating the Culinaromancer',
-};
-const regex = /(\d+),\s*"([^"]+)"/g;
-
-let match;
-while ((match = regex.exec(questJava)) !== null) {
-  if (questsMapping[match[1]]) {
-    continue;
-  }
-
-  questsMapping[match[1]] = match[2];
-}
-
+const questsMapping = require('./quest-mapping.json');
 const questNameToIdMap = new Map();
 for (const [questId, questName] of Object.entries(questsMapping)) {
   questNameToIdMap.set(questName, parseInt(questId));

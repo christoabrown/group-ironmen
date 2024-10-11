@@ -60,13 +60,13 @@ jobs:
       - run: unzip cache/cache/disk.zip -d cache/cache
         if: steps.cache.outputs.cache-hit != 'true'
 
-      - run: node scripts/quest-scraper.js
-        working-directory: ./site
-
       - run: npm run update
         working-directory: ./cache
         env:
             FULL_DUMP: ${{ ! steps.cache.outputs.cache-hit }}
+
+      - run: node scripts/quest-scraper.js
+        working-directory: ./site
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         if: '${{ ! env.ACT }}'

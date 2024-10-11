@@ -16,6 +16,8 @@ const runelitePath = './runelite';
 const cacheProjectPath = `${runelitePath}/cache`;
 const cachePomPath = `${cacheProjectPath}/pom.xml`;
 const cacheJarOutputDir = `${cacheProjectPath}/target`;
+const apiProjectPath = `${runelitePath}/runelite-api`;
+const apiPomPath = `${apiProjectPath}/pom.xml`;
 const osrsCacheDirectory = './cache/cache';
 const siteItemDataPath = '../site/public/data/item_data.json';
 const siteMapIconMetaPath = "../site/public/data/map_icons.json";
@@ -26,6 +28,7 @@ const siteItemImagesPath = '../site/public/icons/items';
 const siteMapImagesPath = '../site/public/map';
 const siteMapLabelsPath = '../site/public/map/labels';
 const siteMapIconPath = "../site/public/map/icons/map_icons.webp";
+const siteQuestMapping = path.resolve("../site/scripts/quest-mapping.json");
 const tileSize = 256;
 
 function exec(command, options) {
@@ -89,6 +92,22 @@ function execRuneliteCache(params) {
 
   const cmd = `java -Xmx8g -jar ${cacheJar} ${params}`;
   exec(cmd);
+}
+
+function execRuneliteApi(mainClass, arguments) {
+  exec(`mvn compile exec:java -Dexec.mainClass="${mainClass}" -Dexec.args="${arguments}"`, { cwd: apiProjectPath });
+}
+
+async function addDependencyInApiPom(groupId, artifactId, version) {
+  xmlParser.reset();
+  const apiPomData = fs.readFileSync(apiPomPath, 'utf8');
+  const apiPom = await xmlParser.parseStringPromise(apiPomData);
+
+  const dependencies = apiPom.project.dependencies;
+  dependencies[0].dependency.push({ groupId: groupId, artifactId: artifactId, version: version });
+
+  const apiPomResult = xmlBuilder.buildObject(apiPom);
+  fs.writeFileSync(apiPomPath, apiPomResult);
 }
 
 async function readAllItemFiles() {
@@ -516,6 +535,14 @@ async function moveResults() {
   fs.writeFileSync(siteMapLabelMetaPath, JSON.stringify(labelByRegion, null, 2));
 }
 
+async function dumpQuestMapping() {
+  const questDumper = fs.readFileSync('./QuestDumper.java', 'utf8');
+  fs.writeFileSync(`${apiProjectPath}/src/main/java/net/runelite/api/QuestDumper.java`, questDumper);
+  await addDependencyInApiPom('com.fasterxml.jackson.core', 'jackson-databind', '2.17.0');
+
+  execRuneliteApi('net.runelite.api.QuestDumper', siteQuestMapping);
+}
+
 (async () => {
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
@@ -531,4 +558,6 @@ async function moveResults() {
 
   await dumpCollectionLog();
   await moveResults();
+
+  await dumpQuestMapping();
 })();
