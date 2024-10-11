@@ -50758,7 +50758,7 @@
   "20703": {
     "name": "Supply crate",
     "runeliteKey": "SUPPLY_CRATE",
-    "highalch": 0
+    "highalch": 300
   },
   "20704": {
     "name": "Pyromancer garb",
@@ -62775,7 +62775,7 @@
   "24884": {
     "name": "Supply crate",
     "runeliteKey": "SUPPLY_CRATE_24884",
-    "highalch": 0
+    "highalch": 87
   },
   "24885": {
     "name": "Hosidius blueprints",
