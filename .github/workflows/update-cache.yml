@@ -38,14 +38,18 @@ jobs:
         working-directory: ./site
 
       - run: |
-          id=$(curl -s https://archive.openrs2.org/caches.json | jq -r '[.[] | select(.game=="oldschool" and .environment=="live" and .language=="en" and (.sources | contains(["Jagex"]))) | .id] | max')
+          cache=$(curl -s https://archive.openrs2.org/caches.json | jq -r '[.[] | select(.game=="oldschool" and .environment=="live" and .language=="en" and (.sources | contains(["Jagex"])) and .size != null)] | max_by(.id)')
+          id=$(echo $cache | jq -r '.id')
+          size=$(echo $cache | jq -r '.size')
           echo "CACHE_ID=$id" >> $GITHUB_ENV
+          echo "CACHE_SIZE=$size" >> $GITHUB_ENV
+          echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - uses: actions/cache@v4
         id: cache
         with:
           path: cache/cache
-          key: 'cache-${{ env.CACHE_ID }}'
+          key: 'cache-${{ env.DATE }}-${{ env.CACHE_ID }}-${{ env.CACHE_SIZE }}'
 
       - run: curl -o cache/cache/xteas.json https://archive.openrs2.org/caches/runescape/$CACHE_ID/keys.json
         if: steps.cache.outputs.cache-hit != 'true'
