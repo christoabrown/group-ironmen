@@ -1,7 +1,6 @@
 import { utility } from "../utility";
+import { pubsub } from "./pubsub";
 import { api } from "./api";
-import { map } from "./item-mapping";
-import { ItemData } from "./item-data";
 
 export class Item {
   constructor(id, quantity) {
@@ -15,7 +14,7 @@ export class Item {
   }
 
   static imageUrl(itemId, quantity) {
-    const itemDetails = ItemData.itemDetails()[itemId];
+    const itemDetails = Item.itemDetails[itemId];
     let imageId = itemDetails.id;
     if (itemDetails.stacks) {
       for (const stack of itemDetails.stacks) {
@@ -28,11 +27,7 @@ export class Item {
   }
 
   static itemName(itemId) {
-    return ItemData.itemDetails()[itemId].name;
-  }
-
-  static itemId(runeliteKey) {
-    return ItemData.runeliteKeyList()[runeliteKey];
+    return Item.itemDetails[itemId].name;
   }
 
   static shortQuantity(quantity) {
@@ -56,7 +51,7 @@ export class Item {
   }
 
   get name() {
-    return ItemData.itemDetails()[this.id].name;
+    return Item.itemDetails[this.id].name;
   }
 
   get wikiLink() {
@@ -64,30 +59,29 @@ export class Item {
   }
 
   get highAlch() {
-    return ItemData.itemDetails()[this.id].highalch;
+    return Item.itemDetails[this.id].highalch;
   }
 
   get gePrice() {
-    if (this.id == Item.itemId("COINS_995")) {
+    if (this.id == 995) {
+      // coin
       return 1;
     }
 
-    if (this.id == Item.itemId("PLATINUM_TOKEN")) {
+    if (this.id == 13204) {
+      // platinum token
       return 1000;
     }
 
-    let price = 0;
+    const mapping = Item.itemDetails[this.id].mapping;
 
-    const mappedItems = map(this.id);
-    if (mappedItems === null) {
-      price += Item.gePrices[this.id] || 0;
-    } else {
-      for (const mappedItem of mappedItems) {
-        price += new Item(mappedItem.tradeableItem, 1).gePrice * mappedItem.quantity;
-      }
+    if (!mapping) {
+      return Item.gePrices[this.id] || 0;
     }
 
-    return price;
+    return mapping.reduce((total, mapping) => {
+      return total + new Item(mapping.id, 1).gePrice * mapping.quantity;
+    }, 0);
   }
 
   isValid() {
@@ -106,7 +100,7 @@ export class Item {
         continue;
       }
 
-      if (!ItemData.itemDetails()[data[i].id]) {
+      if (!Item.itemDetails[data[i].id]) {
         console.warn(`Unrecognized item id: ${data[i].id}`);
         continue;
       }
@@ -118,15 +112,27 @@ export class Item {
     return result;
   }
 
+  static async loadItems() {
+    const response = await fetch("/data/item_data.json");
+    Item.itemDetails = await response.json();
+    for (const [itemId, itemDetails] of Object.entries(Item.itemDetails)) {
+      const stacks = itemDetails.stacks;
+      itemDetails.stacks = stacks ? stacks.map((stack) => ({ id: stack[1], count: stack[0] })) : null;
+      itemDetails.id = itemId;
+    }
+
+    pubsub.publish("item-data-loaded");
+  }
+
   static async loadGePrices() {
     const response = await api.getGePrices();
     Item.gePrices = await response.json();
   }
 
   static randomItem(quantity = null) {
-    const keys = Object.keys(ItemData.itemDetails());
+    const keys = Object.keys(Item.itemDetails);
     const key = keys[(keys.length * Math.random()) << 0];
-    const item = ItemData.itemDetails()[key];
+    const item = Item.itemDetails[key];
     return [item.id, quantity ? quantity : Math.round(Math.random() * 100000 + 1)];
   }
 

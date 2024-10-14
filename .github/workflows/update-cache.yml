@@ -19,8 +19,9 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Maven Action
-        uses: s4u/setup-maven-action@v1.15.0
+      - uses: s4u/setup-maven-action@v1.15.0
+        with:
+          java-version: 11
 
       - uses: actions/checkout@v4
         with:
@@ -62,10 +63,11 @@ jobs:
 
       - run: npm run update
         working-directory: ./cache
-        env:
-            FULL_DUMP: ${{ ! steps.cache.outputs.cache-hit }}
 
       - run: node scripts/quest-scraper.js
+        working-directory: ./site
+
+      - run: npm run bundle
         working-directory: ./site
 
       - uses: stefanzweifel/git-auto-commit-action@v5

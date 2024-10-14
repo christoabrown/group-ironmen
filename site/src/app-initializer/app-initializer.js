@@ -7,7 +7,6 @@ import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { exampleData } from "../data/example-data";
 import { AchievementDiary } from "../data/diaries";
-import { ItemData } from "../data/item-data";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -40,7 +39,7 @@ export class AppInitializer extends BaseElement {
   async initializeApp() {
     this.cleanup();
     loadingScreenManager.showLoadingScreen();
-    await Promise.all([ItemData.loadItems(), Item.loadGePrices(), Quest.loadQuests(), AchievementDiary.loadDiaries()]);
+    await Promise.all([Item.loadItems(), Item.loadGePrices(), Quest.loadQuests(), AchievementDiary.loadDiaries()]);
     const group = storage.getGroup();
 
     // Make sure this component is still connected after loading the above. We don't want to start
