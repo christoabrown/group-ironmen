@@ -32,4 +32,4 @@ jobs:
         with:
           context: ./server
           push: true
-          tags: wouterrutgers/group-ironmen-tracker-backend:latest
+          tags: chrisleeeee/group-ironmen-tracker-backend:latest

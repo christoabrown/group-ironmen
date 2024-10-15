@@ -21,7 +21,7 @@
   "scripts": {
     "bundle": "npm run clean && node build.js --prod",
     "clean": "node scripts/clean.js",
-    "start": "concurrently \"npm run watch\" \"npm run serve -- --backend https://gim.wouterrutgers.nl\"",
+    "start": "concurrently \"npm run watch\" \"npm run serve -- --backend https://groupiron.men\"",
     "start:local-api": "concurrently \"npm run watch\" \"npm run serve -- --backend http://127.0.0.1:8080\"",
     "serve": "node scripts/server.js",
     "watch": "node build --watch",
@@ -29,7 +29,9 @@
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "fix": "npm run lint -- --fix",
-    "generate-component": "node scripts/generate-component.js"
+    "generate-component": "node scripts/generate-component.js",
+    "prepare": "cd .. && husky install site/.husky",
+    "precommit": "npm run format:check && npm run lint"
   },
   "author": "Christopher Brown"
 }
