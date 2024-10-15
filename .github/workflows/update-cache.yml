@@ -1,6 +1,6 @@
 name: Dump game data
 
-# Run locally: act -W .github/workflows/update-cache.yml -s GITHUB_TOKEN="$(gh auth token)" --container-architecture linux/amd64 -b workflow_dispatch
+# To run locally: act --env GROUP_IRONMEN_PATH=$PWD -W .github/workflows/update-cache.yml -s GITHUB_TOKEN="$(gh auth token)" -P macos-latest=-self-hosted workflow_dispatch
 
 on:
   workflow_dispatch:
@@ -9,12 +9,9 @@ on:
 
 jobs:
   cache:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
-      - run: git clean -ffdX
-        if: '${{ env.ACT }}'
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -74,3 +71,6 @@ jobs:
         if: '${{ ! env.ACT }}'
         with:
           commit_message: dump latest game data
+
+      - run: rsync -avh --delete --exclude='.git' --exclude='node_modules' . $GROUP_IRONMEN_PATH
+        if: '${{ env.ACT }}'

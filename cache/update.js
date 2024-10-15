@@ -62,13 +62,13 @@ async function retry(fn, skipLast) {
 function execRuneliteCache(mainClass, arguments) {
   exec(`MAVEN_OPTS="-Xmx8000m" mvn compile exec:java -Dexec.mainClass="${mainClass}" -Dexec.args="${arguments}"`, { cwd: cacheProjectPath });
 
-  exec(`git clean -ffdx; git reset --hard`, { cwd: cacheProjectPath });
+  exec(`git clean -ffdx .; git checkout HEAD -- .`, { cwd: cacheProjectPath });
 }
 
 function execRuneliteApi(mainClass, arguments) {
   exec(`mvn compile exec:java -Dexec.mainClass="${mainClass}" -Dexec.args="${arguments}"`, { cwd: apiProjectPath });
 
-  exec(`git clean -ffdx; git reset --hard`, { cwd: apiProjectPath });
+  exec(`git clean -ffdx .; git checkout HEAD -- .`, { cwd: apiProjectPath });
 }
 
 async function addDependencyInApiPom(groupId, artifactId, version) {
