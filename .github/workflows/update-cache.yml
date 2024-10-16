@@ -36,7 +36,7 @@ jobs:
         working-directory: ./site
 
       - run: |
-          # This will select the latest cache that has the same difference in valid keys as the second latest cache. This will prevent working with a cache that has invalid map data. If the cache is more than 24 hours old, it will be selected regardless of the difference in valid keys. This prevents the map from updating when new content is released with inaccessible keys.
+          # This will select the latest cache that has the same difference in valid keys as the second latest cache. This will prevent working with a cache that has invalid map data. If the cache is more than 24 hours old, it will be selected regardless of the difference in valid keys. This prevents the map from never updating when new content is released with inaccessible keys.
           cache=$(curl -s https://archive.openrs2.org/caches.json | jq -r '
               [ .[] | select(.game == "oldschool" and .environment == "live" and .language == "en" and (.sources | contains(["Jagex"])) and .size != null) ] |
               now as $current_time |
