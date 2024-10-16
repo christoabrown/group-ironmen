@@ -5,7 +5,7 @@ name: Dump game data
 on:
   workflow_dispatch:
   schedule:
-    - cron: 51 * * * *
+    - cron: 25 * * * *
 
 jobs:
   cache:
@@ -36,27 +36,35 @@ jobs:
         working-directory: ./site
 
       - run: |
-          cache=$(curl -s https://archive.openrs2.org/caches.json | jq -r '[.[] | select(.game=="oldschool" and .environment=="live" and .language=="en" and (.sources | contains(["Jagex"])) and .size != null)] | max_by(.id)')
+          # This will select the latest cache that has the same difference in valid keys as the second latest cache. This will prevent working with a cache that has invalid map data. If the cache is more than 24 hours old, it will be selected regardless of the difference in valid keys. This prevents the map from updating when new content is released with inaccessible keys.
+          cache=$(curl -s https://archive.openrs2.org/caches.json | jq -r '
+              [ .[] | select(.game == "oldschool" and .environment == "live" and .language == "en" and (.sources | contains(["Jagex"])) and .size != null) ] |
+              now as $current_time |
+              map(
+                if .timestamp == null then
+                  . + {timestamp_seconds: 0}
+                else
+                  . + {timestamp_seconds: (.timestamp | sub("\\.[0-9]+Z$"; "Z") | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime)}
+                end
+              ) |
+              map(. + {age_in_hours: (($current_time - .timestamp_seconds) / 3600)}) |
+              map(. + {difference: (.valid_keys - .keys)}) |
+              sort_by(.id) | reverse |
+              if .[0].age_in_hours > 24 then
+                .[0]
+              else
+                .[1] as $second_highest |
+                [.[] | select(.difference == $second_highest.difference)] | max_by(.id)
+              end
+          ')
           id=$(echo $cache | jq -r '.id')
-          size=$(echo $cache | jq -r '.size')
           echo "CACHE_ID=$id" >> $GITHUB_ENV
-          echo "CACHE_SIZE=$size" >> $GITHUB_ENV
-          echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
-
-      - uses: actions/cache@v4
-        id: cache
-        with:
-          path: cache/cache
-          key: 'cache-${{ env.DATE }}-${{ env.CACHE_ID }}-${{ env.CACHE_SIZE }}'
 
       - run: curl -o cache/cache/xteas.json https://archive.openrs2.org/caches/runescape/$CACHE_ID/keys.json
-        if: steps.cache.outputs.cache-hit != 'true'
 
       - run: curl -o cache/cache/disk.zip https://archive.openrs2.org/caches/runescape/$CACHE_ID/disk.zip
-        if: steps.cache.outputs.cache-hit != 'true'
 
       - run: unzip cache/cache/disk.zip -d cache/cache
-        if: steps.cache.outputs.cache-hit != 'true'
 
       - run: npm run update
         working-directory: ./cache
