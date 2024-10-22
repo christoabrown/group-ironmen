@@ -5,35 +5,18 @@ name: Dump game data
 on:
   workflow_dispatch:
   schedule:
-    - cron: 25 * * * *
+    - cron: '*/20 * * * *'
 
 jobs:
   cache:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - uses: s4u/setup-maven-action@v1.15.0
-        with:
-          java-version: 11
-
       - uses: actions/checkout@v4
         with:
           token: '${{ secrets.PAT }}'
 
-      - uses: actions/checkout@v4
-        with:
-          repository: runelite/runelite
-          path: cache/runelite
-
-      - run: npm install
-        working-directory: ./cache
-
-      - run: npm install
-        working-directory: ./site
+      - run: echo "LAST_CACHE_ID=$(cat cache-id)" >> $GITHUB_ENV
 
       # This will select the latest cache that has the same difference in valid keys as the second latest cache. This will prevent working with a cache that has invalid map data. If the cache is more than 24 hours old, it will be selected regardless of the difference in valid keys. This prevents the map from never updating when new content is released with inaccessible keys.
       - run: |
@@ -59,6 +42,36 @@ jobs:
           ')
           id=$(echo $cache | jq -r '.id')
           echo "CACHE_ID=$id" >> $GITHUB_ENV
+
+      - run: |
+          if [[ $CACHE_ID -le $LAST_CACHE_ID ]]; then
+            gh run cancel ${{ github.run_id }}
+            gh run watch ${{ github.run_id }}
+          fi
+        if: '${{ ! env.ACT }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: echo $CACHE_ID > cache-id
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: s4u/setup-maven-action@v1.15.0
+        with:
+          java-version: 11
+
+      - uses: actions/checkout@v4
+        with:
+          repository: runelite/runelite
+          path: cache/runelite
+
+      - run: npm install
+        working-directory: ./cache
+
+      - run: npm install
+        working-directory: ./site
 
       - run: curl -o cache/cache/xteas.json https://archive.openrs2.org/caches/runescape/$CACHE_ID/keys.json
 
