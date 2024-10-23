@@ -14,9 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: '${{ secrets.PAT }}'
-
-      - run: echo "LAST_CACHE_ID=$(cat cache-id)" >> $GITHUB_ENV
+          sparse-checkout: cache-id
 
       # This will select the latest cache that has the same difference in valid keys as the second latest cache. This will prevent working with a cache that has invalid map data. If the cache is more than 24 hours old, it will be selected regardless of the difference in valid keys. This prevents the map from never updating when new content is released with inaccessible keys.
       - run: |
@@ -31,7 +29,7 @@ jobs:
                 end
               ) |
               map(. + {age_in_hours: (($current_time - .timestamp_seconds) / 3600)}) |
-              map(. + {difference: (.valid_keys - .keys)}) |
+              map(. + {difference: (.keys - .valid_keys)}) |
               sort_by(.id) | reverse |
               if .[0].age_in_hours > 24 then
                 .[0]
@@ -44,15 +42,13 @@ jobs:
           echo "CACHE_ID=$id" >> $GITHUB_ENV
 
       - run: |
-          if [[ $CACHE_ID -le $LAST_CACHE_ID ]]; then
+          if [[ $CACHE_ID -le $(cat cache-id) ]]; then
             gh run cancel ${{ github.run_id }}
             gh run watch ${{ github.run_id }}
           fi
-        if: '${{ ! env.ACT }}'
+        if: ${{ ! env.ACT }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - run: echo $CACHE_ID > cache-id
 
       - uses: actions/setup-node@v4
         with:
@@ -64,8 +60,14 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.PAT }}
+
+      - uses: actions/checkout@v4
+        with:
           repository: runelite/runelite
           path: cache/runelite
+
+      - run: echo $CACHE_ID > cache-id
 
       - run: npm install
         working-directory: ./cache
@@ -89,9 +91,9 @@ jobs:
         working-directory: ./site
 
       - uses: stefanzweifel/git-auto-commit-action@v5
-        if: '${{ ! env.ACT }}'
+        if: ${{ ! env.ACT }}
         with:
           commit_message: dump latest game data
 
       - run: rsync -avh --delete --exclude='.git' --exclude='node_modules' . $GROUP_IRONMEN_PATH
-        if: '${{ env.ACT }}'
+        if: ${{ env.ACT }}
