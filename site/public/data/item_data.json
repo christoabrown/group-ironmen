@@ -83377,5 +83377,25 @@
     "name": "Powder grey pumpkin (laughing)",
     "highalch": 0,
     "mapping": null
+  },
+  "30302": {
+    "name": "Torva full helm",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30303": {
+    "name": "Torva platebody",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30304": {
+    "name": "Torva platelegs",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30305": {
+    "name": "Arclight (inactive)",
+    "highalch": 0,
+    "mapping": null
   }
 }
