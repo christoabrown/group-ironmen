@@ -83415,12 +83415,12 @@
   },
   "30310": {
     "name": "Base plans",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "30311": {
     "name": "Base key",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "30312": {
@@ -83450,12 +83450,12 @@
   },
   "30318": {
     "name": "Mahjarrat notes (a-j)",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "30319": {
     "name": "Mahjarrat notes (k-z)",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "30320": {
