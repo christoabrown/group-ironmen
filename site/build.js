@@ -3,6 +3,7 @@ const path = require('path');
 const { minify } = require("terser");
 const { performance } = require('perf_hooks');
 const CleanCSS = require('clean-css');
+const crypto = require('crypto');
 
 const cleanCSSInstance = new CleanCSS({});
 const productionMode = process.argv.some((arg) => arg === '--prod');
@@ -31,7 +32,25 @@ const mapJsonPlugin = {
       labels
     };
 
-    fs.writeFileSync('public/data/map.json', JSON.stringify(result));
+    fs.writeFileSync('public/data/map.json', JSON.stringify(result, null, 2));
+  }
+}
+
+const createImageHashes = {
+  name: 'createImageHashes',
+  setup(build) {
+    const images = fs.readdirSync('public', { recursive: true })
+      .filter((file) => file.endsWith('.webp') || file.endsWith('.png'));
+
+    const hashes = {};
+
+    for (const image of images) {
+      const fileBuffer = fs.readFileSync(`public/${image}`);
+
+      hashes[`/${image}`] = crypto.createHash('sha256').update(fileBuffer).digest('hex').substring(0, 7);
+    }
+
+    fs.writeFileSync('public/data/images.json', JSON.stringify(hashes, null, 2));
   }
 }
 
@@ -158,7 +177,7 @@ function build() {
     minify: false,
     format: 'esm',
     outfile: 'public/app.js',
-    plugins: [componentBuildPlugin, minifyJsPlugin, htmlBuildPlugin, buildLoggingPlugin, mapJsonPlugin]
+    plugins: [componentBuildPlugin, minifyJsPlugin, htmlBuildPlugin, buildLoggingPlugin, mapJsonPlugin, createImageHashes]
   }).catch((error) => console.error(error));
 }
 

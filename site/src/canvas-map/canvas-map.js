@@ -122,7 +122,7 @@ export class CanvasMap extends BaseElement {
     }
 
     this.locationIconsSheet = new Image();
-    this.locationIconsSheet.src = "/map/icons/map_icons.webp";
+    this.locationIconsSheet.src = utility.image("/map/icons/map_icons.webp");
     this.locationIconsSheet.onload = () => {
       this.requestUpdate();
     };
@@ -459,7 +459,7 @@ export class CanvasMap extends BaseElement {
             let mapLabelImage = this.mapLabelImages.get(key);
             if (!mapLabelImage && loadNewImages) {
               mapLabelImage = new Image();
-              mapLabelImage.src = `/map/labels/${labelId}.webp`;
+              mapLabelImage.src = utility.image(`/map/labels/${labelId}.webp`);
               this.mapLabelImages.set(key, mapLabelImage);
             } else if (!mapLabelImage && !loadNewImages) {
               continue;
@@ -507,7 +507,7 @@ export class CanvasMap extends BaseElement {
         if (!tile && loadNewTiles) {
           tile = new Image(this.tileSize, this.tileSize);
           const tileFileBaseName = `${this.plane - 1}_${tileX}_${tileY}`;
-          tile.src = `/map/${tileFileBaseName}.webp`;
+          tile.src = utility.image(`/map/${tileFileBaseName}.webp`);
           tile.regionX = tileX;
           tile.regionY = tileY;
           tiles.set(i, tile);

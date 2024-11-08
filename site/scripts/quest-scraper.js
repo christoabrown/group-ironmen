@@ -1,6 +1,5 @@
-const jsdom = require("jsdom");
 const { JSDOM } = require('jsdom');
-const axios = require("axios");
+const axios = require('axios');
 const fs = require('fs');
 
 const questsMapping = require('./quest-mapping.json');
@@ -10,7 +9,7 @@ for (const [questId, questName] of Object.entries(questsMapping)) {
 }
 
 function getQuestTableData(table) {
-  const rows = Array.from(table.querySelectorAll("tbody tr"));
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
   const result = [];
   const ths = Array.from(table.querySelectorAll('th'));
   const headers = ths.map((th) => th.textContent.trim());
@@ -23,7 +22,7 @@ function getQuestTableData(table) {
     result.push({
       name,
       difficulty,
-      points
+      points,
     });
   }
 
@@ -31,10 +30,10 @@ function getQuestTableData(table) {
 }
 
 async function run() {
-  const questsListHtml = await axios.get("https://oldschool.runescape.wiki/w/Quests/List");
+  const questsListHtml = await axios.get('https://oldschool.runescape.wiki/w/Quests/List');
   const dom = new JSDOM(questsListHtml.data);
 
-  const questTables = Array.from(dom.window.document.querySelectorAll("table")).filter((table) => {
+  const questTables = Array.from(dom.window.document.querySelectorAll('table')).filter((table) => {
     const ths = Array.from(table.querySelectorAll('th'));
     if (ths.length === 0) return false;
 
@@ -53,13 +52,17 @@ async function run() {
   memberQuests.forEach((quest) => quest.member = true);
   const miniQuests = getQuestTableData(miniQuestTable);
   miniQuests.forEach((quest) => {
-    quest.member = true
+    quest.member = true;
     quest.miniquest = true;
   });
 
   const result = {};
   for (const quest of [...freeToPlayQuests, ...memberQuests, ...miniQuests]) {
-    if (!questNameToIdMap.has(quest.name)) {
+    if (quest.name.includes('Quick guide')) {
+      continue;
+    }
+
+    if (! questNameToIdMap.has(quest.name)) {
       console.error(`quest mapping is missing quest ${quest.name} from the wiki`);
       continue;
     }
@@ -72,8 +75,7 @@ async function run() {
     result[questNameToIdMap.get(quest.name)] = quest;
   }
 
-
-  fs.writeFileSync('./public/data/quest_data.json', JSON.stringify(result));
+  fs.writeFileSync('./public/data/quest_data.json', JSON.stringify(result, null, 2));
 }
 
 run();

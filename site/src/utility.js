@@ -1,6 +1,23 @@
 class Utility {
   constructor() {
     this.tagRegexp = /<[^>]*>/gi;
+    this.loadImages();
+  }
+
+  async loadImages() {
+    this.images = {};
+
+    const localData = localStorage.getItem("images");
+    if (localData) {
+      this.images = JSON.parse(localData);
+    }
+
+    const response = await fetch("/data/images.json");
+    const data = await response.json();
+
+    this.images = data;
+
+    localStorage.setItem("images", JSON.stringify(data));
   }
 
   callOnInterval(fn, interval, callImmediate = true) {
@@ -98,7 +115,12 @@ class Utility {
   removeTags(s) {
     return s?.replace(this.tagRegexp, "");
   }
+
+  image(src) {
+    return `${src}?id=${this.images[src]}`;
+  }
 }
+
 const utility = new Utility();
 
 export { utility };

@@ -23,7 +23,7 @@ export class Item {
         }
       }
     }
-    return `/icons/items/${imageId}.webp`;
+    return utility.image(`/icons/items/${imageId}.webp`);
   }
 
   static itemName(itemId) {
@@ -63,7 +63,25 @@ export class Item {
   }
 
   get gePrice() {
-    return Item.gePrices[this.id] || 0;
+    if (this.id == 995) {
+      // coin
+      return 1;
+    }
+
+    if (this.id == 13204) {
+      // platinum token
+      return 1000;
+    }
+
+    const mapping = Item.itemDetails[this.id].mapping;
+
+    if (!mapping) {
+      return Item.gePrices[this.id] || 0;
+    }
+
+    return mapping.reduce((total, mapping) => {
+      return total + new Item(mapping.id, 1).gePrice * mapping.quantity;
+    }, 0);
   }
 
   isValid() {
