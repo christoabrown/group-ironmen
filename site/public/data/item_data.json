@@ -2584,22 +2584,22 @@
   },
   "757": {
     "name": "Book",
-    "highalch": 0,
+    "highalch": 6,
     "mapping": null
   },
   "758": {
     "name": "Phoenix hq key",
-    "highalch": 0,
+    "highalch": 6,
     "mapping": null
   },
   "759": {
     "name": "Weapon store key",
-    "highalch": 0,
+    "highalch": 6,
     "mapping": null
   },
   "761": {
     "name": "Intel report",
-    "highalch": 3,
+    "highalch": 6,
     "mapping": null
   },
   "762": {
@@ -2629,12 +2629,12 @@
   },
   "767": {
     "name": "Phoenix crossbow",
-    "highalch": 2,
+    "highalch": 6,
     "mapping": null
   },
   "769": {
     "name": "Certificate",
-    "highalch": 0,
+    "highalch": 6,
     "mapping": null
   },
   "770": {
@@ -10772,22 +10772,22 @@
     "mapping": null
   },
   "3337": {
-    "name": "Myre snelm",
+    "name": "Pointed myre snelm",
     "highalch": 180,
     "mapping": null
   },
   "3339": {
-    "name": "Blood'n'tar snelm",
+    "name": "Pointed blood'n'tar snelm",
     "highalch": 180,
     "mapping": null
   },
   "3341": {
-    "name": "Ochre snelm",
+    "name": "Pointed ochre snelm",
     "highalch": 180,
     "mapping": null
   },
   "3343": {
-    "name": "Bruise blue snelm",
+    "name": "Pointed bruise blue snelm",
     "highalch": 180,
     "mapping": null
   },
@@ -38906,12 +38906,12 @@
   },
   "11165": {
     "name": "Phoenix crossbow",
-    "highalch": 2,
+    "highalch": 6,
     "mapping": null
   },
   "11167": {
     "name": "Phoenix crossbow",
-    "highalch": 2,
+    "highalch": 6,
     "mapping": null
   },
   "11169": {
@@ -38921,7 +38921,7 @@
   },
   "11171": {
     "name": "Newspaper",
-    "highalch": 0,
+    "highalch": 6,
     "mapping": null
   },
   "11173": {
@@ -78798,17 +78798,17 @@
   },
   "28817": {
     "name": "Granite tablet",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "28818": {
     "name": "Slate tablet",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "28819": {
     "name": "Shale tablet",
-    "highalch": 18,
+    "highalch": 0,
     "mapping": null
   },
   "28820": {
@@ -83396,6 +83396,86 @@
   "30305": {
     "name": "Arclight (inactive)",
     "highalch": 0,
+    "mapping": null
+  },
+  "30307": {
+    "name": "Elias' message",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30308": {
+    "name": "Mastaba key",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30309": {
+    "name": "Mastaba key",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30310": {
+    "name": "Base plans",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30311": {
+    "name": "Base key",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30312": {
+    "name": "Canopic jar (oil)",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30313": {
+    "name": "Canopic jar (oil and berries)",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30314": {
+    "name": "Canopic jar (full)",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30316": {
+    "name": "Code key",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30317": {
+    "name": "Decoder strips",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30318": {
+    "name": "Mahjarrat notes (a-j)",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30319": {
+    "name": "Mahjarrat notes (k-z)",
+    "highalch": 0,
+    "mapping": null
+  },
+  "30320": {
+    "name": "Arrav's axe",
+    "highalch": 18,
+    "mapping": null
+  },
+  "30321": {
+    "name": "Zombie helmet",
+    "highalch": 96000,
+    "mapping": null
+  },
+  "30324": {
+    "name": "Broken zombie helmet",
+    "highalch": 96000,
+    "mapping": null
+  },
+  "30328": {
+    "name": "Dust",
+    "highalch": 1,
     "mapping": null
   }
 }
