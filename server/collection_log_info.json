@@ -1637,6 +1637,7 @@
       {
         "name": "Wintertodt",
         "completion_labels": [
+          "Rewards claimed",
           "Wintertodt kills"
         ],
         "items": [
@@ -5540,7 +5541,7 @@
           },
           {
             "id": 30002,
-            "name": "Pre-pot device (disassembled)"
+            "name": "Chugging barrel (disassembled)"
           }
         ]
       },
@@ -7865,6 +7866,10 @@
           {
             "id": 28813,
             "name": "Broken zombie axe"
+          },
+          {
+            "id": 30324,
+            "name": "Broken zombie helmet"
           }
         ]
       }
