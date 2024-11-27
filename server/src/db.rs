@@ -239,9 +239,11 @@ UPDATE groupironman.members SET
   interacting_last_update = CASE WHEN $9 IS NULL THEN interacting_last_update ELSE NOW() END,
   seed_vault = COALESCE($10, seed_vault),
   seed_vault_last_update = CASE WHEN $10 IS NULL THEN seed_vault_last_update ELSE NOW() END,
-  diary_vars = COALESCE($11, diary_vars),
-  diary_vars_last_update = CASE WHEN $11 IS NULL THEN diary_vars_last_update ELSE NOW() END
-  WHERE group_id=$12 AND member_name=$13
+  poh_wardrobe = COALESCE($11, poh_wardrobe),
+  poh_wardrobe_last_update = CASE WHEN $11 IS NULL THEN poh_wardrobe_last_update ELSE NOW() END,
+  diary_vars = COALESCE($12, diary_vars),
+  diary_vars_last_update = CASE WHEN $12 IS NULL THEN diary_vars_last_update ELSE NOW() END
+  WHERE group_id=$13 AND member_name=$14
 "#,
         )
         .await?;
@@ -259,6 +261,7 @@ UPDATE groupironman.members SET
                 &group_member.rune_pouch,
                 &serialize_serde(&group_member.interacting)?,
                 &group_member.seed_vault,
+                &group_member.poh_wardrobe,
                 &group_member.diary_vars,
                 &group_id,
                 &group_member.name,
@@ -504,7 +507,7 @@ pub async fn get_group_data(
 SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
-rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update) as last_updated,
+rune_pouch_last_update, interacting_last_update, seed_vault_last_update, poh_wardrobe_last_update, diary_vars_last_update) as last_updated,
 CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
 CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
 CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,
@@ -515,6 +518,7 @@ CASE WHEN bank_last_update >= $1::TIMESTAMPTZ THEN bank ELSE NULL END as bank,
 CASE WHEN rune_pouch_last_update >= $1::TIMESTAMPTZ THEN rune_pouch ELSE NULL END as rune_pouch,
 CASE WHEN interacting_last_update >= $1::TIMESTAMPTZ THEN interacting ELSE NULL END as interacting,
 CASE WHEN seed_vault_last_update >= $1::TIMESTAMPTZ THEN seed_vault ELSE NULL END as seed_vault,
+CASE WHEN poh_wardrobe_last_update >= $1::TIMESTAMPTZ THEN poh_wardrobe ELSE NULL END as poh_wardrobe,
 CASE WHEN diary_vars_last_update >= $1::TIMESTAMPTZ THEN diary_vars ELSE NULL END as diary_vars
 FROM groupironman.members WHERE group_id=$2
 "#,
@@ -541,6 +545,7 @@ FROM groupironman.members WHERE group_id=$2
             bank: row.try_get("bank").ok(),
             rune_pouch: row.try_get("rune_pouch").ok(),
             seed_vault: row.try_get("seed_vault").ok(),
+            poh_wardrobe: row.try_get("poh_wardrobe").ok(),
             interacting: try_deserialize_json_column(&row, "interacting")?,
             diary_vars: row.try_get("diary_vars").ok(),
             shared_bank: Option::None,
@@ -900,6 +905,9 @@ CREATE TABLE IF NOT EXISTS groupironman.members (
   seed_vault_last_update TIMESTAMPTZ,
   seed_vault INTEGER[],
 
+  poh_wardrobe_last_update TIMESTAMPTZ,
+  poh_wardrobe INTEGER[],
+
   interacting_last_update TIMESTAMPTZ,
   interacting TEXT
 );
@@ -1100,6 +1108,7 @@ ORDER BY GREATEST(
 	rune_pouch_last_update,
 	interacting_last_update,
 	seed_vault_last_update,
+	poh_wardrobe_last_update,
 	diary_vars_last_update
 ) ASC;
 "#, &[]).await?;
