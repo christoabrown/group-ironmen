@@ -1260,6 +1260,42 @@
         ]
       },
       {
+        "name": "Royal Titans",
+        "completion_labels": [
+          "Royal Titan kills"
+        ],
+        "items": [
+          {
+            "id": 30622,
+            "name": "Bran"
+          },
+          {
+            "id": 30626,
+            "name": "Deadeye prayer scroll"
+          },
+          {
+            "id": 30627,
+            "name": "Mystic vigour prayer scroll"
+          },
+          {
+            "id": 30637,
+            "name": "Giantsoul amulet (uncharged)"
+          },
+          {
+            "id": 30628,
+            "name": "Ice element staff crown"
+          },
+          {
+            "id": 30631,
+            "name": "Fire element staff crown"
+          },
+          {
+            "id": 30640,
+            "name": "Desiccated page"
+          }
+        ]
+      },
+      {
         "name": "Sarachnis",
         "completion_labels": [
           "Sarachnis kills"
@@ -6217,6 +6253,10 @@
           {
             "id": 30154,
             "name": "Moxi"
+          },
+          {
+            "id": 30622,
+            "name": "Bran"
           }
         ]
       },
@@ -6313,24 +6353,6 @@
           {
             "id": 21439,
             "name": "Champion\u0027s cape"
-          }
-        ]
-      },
-      {
-        "name": "Chaos Druids",
-        "completion_labels": [],
-        "items": [
-          {
-            "id": 20517,
-            "name": "Elder chaos top"
-          },
-          {
-            "id": 20520,
-            "name": "Elder chaos robe"
-          },
-          {
-            "id": 20595,
-            "name": "Elder chaos hood"
           }
         ]
       },
@@ -6523,6 +6545,24 @@
           {
             "id": 12954,
             "name": "Dragon defender"
+          }
+        ]
+      },
+      {
+        "name": "Elder Chaos Druids",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 20517,
+            "name": "Elder chaos top"
+          },
+          {
+            "id": 20520,
+            "name": "Elder chaos robe"
+          },
+          {
+            "id": 20595,
+            "name": "Elder chaos hood"
           }
         ]
       },

@@ -39,7 +39,7 @@ async function run() {
     if (ths.length === 0) return false;
 
     const headerText = ths.map((th) => th.textContent.trim()).join('');
-    if (headerText.endsWith('NameDifficultyLengthSeriesRelease date')) return true;
+    if (headerText.includes('NameDifficultyLengthSeriesRelease date')) return true;
     return false;
   });
 
