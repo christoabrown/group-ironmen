@@ -1720,6 +1720,58 @@
         ]
       },
       {
+        "name": "Yama",
+        "completion_labels": [
+          "Yama kills"
+        ],
+        "items": [
+          {
+            "id": 30888,
+            "name": "Yami"
+          },
+          {
+            "id": 30775,
+            "name": "Chasm teleport scroll"
+          },
+          {
+            "id": 30750,
+            "name": "Oathplate helm"
+          },
+          {
+            "id": 30753,
+            "name": "Oathplate chest"
+          },
+          {
+            "id": 30756,
+            "name": "Oathplate legs"
+          },
+          {
+            "id": 30759,
+            "name": "Soulflame horn"
+          },
+          {
+            "id": 3140,
+            "name": "Dragon chainbody"
+          },
+          {
+            "id": 30806,
+            "name": "Rite of vile transference"
+          },
+          {
+            "id": 30763,
+            "name": "Forgotten lockbox"
+          },
+          {
+            "id": 30803,
+            "name": "Dossier"
+          },
+          {
+            "id": 30795,
+            "name": "Barrel of demonic tallow (full)"
+          }
+        ]
+      },
+      {
         "name": "Zalcano",
         "completion_labels": [
           "Zalcano kills"

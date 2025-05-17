@@ -6,6 +6,7 @@ const nAsync = require('async');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
+const unzipper = require('unzipper');
 // NOTE: sharp will keep some files open and prevent them from being deleted
 sharp.cache(false);
 
@@ -152,7 +153,7 @@ async function buildItemDataJson() {
   const allIncludedItemIds = new Set();
   for (const [itemId, item] of Object.entries(items)) {
     if (item.name && item.name.trim().toLowerCase() !== 'null') {
-      includedItem = {
+      const includedItem = {
         name: item.name,
         highalch: Math.floor(item.cost * 0.6)
       };
@@ -207,7 +208,6 @@ async function buildItemDataJson() {
 }
 
 async function dumpItemImages(allIncludedItemIds) {
-  // TODO: Zoom on holy symbol is incorrect
   console.log('\nStep: Extract item model images');
 
   console.log(`Generating images for ${allIncludedItemIds.size} items`);
@@ -460,7 +460,29 @@ async function moveResults() {
   fs.writeFileSync(siteMapLabelMetaPath, JSON.stringify(labelByRegion));
 }
 
+async function getLatestGameCache() {
+  if (!fs.existsSync('./cache')) {
+    fs.mkdirSync('./cache');
+  }
+
+  const caches = (await axios.get('https://archive.openrs2.org/caches.json')).data;
+  const latestOSRSCache = caches.filter((cache) => {
+    return cache.scope === 'runescape' && cache.game === 'oldschool' && cache.environment === 'live' && !!cache.timestamp;
+  }).sort((a, b) => (new Date(b.timestamp)) - (new Date(a.timestamp)))[0];
+  console.log(latestOSRSCache);
+
+  const cacheFilesResponse = await axios.get(`https://archive.openrs2.org/caches/${latestOSRSCache.scope}/${latestOSRSCache.id}/disk.zip`, {
+    responseType: 'arraybuffer'
+  });
+  const cacheFiles = await unzipper.Open.buffer(cacheFilesResponse.data);
+  await cacheFiles.extract({ path: './cache' });
+
+  const xteas = (await axios.get(`https://archive.openrs2.org/caches/${latestOSRSCache.scope}/${latestOSRSCache.id}/keys.json`)).data;
+  fs.writeFileSync('./cache/xteas.json', JSON.stringify(xteas));
+}
+
 (async () => {
+  await getLatestGameCache();
   await setupRunelite();
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
