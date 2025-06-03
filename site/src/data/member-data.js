@@ -213,7 +213,14 @@ export class MemberData {
 
   hasQuestComplete(questName) {
     const questId = Quest.lookupByName.get(questName);
-    const questComplete = this.quests[questId].state === QuestState.FINISHED;
+
+    if (!questId) {
+      console.warn(`Unknown quest ${questName}`);
+      return false;
+    }
+
+    const questComplete = this.quests[questId]?.state === QuestState.FINISHED;
+
     return questComplete;
   }
 }
