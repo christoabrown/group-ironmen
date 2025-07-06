@@ -60,6 +60,8 @@ pub struct GroupMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed_vault: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub poh_wardrobe: Option<Vec<i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub deposited: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diary_vars: Option<Vec<i32>>,

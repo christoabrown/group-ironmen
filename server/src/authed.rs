@@ -109,6 +109,7 @@ pub async fn update_group_member(
     validate_member_prop_length("shared_bank", &group_member_inner.shared_bank, 0, 1000)?;
     validate_member_prop_length("rune_pouch", &group_member_inner.rune_pouch, 6, 8)?;
     validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
+    validate_member_prop_length("poh_wardrobe", &group_member_inner.poh_wardrobe, 0, 1000)?;
     validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
     validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
     validate_collection_log(&collection_log_info, &mut group_member_inner.collection_log)?;
