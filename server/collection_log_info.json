@@ -546,6 +546,52 @@
         ]
       },
       {
+        "name": "Deranged Archaeologist",
+        "completion_labels": [
+          "Deranged Archaeologist kills"
+        ],
+        "items": [
+          {
+            "id": 30895,
+            "name": "Steel ring"
+          }
+        ]
+      },
+      {
+        "name": "Doom of Mokhaiotl",
+        "completion_labels": [
+          "Deepest delve",
+          "Deep delves",
+          "Total delves"
+        ],
+        "items": [
+          {
+            "id": 31130,
+            "name": "Dom"
+          },
+          {
+            "id": 31088,
+            "name": "Avernic treads"
+          },
+          {
+            "id": 31115,
+            "name": "Eye of ayak (uncharged)"
+          },
+          {
+            "id": 31109,
+            "name": "Mokhaiotl cloth"
+          },
+          {
+            "id": 31099,
+            "name": "Mokhaiotl waystone"
+          },
+          {
+            "id": 31111,
+            "name": "Demon tear"
+          }
+        ]
+      },
+      {
         "name": "Duke Sucellus",
         "completion_labels": [
           "Duke Sucellus kills"
@@ -1734,6 +1780,10 @@
             "name": "Chasm teleport scroll"
           },
           {
+            "id": 30765,
+            "name": "Oathplate shards"
+          },
+          {
             "id": 30750,
             "name": "Oathplate helm"
           },
@@ -1748,10 +1798,6 @@
           {
             "id": 30759,
             "name": "Soulflame horn"
-          },
-          {
-            "id": 3140,
-            "name": "Dragon chainbody"
           },
           {
             "id": 30806,
@@ -2082,6 +2128,10 @@
           {
             "id": 27289,
             "name": "Jewel of the sun"
+          },
+          {
+            "id": 30893,
+            "name": "Jewel of amascut"
           },
           {
             "id": 27255,
@@ -4869,6 +4919,64 @@
             "name": "Purple sweets"
           }
         ]
+      },
+      {
+        "name": "Scroll Cases",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 30902,
+            "name": "Minor beginner scroll case"
+          },
+          {
+            "id": 30904,
+            "name": "Major beginner scroll case"
+          },
+          {
+            "id": 30906,
+            "name": "Minor easy scroll case"
+          },
+          {
+            "id": 30908,
+            "name": "Major easy scroll case"
+          },
+          {
+            "id": 30910,
+            "name": "Minor medium scroll case"
+          },
+          {
+            "id": 30912,
+            "name": "Major medium scroll case"
+          },
+          {
+            "id": 30914,
+            "name": "Minor hard scroll case"
+          },
+          {
+            "id": 30916,
+            "name": "Major hard scroll case"
+          },
+          {
+            "id": 30918,
+            "name": "Minor elite scroll case"
+          },
+          {
+            "id": 30920,
+            "name": "Major elite scroll case"
+          },
+          {
+            "id": 30922,
+            "name": "Minor master scroll case"
+          },
+          {
+            "id": 30924,
+            "name": "Major master scroll case"
+          },
+          {
+            "id": 30926,
+            "name": "Mimic scroll case"
+          }
+        ]
       }
     ]
   },
@@ -5970,6 +6078,28 @@
         ]
       },
       {
+        "name": "Vale Totems",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 31043,
+            "name": "Fletching knife"
+          },
+          {
+            "id": 31052,
+            "name": "Bow string spool"
+          },
+          {
+            "id": 31032,
+            "name": "Ent branch"
+          },
+          {
+            "id": 31034,
+            "name": "Greenman mask"
+          }
+        ]
+      },
+      {
         "name": "Volcanic Mine",
         "completion_labels": [],
         "items": [
@@ -6309,6 +6439,14 @@
           {
             "id": 30622,
             "name": "Bran"
+          },
+          {
+            "id": 30888,
+            "name": "Yami"
+          },
+          {
+            "id": 31130,
+            "name": "Dom"
           }
         ]
       },
@@ -7674,6 +7812,22 @@
           {
             "id": 29895,
             "name": "Frozen tear"
+          },
+          {
+            "id": 30957,
+            "name": "Earthbound tecpatl"
+          },
+          {
+            "id": 31081,
+            "name": "Antler guard"
+          },
+          {
+            "id": 31084,
+            "name": "Alchemist\u0027s signet"
+          },
+          {
+            "id": 31086,
+            "name": "Broken antler"
           }
         ]
       },
