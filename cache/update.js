@@ -471,6 +471,21 @@ async function getLatestGameCache() {
   }).sort((a, b) => (new Date(b.timestamp)) - (new Date(a.timestamp)))[0];
   console.log(latestOSRSCache);
 
+  const pctValidArchives = latestOSRSCache.valid_indexes / latestOSRSCache.indexes;
+  if (pctValidArchives >= 1) {
+    throw new Error(`valid_indexes was less than indexes valid_indexes=${latestOSRSCache.valid_indexes} indexes=${latestOSRSCache.indexes} pctValidArchives=${pctValidArchives}`);
+  }
+
+  const pctValidGroups = latestOSRSCache.valid_groups / latestOSRSCache.groups;
+  if (pctValidGroups >= 1) {
+    throw new Error(`valid_groups was less than groups valid_groups=${latestOSRSCache.valid_groups} groups=${latestOSRSCache.groups} pctValidGroups=${pctValidGroups}`);
+  }
+
+  const pctValidKeys = latestOSRSCache.valid_keys / latestOSRSCache.keys;
+  if (pctValidKeys >= 0.97) {
+    throw new Error(`pctValidKeys was less that 97% valid_keys=${latestOSRSCache.valid_keys} keys=${latestOSRSCache.keys} pctValidKeys=${pctValidKeys}`);
+  }
+
   const cacheFilesResponse = await axios.get(`https://archive.openrs2.org/caches/${latestOSRSCache.scope}/${latestOSRSCache.id}/disk.zip`, {
     responseType: 'arraybuffer'
   });

@@ -161,6 +161,8 @@ lazy_static! {
         (25623, 10882), // rune satchel
         (25624, 13273), // unsired pet
         (25630, 12854), // Flamtaer bag
+        (29992, 29990), // Alchemist's amulet
+        (30805, 30803), // Dossier
     ]);
 
     pub static ref COLLECTION_LOG_DATA: String = {
