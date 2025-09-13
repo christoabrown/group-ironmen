@@ -37,7 +37,6 @@ where
 
 pub struct AuthenticationResult {
     pub group_id: i64,
-    pub version: i32,
 }
 type AuthenticationInfo = Rc<AuthenticationResult>;
 pub struct Authenticated(AuthenticationInfo);
@@ -123,7 +122,7 @@ where
                     }
                 };
 
-                let group = match db::get_group(&client, group_name, token).await {
+                let group_id = match db::get_group(&client, group_name, token).await {
                     Ok(group) => group,
                     Err(_) => {
                         // log::error!("{}", err);
@@ -131,10 +130,7 @@ where
                     }
                 };
 
-                let authentication_result = AuthenticationResult {
-                    group_id: group.0,
-                    version: group.1,
-                };
+                let authentication_result = AuthenticationResult { group_id };
                 req.extensions_mut()
                     .insert::<AuthenticationInfo>(Rc::new(authentication_result));
             }

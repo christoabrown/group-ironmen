@@ -1,21 +1,19 @@
-use serde::{Deserialize, Serialize};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CollectionLog {
-    #[serde(skip_serializing)]
     pub tab: i16,
     pub page_name: String,
     pub completion_counts: Vec<i32>,
     pub items: Vec<i32>,
     #[serde(skip_deserializing)]
-    pub new_items: Vec<i32>
+    pub new_items: Vec<i32>,
 }
 
-#[derive(Serialize)]
-#[derive(Clone)]
+#[derive(Serialize, Clone)]
 pub struct CollectionLogInfo {
     #[serde(skip_serializing)]
     page_name_to_id_lookup: HashMap<String, i16>,
@@ -24,27 +22,26 @@ pub struct CollectionLogInfo {
     #[serde(skip_serializing)]
     item_name_to_id_lookup: HashMap<String, i32>,
     #[serde(skip_serializing)]
-    item_id_to_page_id_lookup: HashMap<i32, HashSet<i16>>
+    item_id_to_page_id_lookup: HashMap<i32, HashSet<i16>>,
 }
 
 #[derive(Deserialize)]
 pub struct CollectionLogItemInfo {
     pub id: i32,
-    pub name: String
+    pub name: String,
 }
 
 #[derive(Deserialize)]
 pub struct CollectionLogPageInfo {
     pub name: String,
-    pub completion_labels: Vec<String>,
-    pub items: Vec<CollectionLogItemInfo>
+    pub items: Vec<CollectionLogItemInfo>,
 }
 
 #[allow(non_snake_case)]
 #[derive(Deserialize)]
 pub struct CollectionLogTabInfo {
     pub tabId: i16,
-    pub pages: Vec<CollectionLogPageInfo>
+    pub pages: Vec<CollectionLogPageInfo>,
 }
 
 impl CollectionLogInfo {
@@ -68,8 +65,8 @@ impl CollectionLogInfo {
                     item_name_to_id_lookup.insert(item.name.clone(), item.id);
 
                     match page_id_item_set_lookup.get_mut(&page_id) {
-                        Some (x) => x.insert(item.id),
-                        None => true
+                        Some(x) => x.insert(item.id),
+                        None => true,
                     };
 
                     if !item_id_to_page_id_lookup.contains_key(&item.id) {
@@ -77,51 +74,52 @@ impl CollectionLogInfo {
                     }
 
                     match item_id_to_page_id_lookup.get_mut(&item.id) {
-                        Some (x) => x.insert(*page_id),
-                        None => true
+                        Some(x) => x.insert(*page_id),
+                        None => true,
                     };
                 }
             }
         }
 
-        Self { page_name_to_id_lookup, page_id_item_set_lookup, item_name_to_id_lookup, item_id_to_page_id_lookup }
+        Self {
+            page_name_to_id_lookup,
+            page_id_item_set_lookup,
+            item_name_to_id_lookup,
+            item_id_to_page_id_lookup,
+        }
     }
 
     pub fn page_name_to_id(&self, page_name: &String) -> Option<&i16> {
         match self.page_name_to_id_lookup.get(page_name) {
             Some(x) => Some(x),
-            None => {
-                match COLLECTION_PAGE_REMAP.get(page_name) {
-                    Some(x) => self.page_name_to_id_lookup.get(x),
-                    None => None
-                }
-            }
+            None => match COLLECTION_PAGE_REMAP.get(page_name) {
+                Some(x) => self.page_name_to_id_lookup.get(x),
+                None => None,
+            },
         }
     }
 
     pub fn has_item(&self, page_id: i16, item_id: i32) -> bool {
         match self.page_id_item_set_lookup.get(&page_id) {
             None => false,
-            Some (x) => x.contains(&item_id)
+            Some(x) => x.contains(&item_id),
         }
     }
 
     pub fn remap_item_id(&self, item_id: i32) -> i32 {
         match COLLECTION_ITEM_ID_REMAP.get(&item_id) {
-            Some (x) => *x,
-            None => item_id
+            Some(x) => *x,
+            None => item_id,
         }
     }
 
     pub fn item_name_to_id(&self, item_name: &String) -> Option<&i32> {
         match self.item_name_to_id_lookup.get(item_name) {
             Some(x) => Some(x),
-            None => {
-                match COLLECTION_ITEM_REMAP.get(item_name) {
-                    Some(x) => self.item_name_to_id_lookup.get(x),
-                    None => None
-                }
-            }
+            None => match COLLECTION_ITEM_REMAP.get(item_name) {
+                Some(x) => self.item_name_to_id_lookup.get(x),
+                None => None,
+            },
         }
     }
 
@@ -132,7 +130,7 @@ impl CollectionLogInfo {
     pub fn number_of_items_in_page(&self, page_id: i16) -> usize {
         match self.page_id_item_set_lookup.get(&page_id) {
             None => 0,
-            Some (x) => x.len()
+            Some(x) => x.len(),
         }
     }
 }

@@ -6,27 +6,28 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio-postgres = { version = "0.7.7", features = ["with-serde_json-1", "with-chrono-0_4"] }
-actix-web = "4"
-tokio = { version = "1.25.0", features = ["time"] }
-serde = { version = "1.0.152", features = ["derive"] }
-deadpool-postgres = { version = "0.10.5", features = ["serde"] }
-config = "0.13.1"
-derive_more = "0.99.17"
-env_logger = { version = "0.9.0", default-features = false, features = ["termcolor", "atty", "humantime"] }
-log = "0.4.16"
-serde_json = "1.0.93"
-futures = "0.3.21"
-uuid = { version = "0.8.2", features = ["v4"] }
-actix-service = "2.0.2"
-chrono = { version = "0.4.23", features = ["serde"] }
-actix-cors = "0.6.1"
+tokio-postgres = { version = "0.7.11", features = ["with-serde_json-1", "with-chrono-0_4"] }
+actix-web = "4.11.0"
+tokio = { version = "1.47.1", features = ["time"] }
+serde = { version = "1.0.219", features = ["derive"] }
+deadpool-postgres = { version = "0.14.1", features = ["serde"] }
+config = "0.15.15"
+derive_more = "2.0.1"
+env_logger = { version = "0.11.8", default-features = false, features = ["humantime"] }
+log = "0.4.28"
+serde_json = "1.0.143"
+futures = "0.3.31"
+uuid = { version = "1.18.1", features = ["v4"] }
+actix-service = "2.0.3"
+chrono = { version = "0.4.42", features = ["serde"] }
+actix-cors = "0.7.1"
 blake2 = "0.10.6"
-data-encoding = { version = "2.3.2", features = ["alloc"] }
-lazy_static = "1.4.0"
-regex = "1.5.5"
-arc-swap = "1.5.0"
-reqwest = { version = "0.11.14", features = ["json"] }
+data-encoding = { version = "2.9.0", features = ["alloc"] }
+lazy_static = "1.5.0"
+regex = "1.11.2"
+arc-swap = "1.7.1"
+reqwest = { version = "0.12.23", features = ["json"] }
+mimalloc = "0.1.48"
 
 [profile.dev]
 opt-level = 0

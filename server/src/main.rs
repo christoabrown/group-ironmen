@@ -1,5 +1,6 @@
 mod auth_middleware;
 mod authed;
+mod collection_log;
 mod config;
 mod crypto;
 mod db;
@@ -7,14 +8,18 @@ mod error;
 mod models;
 mod unauthed;
 mod validators;
-mod collection_log;
 use crate::auth_middleware::AuthenticateMiddlewareFactory;
-use crate::config::Config;
 use crate::collection_log::CollectionLogInfo;
+use crate::config::Config;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
 use tokio_postgres::NoTls;
+
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -26,7 +31,8 @@ async fn main() -> std::io::Result<()> {
 
     let mut client = pool.get().await.unwrap();
     db::update_schema(&mut client).await.unwrap();
-    let collection_log_info: CollectionLogInfo = db::get_collection_log_info(&client).await.unwrap();
+    let collection_log_info: CollectionLogInfo =
+        db::get_collection_log_info(&client).await.unwrap();
 
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());

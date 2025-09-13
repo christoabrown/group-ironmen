@@ -29,7 +29,7 @@ pub enum ApiError {
     GetCollectionLogError(tokio_postgres::error::Error),
     GroupFullError,
     ReqwestError(reqwest::Error),
-    GroupMemberValidationError(String)
+    GroupMemberValidationError(String),
 }
 impl std::error::Error for ApiError {}
 fn handle_pg_error(err: &tokio_postgres::error::Error, name: &str) -> HttpResponse {
@@ -57,7 +57,9 @@ impl ResponseError for ApiError {
             ApiError::GetGroupDataError(ref err) => handle_pg_error(err, "GetGroupDataError"),
             ApiError::IsMemberInGroupError(ref err) => handle_pg_error(err, "IsMemberInGroupError"),
             ApiError::GetSkillsDataError(ref err) => handle_pg_error(err, "GetSkillsDataError"),
-            ApiError::GetCollectionLogError(ref err) => handle_pg_error(err, "GetCollectionLogError"),
+            ApiError::GetCollectionLogError(ref err) => {
+                handle_pg_error(err, "GetCollectionLogError")
+            }
             ApiError::DeleteGroupMemberError(ref err) => {
                 handle_pg_error(err, "DeleteGroupMemberError")
             }
@@ -73,7 +75,7 @@ impl ResponseError for ApiError {
             ApiError::ReqwestError(ref err) => {
                 log::error!("ReqwestError: {}", err);
                 HttpResponse::InternalServerError().body(format!("ReqwestError: {}", err))
-            },
+            }
             ApiError::GroupMemberValidationError(ref reason) => {
                 log::error!("Validation error: {}", reason);
                 HttpResponse::BadRequest().body(reason.clone())

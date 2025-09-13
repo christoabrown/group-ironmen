@@ -6,8 +6,7 @@ use std::fs;
 lazy_static! {
     static ref SECRET: String = {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/secret");
-        fs::read_to_string(path)
-            .expect(&format!("Could not find secret file at {}", path))
+        fs::read_to_string(path).expect(&format!("Could not find secret file at {}", path))
     };
 }
 

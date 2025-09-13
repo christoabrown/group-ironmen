@@ -1,10 +1,10 @@
+use crate::collection_log::COLLECTION_LOG_DATA;
 use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
-use crate::collection_log::COLLECTION_LOG_DATA;
 use crate::validators::valid_name;
-use actix_web::{get, post, web, Error, HttpResponse, http::header::ContentType};
+use actix_web::{get, http::header::ContentType, post, web, Error, HttpResponse};
 use arc_swap::{ArcSwap, ArcSwapAny};
 use deadpool_postgres::{Client, Pool};
 use lazy_static::lazy_static;
@@ -169,11 +169,13 @@ pub async fn create_group(
         return Ok(HttpResponse::BadRequest().body("Provided group name is not valid"));
     }
 
-    create_group_inner.member_names.retain(|member_name| member_name.trim().len() > 0);
+    create_group_inner
+        .member_names
+        .retain(|member_name| member_name.trim().len() > 0);
     for member_name in &create_group_inner.member_names {
         if !valid_name(&member_name) {
             return Ok(HttpResponse::BadRequest()
-                      .body(format!("Member name {} is not valid", member_name)));
+                .body(format!("Member name {} is not valid", member_name)));
         }
     }
 
