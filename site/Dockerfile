@@ -1,7 +1,7 @@
 ###############################################
 # Frontend Image
 ###############################################
-FROM node:16.10.0-alpine as production-frontend
+FROM node:krypton-alpine as production-frontend
 
 WORKDIR /app
 
