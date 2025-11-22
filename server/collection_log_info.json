@@ -1406,6 +1406,30 @@
         ]
       },
       {
+        "name": "Shellbane Gryphon",
+        "completion_labels": [
+          "Shellbane Gryphon kills"
+        ],
+        "items": [
+          {
+            "id": 32921,
+            "name": "Jar of feathers"
+          },
+          {
+            "id": 31285,
+            "name": "Gull"
+          },
+          {
+            "id": 31245,
+            "name": "Belle\u0027s folly (tarnished)"
+          },
+          {
+            "id": 31235,
+            "name": "Gryphon feather"
+          }
+        ]
+      },
+      {
         "name": "Skotizo",
         "completion_labels": [
           "Skotizo kills"
@@ -5036,6 +5060,48 @@
         ]
       },
       {
+        "name": "Barracuda Trials",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 31732,
+            "name": "Stormy key"
+          },
+          {
+            "id": 31733,
+            "name": "Barrel stand"
+          },
+          {
+            "id": 31734,
+            "name": "Ralph\u0027s fabric roll"
+          },
+          {
+            "id": 31744,
+            "name": "Fetid key"
+          },
+          {
+            "id": 31745,
+            "name": "Captured wind mote"
+          },
+          {
+            "id": 31746,
+            "name": "Gurtob\u0027s fabric roll"
+          },
+          {
+            "id": 31756,
+            "name": "Serrated key"
+          },
+          {
+            "id": 31757,
+            "name": "Heart of ithell"
+          },
+          {
+            "id": 31758,
+            "name": "Gwyna\u0027s fabric roll"
+          }
+        ]
+      },
+      {
         "name": "Brimhaven Agility Arena",
         "completion_labels": [],
         "items": [
@@ -6447,6 +6513,64 @@
           {
             "id": 31130,
             "name": "Dom"
+          },
+          {
+            "id": 31283,
+            "name": "Soup"
+          },
+          {
+            "id": 31285,
+            "name": "Gull"
+          }
+        ]
+      },
+      {
+        "name": "Boat Paints",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 32087,
+            "name": "Barracuda paint"
+          },
+          {
+            "id": 32090,
+            "name": "Shark paint"
+          },
+          {
+            "id": 32093,
+            "name": "Inky paint"
+          },
+          {
+            "id": 32096,
+            "name": "Angler\u0027s paint"
+          },
+          {
+            "id": 32099,
+            "name": "Salvor\u0027s paint"
+          },
+          {
+            "id": 32102,
+            "name": "Armadylean paint"
+          },
+          {
+            "id": 32104,
+            "name": "Zamorakian paint"
+          },
+          {
+            "id": 32106,
+            "name": "Guthixian paint"
+          },
+          {
+            "id": 32108,
+            "name": "Saradominist paint"
+          },
+          {
+            "id": 32110,
+            "name": "Merchant\u0027s paint"
+          },
+          {
+            "id": 32113,
+            "name": "Sandy paint"
           }
         ]
       },
@@ -6966,6 +7090,52 @@
         ]
       },
       {
+        "name": "Lost Schematics",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 32401,
+            "name": "Salvaging station schematic"
+          },
+          {
+            "id": 32402,
+            "name": "Gale catcher schematic"
+          },
+          {
+            "id": 32403,
+            "name": "Eternal brazier schematic"
+          },
+          {
+            "id": 32405,
+            "name": "Rosewood cargo hold schematic"
+          },
+          {
+            "id": 32407,
+            "name": "Rosewood hull schematic"
+          },
+          {
+            "id": 32408,
+            "name": "Rosewood \u0026 cotton sails schematic"
+          },
+          {
+            "id": 32409,
+            "name": "Dragon helm schematic"
+          },
+          {
+            "id": 32410,
+            "name": "Dragon keel schematic"
+          },
+          {
+            "id": 32404,
+            "name": "Dragon salvaging hook schematic"
+          },
+          {
+            "id": 32406,
+            "name": "Dragon cannon schematic"
+          }
+        ]
+      },
+      {
         "name": "Monkey Backpacks",
         "completion_labels": [],
         "items": [
@@ -7132,6 +7302,56 @@
           {
             "id": 11366,
             "name": "Ancient page"
+          }
+        ]
+      },
+      {
+        "name": "Ocean Encounters",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 31770,
+            "name": "Tiny pearl"
+          },
+          {
+            "id": 31773,
+            "name": "Small pearl"
+          },
+          {
+            "id": 31776,
+            "name": "Shiny pearl"
+          },
+          {
+            "id": 31779,
+            "name": "Bright pearl"
+          },
+          {
+            "id": 31782,
+            "name": "Big pearl"
+          },
+          {
+            "id": 31785,
+            "name": "Huge pearl"
+          },
+          {
+            "id": 31788,
+            "name": "Enormous pearl"
+          },
+          {
+            "id": 31791,
+            "name": "Shimmering pearl"
+          },
+          {
+            "id": 31794,
+            "name": "Glistening pearl"
+          },
+          {
+            "id": 31797,
+            "name": "Brilliant pearl"
+          },
+          {
+            "id": 31800,
+            "name": "Radiant pearl"
           }
         ]
       },
@@ -7332,6 +7552,130 @@
         ]
       },
       {
+        "name": "Sailing Miscellaneous",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 31996,
+            "name": "Dragon metal sheet"
+          },
+          {
+            "id": 31406,
+            "name": "Dragon nails"
+          },
+          {
+            "id": 31916,
+            "name": "Dragon cannonball"
+          },
+          {
+            "id": 31946,
+            "name": "Echo pearl"
+          },
+          {
+            "id": 31952,
+            "name": "Swift albatross feather"
+          },
+          {
+            "id": 31954,
+            "name": "Narwhal horn"
+          },
+          {
+            "id": 31959,
+            "name": "Ray barbs"
+          },
+          {
+            "id": 31961,
+            "name": "Broken dragon hook"
+          },
+          {
+            "id": 31949,
+            "name": "Bottled storm"
+          },
+          {
+            "id": 32115,
+            "name": "Dragon cannon barrel"
+          },
+          {
+            "id": 31989,
+            "name": "Boat bottle (empty)"
+          }
+        ]
+      },
+      {
+        "name": "Sea Treasures",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 32388,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32389,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32390,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32391,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32392,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32393,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32394,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32395,
+            "name": "Medallion fragment"
+          },
+          {
+            "id": 32398,
+            "name": "Sailors\u0027 amulet (inert)"
+          },
+          {
+            "id": 32863,
+            "name": "Rusty locket"
+          },
+          {
+            "id": 32864,
+            "name": "Mouldy block"
+          },
+          {
+            "id": 32865,
+            "name": "Dull knife"
+          },
+          {
+            "id": 32866,
+            "name": "Broken compass"
+          },
+          {
+            "id": 32867,
+            "name": "Rusty coin"
+          },
+          {
+            "id": 32868,
+            "name": "Broken sextant"
+          },
+          {
+            "id": 32869,
+            "name": "Mouldy doll"
+          },
+          {
+            "id": 32870,
+            "name": "Smashed mirror"
+          }
+        ]
+      },
+      {
         "name": "Shayzien Armour",
         "completion_labels": [],
         "items": [
@@ -7486,6 +7830,10 @@
           {
             "id": 20665,
             "name": "Rift guardian"
+          },
+          {
+            "id": 31283,
+            "name": "Soup"
           }
         ]
       },
@@ -7750,6 +8098,10 @@
             "name": "Basilisk jaw"
           },
           {
+            "id": 32876,
+            "name": "Aquanite tendon"
+          },
+          {
             "id": 24288,
             "name": "Dagon\u0027hai hat"
           },
@@ -7828,6 +8180,18 @@
           {
             "id": 31086,
             "name": "Broken antler"
+          },
+          {
+            "id": 31996,
+            "name": "Dragon metal sheet"
+          },
+          {
+            "id": 31243,
+            "name": "Horn of plenty (empty)"
+          },
+          {
+            "id": 31235,
+            "name": "Gryphon feather"
           }
         ]
       },
@@ -7924,6 +8288,30 @@
           {
             "id": 7989,
             "name": "Big bass"
+          },
+          {
+            "id": 31408,
+            "name": "Giant blue krill"
+          },
+          {
+            "id": 31412,
+            "name": "Golden haddock"
+          },
+          {
+            "id": 31416,
+            "name": "Orangefin"
+          },
+          {
+            "id": 31420,
+            "name": "Huge halibut"
+          },
+          {
+            "id": 31424,
+            "name": "Purplefin"
+          },
+          {
+            "id": 31428,
+            "name": "Swift marlin"
           },
           {
             "id": 10976,
@@ -8120,6 +8508,10 @@
           {
             "id": 30111,
             "name": "Helmet of the moon"
+          },
+          {
+            "id": 31572,
+            "name": "Squid beak"
           }
         ]
       }

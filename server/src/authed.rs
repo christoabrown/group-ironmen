@@ -96,7 +96,7 @@ pub async fn update_group_member(
     let mut group_member_inner: GroupMember = group_member.into_inner();
 
     validate_member_prop_length("stats", &group_member_inner.stats, 7, 7)?;
-    validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 3)?;
+    validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 4)?;
     validate_member_prop_length("skills", &group_member_inner.skills, 23, 24)?;
     validate_member_prop_length("quests", &group_member_inner.quests, 0, 220)?;
     validate_member_prop_length("inventory", &group_member_inner.inventory, 56, 56)?;

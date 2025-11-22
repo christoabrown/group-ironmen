@@ -12,8 +12,8 @@ export class PlayerSkills extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.render();
     this.playerName = this.getAttribute("player-name");
+    this.render();
     this.renderSkillBoxes();
   }
 
@@ -47,7 +47,9 @@ export class PlayerSkills extends BaseElement {
       SkillName.Farming,
       SkillName.Construction,
       SkillName.Hunter,
+      SkillName.Sailing,
     ];
+
     let zindex = skills.length;
     skills.forEach((skillName) => {
       const skillBox = document.createElement("skill-box");
@@ -59,11 +61,8 @@ export class PlayerSkills extends BaseElement {
       skillBoxes.appendChild(skillBox);
     });
 
-    const overallSkillBox = document.createElement("total-level-box");
-    overallSkillBox.setAttribute("player-name", this.playerName);
-    skillBoxes.appendChild(overallSkillBox);
-    this.innerHTML = "";
-    this.appendChild(skillBoxes);
+    const skillsContent = this.querySelector(".player-skills__skills");
+    skillsContent.appendChild(skillBoxes);
   }
 }
 customElements.define("player-skills", PlayerSkills);

@@ -235,15 +235,13 @@ export class GroupData {
     let result = {};
     let i = 0;
     let overall = 0;
-    // NOTE: Overall xp was removed from the API response, but keeping this here so it still
-    // works for data that was stored before that change.
-    const hasOverallXp = skills.length !== 23;
     for (const skillName of Object.keys(SkillName)) {
-      if (skillName !== SkillName.Overall || hasOverallXp) {
-        result[skillName] = skills[i];
+      if (skillName !== SkillName.Overall) {
+        const xp = skills[i] ?? 0;
+        result[skillName] = xp;
 
         if (skillName !== SkillName.Overall) {
-          overall += skills[i];
+          overall += xp;
         }
 
         i += 1;
@@ -277,12 +275,10 @@ export class GroupData {
   static transformCoordinatesFromStorage(coordinates) {
     if (coordinates === undefined || coordinates === null) return;
 
-    // NOTE: The coordinates from runelite seems to have changed? Need to
-    // offset them now to line them up with the map.
-    const xOffset = 128;
+    // NOTE: need to offset Y for some reason
     const yOffset = 1;
     return {
-      x: coordinates[0] + xOffset,
+      x: coordinates[0],
       y: coordinates[1] + yOffset,
       plane: coordinates[2],
     };
@@ -313,6 +309,7 @@ export class GroupData {
       memberData.stats = GroupData.transformStatsFromStorage(memberData.stats);
       memberData.coordinates = GroupData.transformCoordinatesFromStorage(memberData.coordinates);
       memberData.quests = GroupData.transformQuestsFromStorage(memberData.quests);
+      memberData.collection_log_v2 = GroupData.transformItemsFromStorage(memberData.collection_log_v2);
 
       if (memberData.interacting) {
         memberData.interacting.location = GroupData.transformCoordinatesFromStorage([

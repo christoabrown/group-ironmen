@@ -109,6 +109,7 @@ export class MemberData {
       memberData.interacting.name = utility.removeTags(memberData.interacting.name);
       this.interacting = memberData.interacting;
       this.publishUpdate("interacting");
+      updatedAttributes.add("interacting");
     }
 
     if (memberData.seed_vault) {
@@ -121,6 +122,13 @@ export class MemberData {
     if (memberData.diary_vars) {
       this.diaries = AchievementDiary.parseDiaryData(memberData.diary_vars);
       this.publishUpdate("diaries");
+      updatedAttributes.add("diaries");
+    }
+
+    if (memberData.collection_log_v2) {
+      this.collectionLog = Item.parseItemData(memberData.collection_log_v2);
+      this.publishUpdate("collection_log_v2");
+      updatedAttributes.add("collection_log_v2");
     }
 
     return updatedAttributes;

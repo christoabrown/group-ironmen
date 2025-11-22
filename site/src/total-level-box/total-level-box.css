@@ -5,10 +5,12 @@ total-level-box {
   position: relative;
   justify-content: center;
   align-items: center;
+  image-rendering: crisp-edges;
+  width: 100%;
 }
 
 .total-level-box__content,
-.total-level-box__image {
+.total-level-box__bg {
   pointer-events: none;
 }
 
@@ -16,8 +18,19 @@ total-level-box {
   position: absolute;
   text-align: center;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
   line-height: 1em;
+}
+
+.total-level-box__bg {
+  border-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGwAAAATCAMAAABCzBjrAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAMUExURS4rI3JkUQAAAAAAAMpoKCEAAAAEdFJOU////wBAKqn0AAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAS0lEQVRIS+3VsQ0AIAwDQZvsvzMyYoTwBcpL1KdQJKoqIQXKM9DFJK/nOaNlQBOYz1+asKKFQ6g0WEuDtfQ5Rm4QcjeiWx++Z9yl3qupDUOTv6CSAAAAAElFTkSuQmCC")
+    6 6 6 6 fill / 6px 6px 6px 6px;
+  padding: 6px 6px 6px 6px;
+  border-style: solid;
+
+  width: 100%;
+  height: 19px;
+  box-sizing: border-box;
 }

@@ -1,9 +1,17 @@
 player-skills {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   margin-bottom: 4px;
+  width: max-content;
+  margin: auto;
+}
+
+.player-skills__skills {
+  display: grid;
   height: 256px;
   grid-template-columns: 62px 62px 62px;
   justify-content: center;
+  column-gap: 1px;
 }
 
 player-skills skill-box:hover,

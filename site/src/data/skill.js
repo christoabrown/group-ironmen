@@ -23,6 +23,7 @@ export const SkillName = {
   Strength: "Strength",
   Thieving: "Thieving",
   Woodcutting: "Woodcutting",
+  Sailing: "Sailing",
 };
 
 const levelLookup = new Map();
@@ -94,6 +95,8 @@ export class Skill {
         return "/ui/220-0.png";
       case SkillName.Construction:
         return "/ui/221-0.png";
+      case SkillName.Sailing:
+        return "/ui/228-0.png";
     }
     return "";
   }

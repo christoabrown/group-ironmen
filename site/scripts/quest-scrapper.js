@@ -56,9 +56,12 @@ async function run() {
     quest.member = true
     quest.miniquest = true;
   });
+  const tutorialQuests = [
+    { name: "Tutorial Island", "difficulty": "Novice", points: 1, tutorial: true }
+  ];
 
   const result = {};
-  for (const quest of [...freeToPlayQuests, ...memberQuests, ...miniQuests]) {
+  for (const quest of [...freeToPlayQuests, ...memberQuests, ...miniQuests, ...tutorialQuests]) {
     if (!questNameToIdMap.has(quest.name)) {
       console.error(`quest mapping is missing quest ${quest.name} from the wiki`);
       continue;
@@ -70,6 +73,20 @@ async function run() {
     }
 
     result[questNameToIdMap.get(quest.name)] = quest;
+  }
+
+  const mappedQuestIds = new Set(Object.keys(result).map((id) => parseInt(id)));
+  for (const [name, questId] of questNameToIdMap.entries()) {
+    if (!mappedQuestIds.has(questId)) {
+      console.error(`quest ${name} - ${questId} was not found on the wiki (could be an unfinished quest)`);
+
+      result[questId] = {
+        name,
+        difficulty: "UNKNOWN",
+        points: 0,
+        hidden: true
+      };
+    }
   }
 
 

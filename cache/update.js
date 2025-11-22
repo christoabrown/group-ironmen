@@ -306,8 +306,8 @@ async function finalizePlaneTiles(plane, previousTiles) {
     const filename = path.basename(tileImage, '.webp');
     const [x, y] = filename.split('_').map((coord) => parseInt(coord, 10));
 
-    const finalX = x + (4608 / tileSize);
-    const finalY = y + (4864 / tileSize);
+    const finalX = x + 15;
+    const finalY = y + 19;
 
     let s;
     if (plane > 0) {
@@ -315,8 +315,10 @@ async function finalizePlaneTiles(plane, previousTiles) {
       const backgroundExists = fs.existsSync(backgroundPath);
 
       if (backgroundExists) {
-        const tile = await sharp(tileImage).flip().webp({ lossless: true }).toBuffer();
-        const background = await sharp(backgroundPath).linear(0.5).webp({ lossless: true }).toBuffer();
+        const [tile, background] = await Promise.all([
+          sharp(tileImage).flip().webp({ lossless: true }).toBuffer(),
+          sharp(backgroundPath).linear(0.5).webp({ lossless: true }).toBuffer()
+        ]);
         s = sharp(background)
           .composite([
             { input: tile }
@@ -370,7 +372,7 @@ async function generateMapTiles() {
 
 async function moveFiles(globSource, destination) {
   const files = glob.sync(globSource);
-  for (file of files) {
+  for (const file of files) {
     const base = path.parse(file).base;
     if (base) {
       await retry(() => fs.renameSync(file, `${destination}/${base}`), true);
@@ -416,7 +418,7 @@ async function moveResults() {
 
   for (const [iconId, coordinates] of Object.entries(mapIconsMeta)) {
     for (let i = 0; i < coordinates.length; i += 2) {
-      const x = coordinates[i] + 128;
+      const x = coordinates[i];
       const y = coordinates[i + 1] + 1;
 
       const regionX = Math.floor(x / 64);
@@ -443,7 +445,7 @@ async function moveResults() {
 
   for (let i = 0; i < mapLabelsMeta.length; ++i) {
     const coordinates = mapLabelsMeta[i];
-    const x = coordinates[0] + 128;
+    const x = coordinates[0];
     const y = coordinates[1] + 1;
     const z = coordinates[2];
 
@@ -482,8 +484,8 @@ async function getLatestGameCache() {
   }
 
   const pctValidKeys = latestOSRSCache.valid_keys / latestOSRSCache.keys;
-  if (pctValidKeys < 0.97) {
-    throw new Error(`pctValidKeys was less that 97% valid_keys=${latestOSRSCache.valid_keys} keys=${latestOSRSCache.keys} pctValidKeys=${pctValidKeys}`);
+  if (pctValidKeys < 0.85) {
+    throw new Error(`pctValidKeys was less that 85% valid_keys=${latestOSRSCache.valid_keys} keys=${latestOSRSCache.keys} pctValidKeys=${pctValidKeys}`);
   }
 
   const cacheFilesResponse = await axios.get(`https://archive.openrs2.org/caches/${latestOSRSCache.scope}/${latestOSRSCache.id}/disk.zip`, {

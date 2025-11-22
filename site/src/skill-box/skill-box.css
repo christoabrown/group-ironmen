@@ -6,23 +6,24 @@ skill-box {
   height: 32px;
 
   font-family: "rstiny";
+  image-rendering: crisp-edges;
 }
 
 .skill-box__left {
-  background-image: url(/ui/174-0.png);
+  background-image: url(/ui/187-0.png);
 }
 
 .dark-mode .skill-box__left {
-  background-image: url(/ui/174-0-dark.png);
+  background-image: url(/ui/187-0-dark.png);
 }
 
 .skill-box__right {
   position: relative;
-  background-image: url(/ui/175-0.png);
+  background-image: url(/ui/188-0.png);
 }
 
 .dark-mode .skill-box__right {
-  background-image: url(/ui/175-0-dark.png);
+  background-image: url(/ui/188-0-dark.png);
 }
 
 .skill-box__left,
@@ -53,7 +54,7 @@ skill-box {
 
 .skill-box__baseline-level {
   transform: translate(calc(50% - 1px), 5px);
-  text-align: right;
+  text-align: center;
 }
 
 .skill-box__current-level {
