@@ -106,7 +106,7 @@ pub async fn update_group_member(
     validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
     validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
     validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
-    validate_member_prop_length("collection_log_v2", &group_member_inner.collection_log_v2, 0, 1000)?;
+    validate_member_prop_length("collection_log_v2", &group_member_inner.collection_log_v2, 0, 4000)?;
 
     db::update_group_member(
         &client,
