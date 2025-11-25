@@ -15,19 +15,7 @@ export class CollectionLog extends BaseElement {
     super.connectedCallback();
     loadingScreenManager.showLoadingScreen();
     this.playerName = this.getAttribute("player-name");
-    await this.init();
-    this.totalUniqueItems = collectionLog.totalUniqueItems;
-    this.unlockedUniqueItems = collectionLog.totalUnlockedItems(this.playerName);
-    this.render();
-
-    this.tabContent = this.querySelector(".collection-log__tab-container");
-    this.tabButtons = this.querySelector(".collection-log__tab-buttons");
-    this.background = this.querySelector(".dialog__visible");
-    this.showTab(0);
-
-    this.eventListener(this.tabButtons, "click", this.handleTabClick.bind(this));
-    this.eventListener(this.background, "click", this.closeIfBackgroundClick.bind(this));
-    this.eventListener(this.querySelector(".dialog__close"), "click", this.close.bind(this));
+    this.subscribeOnce("get-group-data", this.init.bind(this));
   }
 
   disconnectedCallback() {
@@ -45,10 +33,24 @@ export class CollectionLog extends BaseElement {
     this.remove();
   }
 
-  async init() {
-    await Promise.all([collectionLog.initLogInfo(), collectionLog.load()]);
+  async init(groupData) {
+    await collectionLog.initLogInfo();
+    collectionLog.load(groupData);
     collectionLog.loadPlayer(this.playerName);
     loadingScreenManager.hideLoadingScreen();
+
+    this.totalUniqueItems = collectionLog.totalUniqueItems;
+    this.unlockedUniqueItems = collectionLog.totalUnlockedItems(this.playerName);
+    this.render();
+
+    this.tabContent = this.querySelector(".collection-log__tab-container");
+    this.tabButtons = this.querySelector(".collection-log__tab-buttons");
+    this.background = this.querySelector(".dialog__visible");
+    this.showTab(0);
+
+    this.eventListener(this.tabButtons, "click", this.handleTabClick.bind(this));
+    this.eventListener(this.background, "click", this.closeIfBackgroundClick.bind(this));
+    this.eventListener(this.querySelector(".dialog__close"), "click", this.close.bind(this));
   }
 
   handleTabClick(event) {

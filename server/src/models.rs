@@ -1,4 +1,3 @@
-use crate::collection_log::CollectionLog;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -62,10 +61,8 @@ pub struct GroupMember {
     pub deposited: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diary_vars: Option<Vec<i32>>,
-    #[serde(skip_serializing)]
-    pub collection_log: Option<Vec<CollectionLog>>,
-    #[serde(skip_serializing)]
-    pub collection_log_new: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collection_log_v2: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
 }

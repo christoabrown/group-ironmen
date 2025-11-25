@@ -20,8 +20,6 @@ export class CollectionLogPage extends BaseElement {
     this.pageCountLabels = this.pageInfo.completion_labels;
     this.pageItems = collectionLog.pageItems.get(this.pageName);
 
-    const playerLog = collectionLog.playerLogs.get(this.playerName);
-    this.completionCounts = playerLog?.getPage(this.pageName)?.completion_counts || [];
     this.unlockedItemsCount = collectionLog.completionCountForPage(this.playerName, this.pageName);
     this.completionStateClass = collectionLog.completionStateClass(this.playerName, this.pageName);
 

@@ -1,4 +1,3 @@
-use crate::collection_log::{CollectionLog, CollectionLogInfo};
 use crate::error::ApiError;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -97,55 +96,6 @@ pub fn validate_member_prop_length<T>(
                     x.len()
                 )))
             }
-        }
-    }
-}
-
-pub fn validate_collection_log(
-    collection_log_info: &actix_web::web::Data<CollectionLogInfo>,
-    collection_logs: &mut Option<Vec<CollectionLog>>,
-) -> Result<(), ApiError> {
-    match collection_logs {
-        None => Ok(()),
-        Some(ref mut x) => {
-            for collection_log in x {
-                let page_id = collection_log_info.page_name_to_id(&collection_log.page_name);
-                let result = match page_id {
-                    Some(id) => {
-                        let number_of_items: usize = collection_log.items.len() / 2;
-                        if number_of_items > collection_log_info.number_of_items_in_page(*id) {
-                            return Err(ApiError::GroupMemberValidationError(format!(
-                                "{} is too many items for collection log {}",
-                                number_of_items, collection_log.page_name
-                            )));
-                        }
-
-                        for i in (0..collection_log.items.len()).step_by(2) {
-                            let item_id =
-                                collection_log_info.remap_item_id(collection_log.items[i]);
-                            collection_log.items[i] = item_id;
-                            if !collection_log_info.has_item(*id, item_id) {
-                                return Err(ApiError::GroupMemberValidationError(format!(
-                                    "collection log {} does not have item id {}",
-                                    collection_log.page_name, item_id
-                                )));
-                            }
-                        }
-
-                        Ok(())
-                    }
-                    None => Err(ApiError::GroupMemberValidationError(format!(
-                        "invalid collection log page {}",
-                        collection_log.page_name
-                    ))),
-                };
-
-                if result.is_err() {
-                    return result;
-                }
-            }
-
-            Ok(())
         }
     }
 }

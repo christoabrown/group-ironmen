@@ -47,10 +47,6 @@ class Api {
     return `${this.baseUrl}/collection-log-info`;
   }
 
-  collectionLogDataUrl() {
-    return `${this.baseUrl}/group/${this.groupName}/collection-log`;
-  }
-
   setCredentials(groupName, groupToken) {
     this.groupName = groupName;
     this.groupToken = groupToken;
@@ -206,20 +202,6 @@ class Api {
   async getCollectionLogInfo() {
     const response = await fetch(this.collectionLogInfoUrl);
     return response.json();
-  }
-
-  async getCollectionLog() {
-    if (this.exampleDataEnabled) {
-      const collectionLog = exampleData.getCollectionLog();
-      return collectionLog;
-    } else {
-      const response = await fetch(this.collectionLogDataUrl(), {
-        headers: {
-          Authorization: this.groupToken,
-        },
-      });
-      return response.json();
-    }
   }
 }
 

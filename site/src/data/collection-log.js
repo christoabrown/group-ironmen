@@ -13,25 +13,25 @@ const duplicateCollectionLogItems = new Map([
 ]);
 
 class PlayerLog {
-  constructor(playerName, logs) {
-    this.logs = logs;
+  constructor(playerName, items) {
     this.unlockedItems = new Map();
     this.unlockedItemsCountByPage = new Map();
-    for (const log of this.logs) {
-      const items = log.items;
-      const newItems = log.new_items;
-      const itemSet = new Set();
-
-      for (const itemId of newItems) {
-        itemSet.add(itemId);
-        this.unlockedItems.set(itemId, 1);
+    if (items) {
+      for (const item of items) {
+        this.unlockedItems.set(item.id, item.quantity);
       }
-      for (let i = 0; i < items.length; i += 2) {
-        this.unlockedItems.set(items[i], items[i + 1]);
-        itemSet.add(items[i]);
-      }
+    }
 
-      this.unlockedItemsCountByPage.set(log.page_name, itemSet.size);
+    for (const tab of collectionLog.info) {
+      for (const page of tab.pages) {
+        const pageItems = collectionLog.pageItems.get(page.name);
+        let pageItemCount = 0;
+        for (const item of pageItems) {
+          if (this.unlockedItems.get(item.id) > 0) ++pageItemCount;
+        }
+
+        this.unlockedItemsCountByPage.set(page.name, pageItemCount);
+      }
     }
   }
 
@@ -78,12 +78,12 @@ class CollectionLog {
     this.totalUniqueItems = uniqueItems.size - duplicateCollectionLogItems.size;
   }
 
-  async load() {
+  async load(groupData) {
     this.playerLogs = new Map();
 
-    const apiResponse = await api.getCollectionLog();
-    for (const [playerName, logs] of Object.entries(apiResponse)) {
-      this.playerLogs.set(playerName, new PlayerLog(playerName, logs));
+    for (const member of groupData.members.values()) {
+      if (member.name === "@SHARED") continue;
+      this.playerLogs.set(member.name, new PlayerLog(member.name, member.collectionLog));
     }
 
     this.playerNames = Array.from(this.playerLogs.keys());

@@ -9,7 +9,6 @@ mod models;
 mod unauthed;
 mod validators;
 use crate::auth_middleware::AuthenticateMiddlewareFactory;
-use crate::collection_log::CollectionLogInfo;
 use crate::config::Config;
 
 use actix_cors::Cors;
@@ -31,8 +30,6 @@ async fn main() -> std::io::Result<()> {
 
     let mut client = pool.get().await.unwrap();
     db::update_schema(&mut client).await.unwrap();
-    let collection_log_info: CollectionLogInfo =
-        db::get_collection_log_info(&client).await.unwrap();
 
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());
@@ -76,7 +73,6 @@ async fn main() -> std::io::Result<()> {
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
-            .app_data(web::Data::new(collection_log_info.clone()))
             .service(authed_scope)
             .service(unauthed_scope)
     })

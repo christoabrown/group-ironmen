@@ -3,9 +3,6 @@
     <a href="${this.pageTitleLink}" target="_blank">${this.pageTitle}</a>
   </h2>
   <div>Obtained: <span class="${this.completionStateClass}">${this.unlockedItemsCount}/${this.pageItems.length}</span></div>
-  ${this.pageCountLabels.map((label, i) => `
-  <div>${label}: <span class="collection-log__count">${this.completionCounts[i] || 0}</span></div>
-  `).join('')}
 </div>
 <div class="collection-log__page-items">
   ${this.pageItems.map((item) => `
