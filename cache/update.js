@@ -25,6 +25,8 @@ const siteItemImagesPath = '../site/public/icons/items';
 const siteMapImagesPath = '../site/public/map';
 const siteMapLabelsPath = '../site/public/map/labels';
 const siteMapIconPath = "../site/public/map/icons/map_icons.webp";
+const siteCollectionLogPath = '../site/public/data/collection_log_info.json';
+const siteCollectionLogDuplicatesPath = '../site/public/data/collection_log_duplicates.json';
 const tileSize = 256;
 
 function exec(command, options) {
@@ -228,6 +230,7 @@ async function dumpItemImages(allIncludedItemIds) {
       await sharp(itemImageData).webp({ lossless: true, effort: 6 }).toFile(itemImage.replace(".png", ".webp")).then(resolve);
     }));
   }
+
   await Promise.all(p);
 }
 
@@ -279,7 +282,7 @@ async function dumpCollectionLog() {
   fs.writeFileSync(`${cacheProjectPath}/src/main/java/net/runelite/cache/CollectionLogDumper.java`, collectionLogDumper);
   await setMainClassInCachePom('net.runelite.cache.CollectionLogDumper');
   buildCacheProject();
-  execRuneliteCache(`--cachedir ${osrsCacheDirectory} --outputdir ../server`);
+  execRuneliteCache(`--cachedir ${osrsCacheDirectory} --outputdir ./`);
 }
 
 async function tilePlane(plane) {
@@ -383,6 +386,7 @@ async function moveFiles(globSource, destination) {
 async function moveResults() {
   console.log('\nStep: Moving results to site');
   await retry(() => fs.renameSync('./item_data.json', siteItemDataPath), true);
+  await retry(() => fs.renameSync('./collection_log_info.json', siteCollectionLogPath), true);
 
   await moveFiles('./item-images/*.webp', siteItemImagesPath);
   await moveFiles("./map-data/tiles/*.webp", siteMapImagesPath);
@@ -498,12 +502,79 @@ async function getLatestGameCache() {
   fs.writeFileSync('./cache/xteas.json', JSON.stringify(xteas));
 }
 
+async function findDuplicateCollectionLogItems() {
+  console.log('Step: build duplicate mapping for collection log items');
+  // get all collection log item ids
+  const collectionLogInfo = JSON.parse(fs.readFileSync(siteCollectionLogPath, 'utf8'));
+  const itemIds = new Set();
+  for (const tab of collectionLogInfo) {
+    for (const page of tab.pages) {
+      for (const item of page.items) {
+        itemIds.add(item.id);
+      }
+    }
+  }
+
+  // get image stats for every item
+  const itemImages = glob.sync(`${siteItemImagesPath}/*.webp`);
+  const itemImageStats = new Map();
+  const p = [];
+  for (const itemImage of itemImages) {
+    const itemId = parseInt(path.basename(itemImage, '.webp'), 10);
+    p.push(sharp(itemImage).stats().then((stats) => itemImageStats.set(itemId, stats)));
+  }
+  await Promise.all(p);
+
+  const dupeMapping = {};
+  // if the images are the same then we consider it a duplicate
+  for (const itemId of itemIds) {
+    const stats = itemImageStats.get(itemId);
+    for (const [otherItemId, otherStats] of itemImageStats) {
+      if (otherItemId === itemId) continue;
+      const colorDiff = Math.abs(stats.channels[0].mean - otherStats.channels[0].mean)
+            + Math.abs(stats.channels[1].mean - otherStats.channels[1].mean)
+            + Math.abs(stats.channels[2].mean - otherStats.channels[2].mean);
+      if (colorDiff > 0.0001) continue;
+
+      // do not consider it a dupe if both items are in the collection log
+      if (itemIds.has(otherItemId)) {
+        continue;
+      }
+
+      dupeMapping[itemId]?.push(otherItemId) || (dupeMapping[itemId] = [otherItemId]);
+    }
+  }
+
+  // now only include duplicates with similar item names
+  const itemData = JSON.parse(fs.readFileSync(siteItemDataPath, 'utf8'));
+  for (const [itemId, otherItemIds] of Object.entries(dupeMapping)) {
+    const itemName = itemData[itemId.toString()].name;
+    const dupesWithMatchingNames = [];
+
+    for (const otherItemId of otherItemIds) {
+      const otherItemName = itemData[otherItemId.toString()].name;
+      if (itemName.startsWith(otherItemName) || otherItemName.startsWith(itemName)) {
+        dupesWithMatchingNames.push(otherItemId);
+      }
+    }
+
+    if (dupesWithMatchingNames.length === 0) {
+      delete dupeMapping[itemId];
+    } else {
+      dupeMapping[itemId] = dupesWithMatchingNames;
+    }
+  }
+
+  fs.writeFileSync(siteCollectionLogDuplicatesPath, JSON.stringify(dupeMapping));
+}
+
 (async () => {
   await getLatestGameCache();
   await setupRunelite();
   await dumpItemData();
   const allIncludedItemIds = await buildItemDataJson();
   await dumpItemImages(allIncludedItemIds);
+  await dumpItemImages([]);
 
   const xteasLocation = await convertXteasToRuneliteFormat();
   await dumpMapData(xteasLocation);
@@ -512,4 +583,6 @@ async function getLatestGameCache() {
   await dumpCollectionLog();
 
   await moveResults();
+
+  await findDuplicateCollectionLogItems();
 })();

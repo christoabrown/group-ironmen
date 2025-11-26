@@ -1,4 +1,3 @@
-import { api } from "./api";
 import { utility } from "../utility";
 
 // NOTE: The collection log has duplicate versions of items on different pages with different
@@ -18,6 +17,13 @@ class PlayerLog {
     this.unlockedItemsCountByPage = new Map();
     if (items) {
       for (const item of items) {
+        if (collectionLog.duplicateMapping.has(item.id)) {
+          item.id = collectionLog.duplicateMapping.get(item.id);
+
+          if (this.unlockedItems.has(item.id)) {
+            item.quantity += this.unlockedItems.get(item.id);
+          }
+        }
         this.unlockedItems.set(item.id, item.quantity);
       }
     }
@@ -61,7 +67,23 @@ class CollectionLog {
 
   async initLogInfo() {
     if (this.info) return;
-    this.info = await api.getCollectionLogInfo();
+    const [collectionLogInfo, collectionLogDuplicates] = await Promise.all([
+      fetch("/data/collection_log_info.json"),
+      fetch("/data/collection_log_duplicates.json"),
+    ]);
+
+    const duplicateMapping = await collectionLogDuplicates.json();
+    const reverseMapping = new Map();
+    for (const [itemId, dupeItemIds] of Object.entries(duplicateMapping)) {
+      for (const dupeItemId of dupeItemIds) {
+        if (reverseMapping.has(dupeItemId)) {
+          continue;
+        }
+        reverseMapping.set(dupeItemId, itemId);
+      }
+    }
+    this.info = await collectionLogInfo.json();
+    this.duplicateMapping = reverseMapping;
     this.pageItems = new Map();
 
     const uniqueItems = new Set();
