@@ -34,6 +34,8 @@ pub struct RenameGroupMember {
 
 #[derive(Deserialize, Serialize)]
 pub struct GroupMember {
+    #[serde(skip)]
+    pub group_id: Option<i64>,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stats: Option<Vec<i32>>,

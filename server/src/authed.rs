@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
 use serde::Deserialize;
 use std::collections::HashMap;
+use tokio::sync::mpsc;
 
 #[post("/add-group-member")]
 pub async fn add_group_member(
@@ -84,15 +85,19 @@ pub async fn rename_group_member(
 pub async fn update_group_member(
     auth: Authenticated,
     group_member: web::Json<GroupMember>,
-    db_pool: web::Data<Pool>
+    db_pool: web::Data<Pool>,
+    sender: web::Data<mpsc::Sender<GroupMember>>
 ) -> Result<HttpResponse, Error> {
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
-    if !in_group {
-
-        return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
+    {
+        let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+        let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
+        if !in_group {
+            return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
+        }
     }
-    let group_member_inner: GroupMember = group_member.into_inner();
+
+    let mut group_member_inner: GroupMember = group_member.into_inner();
+    group_member_inner.group_id = Some(auth.group_id);
 
     validate_member_prop_length("stats", &group_member_inner.stats, 7, 7)?;
     validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 4)?;
@@ -108,13 +113,10 @@ pub async fn update_group_member(
     validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
     validate_member_prop_length("collection_log_v2", &group_member_inner.collection_log_v2, 0, 4000)?;
 
-    db::update_group_member(
-        &client,
-        auth.group_id,
-        group_member_inner
-    )
-    .await?;
-    Ok(HttpResponse::Ok().finish())
+    match sender.send(group_member_inner).await {
+        Ok(_) => Ok(HttpResponse::Ok().finish()),
+        Err(_) => Ok(HttpResponse::InternalServerError().body("Failed to submit player update")),
+    }
 }
 
 #[derive(Deserialize)]

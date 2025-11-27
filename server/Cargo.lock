@@ -2117,6 +2117,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "futures",
+ "futures-util",
  "lazy_static",
  "log",
  "mimalloc",

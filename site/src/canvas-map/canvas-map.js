@@ -384,7 +384,7 @@ export class CanvasMap extends BaseElement {
     const groupedByPlane = [[], [], [], []];
     for (const tileMarker of markers) {
       if (this.isValidCoordinates(tileMarker?.coordinates)) {
-        groupedByPlane[tileMarker.coordinates.plane].push(tileMarker);
+        groupedByPlane[tileMarker.coordinates.plane]?.push(tileMarker);
       }
     }
 
@@ -506,7 +506,7 @@ export class CanvasMap extends BaseElement {
       for (let tileY = top; tileY > bottom; --tileY) {
         const i = this.cantor(tileX, tileY);
         const tileWorldY = tileY * imageSize;
-        if (this.validTiles && !this.validTiles[this.plane - 1].has(i)) {
+        if (this.validTiles && !this.validTiles[this.plane - 1]?.has(i)) {
           this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
           continue;
         }

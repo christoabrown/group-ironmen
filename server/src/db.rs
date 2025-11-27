@@ -192,7 +192,7 @@ pub async fn is_member_in_group(
     Ok(member_count > 0)
 }
 
-fn serialize_serde<T>(value: &Option<T>) -> Result<Option<String>, ApiError>
+pub fn serialize_serde<T>(value: &Option<T>) -> Result<Option<String>, ApiError>
 where
     T: Serialize,
 {
@@ -203,169 +203,6 @@ where
         }
         None => Ok(None),
     }
-}
-
-pub async fn update_group_member(
-    client: &Client,
-    group_id: i64,
-    group_member: GroupMember
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            r#"
-UPDATE groupironman.members SET
-  stats = COALESCE($1, stats),
-  stats_last_update = CASE WHEN $1 IS NULL THEN stats_last_update ELSE NOW() END,
-  coordinates = COALESCE($2, coordinates),
-  coordinates_last_update = CASE WHEN $2 IS NULL THEN coordinates_last_update ELSE NOW() END,
-  skills = COALESCE($3, skills),
-  skills_last_update = CASE WHEN $3 IS NULL THEN skills_last_update ELSE NOW() END,
-  quests = COALESCE($4, quests),
-  quests_last_update = CASE WHEN $4 IS NULL THEN quests_last_update ELSE NOW() END,
-  inventory = COALESCE($5, inventory),
-  inventory_last_update = CASE WHEN $5 IS NULL THEN inventory_last_update ELSE NOW() END,
-  equipment = COALESCE($6, equipment),
-  equipment_last_update = CASE WHEN $6 IS NULL THEN equipment_last_update ELSE NOW() END,
-  bank = COALESCE($7, bank),
-  bank_last_update = CASE WHEN $7 IS NULL THEN bank_last_update ELSE NOW() END,
-  rune_pouch = COALESCE($8, rune_pouch),
-  rune_pouch_last_update = CASE WHEN $8 IS NULL THEN rune_pouch_last_update ELSE NOW() END,
-  interacting = COALESCE($9, interacting),
-  interacting_last_update = CASE WHEN $9 IS NULL THEN interacting_last_update ELSE NOW() END,
-  seed_vault = COALESCE($10, seed_vault),
-  seed_vault_last_update = CASE WHEN $10 IS NULL THEN seed_vault_last_update ELSE NOW() END,
-  diary_vars = COALESCE($11, diary_vars),
-  diary_vars_last_update = CASE WHEN $11 IS NULL THEN diary_vars_last_update ELSE NOW() END,
-  collection_log = COALESCE($12, collection_log),
-  collection_log_last_update = CASE WHEN $12 IS NULL THEN collection_log_last_update ELSE NOW() END
-  WHERE group_id=$13 AND member_name=$14
-"#,
-        )
-        .await?;
-
-    client
-        .execute(
-            &stmt,
-            &[
-                &group_member.stats,
-                &group_member.coordinates,
-                &group_member.skills,
-                &group_member.quests,
-                &group_member.inventory,
-                &group_member.equipment,
-                &group_member.bank,
-                &group_member.rune_pouch,
-                &serialize_serde(&group_member.interacting)?,
-                &group_member.seed_vault,
-                &group_member.diary_vars,
-                &group_member.collection_log_v2,
-                &group_id,
-                &group_member.name
-            ],
-        )
-        .await
-        .map_err(ApiError::UpdateGroupMemberError)?;
-
-    // Merge deposited items into bank
-    match group_member.deposited {
-        Some(deposited) => {
-            deposit_items(client, group_id, &group_member.name, deposited).await?;
-        }
-        None => (),
-    }
-
-    // Update shared bank
-    match group_member.shared_bank {
-        Some(shared_bank) => {
-            let stmt = client
-                .prepare_cached(
-                    r#"
-UPDATE groupironman.members SET
-bank=$1, bank_last_update=NOW()
-WHERE group_id=$2 AND member_name=$3"#,
-                )
-                .await?;
-
-            client
-                .execute(&stmt, &[&shared_bank, &group_id, &SHARED_MEMBER])
-                .await
-                .map_err(ApiError::UpdateGroupMemberError)?;
-        }
-        None => (),
-    }
-
-    Ok(())
-}
-
-pub async fn deposit_items(
-    client: &Client,
-    group_id: i64,
-    member_name: &str,
-    deposited: Vec<i32>,
-) -> Result<(), ApiError> {
-    if deposited.is_empty() {
-        return Ok(());
-    }
-
-    let get_bank_stmt = client
-        .prepare_cached(
-            "SELECT bank FROM groupironman.members WHERE group_id=$1 AND member_name=$2",
-        )
-        .await?;
-    let row = client
-        .query_one(&get_bank_stmt, &[&group_id, &member_name])
-        .await
-        .map_err(ApiError::UpdateGroupMemberError)?;
-
-    let opt_bank: Option<Vec<i32>> = row.try_get("bank").ok();
-
-    // Merge the deposited items into the bank data
-    match opt_bank {
-        Some(mut bank) => {
-            let mut deposited_map = HashMap::new();
-            for i in (0..deposited.len()).step_by(2) {
-                deposited_map.insert(deposited[i], deposited[i + 1]);
-            }
-
-            // Add the quantity of a deposited item to an item already in the bank
-            for i in (0..bank.len()).step_by(2) {
-                let item_id = bank[i];
-                if deposited_map.contains_key(&item_id) {
-                    bank[i + 1] += deposited_map.get(&item_id).unwrap_or(&0);
-                    deposited_map.remove(&item_id);
-                }
-            }
-
-            // Add the rest of the deposted items as new items into the bank
-            for id in deposited_map.keys() {
-                if *id == 0 {
-                    continue;
-                }
-
-                let quantity = *deposited_map.get(id).unwrap_or(&0);
-
-                if quantity > 0 {
-                    bank.push(*id);
-                    bank.push(quantity);
-                }
-            }
-
-            let update_bank_stmt = client
-                .prepare_cached(
-                    r#"
-UPDATE groupironman.members SET bank=$1, bank_last_update=NOW() WHERE group_id=$2 AND member_name=$3
-"#,
-                )
-                .await?;
-            client
-                .execute(&update_bank_stmt, &[&bank, &group_id, &member_name])
-                .await
-                .map_err(ApiError::UpdateGroupMemberError)?;
-        }
-        None => (),
-    }
-
-    Ok(())
 }
 
 pub async fn get_group(client: &Client, group_name: &str, token: &str) -> Result<i64, ApiError> {
@@ -431,6 +268,7 @@ FROM groupironman.members WHERE group_id=$2
         let member_name = row.try_get("member_name")?;
         let last_updated: Option<DateTime<Utc>> = row.try_get("last_updated").ok();
         let group_member = GroupMember {
+            group_id: Some(group_id),
             name: member_name,
             last_updated,
             stats: row.try_get("stats").ok(),
@@ -1081,6 +919,56 @@ WHERE a.member_id=b.member_id
         commit_migration(&transaction, "migrate_collection_log_v2").await?;
         transaction.commit().await?;
         println!("finished migration migrate_collection_log_v2");
+    }
+
+    if !has_migration_run(client, "update_timestamp_triggers").await? {
+        let transaction = client.transaction().await?;
+
+        let names = vec![
+            "stats",
+            "coordinates",
+            "skills",
+            "quests",
+            "inventory",
+            "equipment",
+            "bank",
+            "rune_pouch",
+            "interacting",
+            "seed_vault",
+            "diary_vars",
+            "collection_log"
+        ];
+
+        for name in names {
+            let create_update_timestamp_fn = format!(r#"
+CREATE OR REPLACE FUNCTION groupironman.update_{}_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.{}_last_update = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+"#, name, name);
+            transaction.execute(&create_update_timestamp_fn, &[]).await?;
+
+            let trigger_stmt = format!(r#"
+DO
+$$BEGIN
+  CREATE TRIGGER set_{}_timestamp
+  BEFORE UPDATE ON groupironman.members
+  FOR EACH ROW
+  WHEN (OLD.{} IS DISTINCT FROM NEW.{})
+  EXECUTE FUNCTION groupironman.update_{}_timestamp();
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END;$$;
+"#, name, name, name, name);
+            transaction.execute(&trigger_stmt, &[]).await?;
+        }
+
+        commit_migration(&transaction, "update_timestamp_triggers").await?;
+        transaction.commit().await?;
     }
 
     Ok(())

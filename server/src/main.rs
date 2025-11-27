@@ -8,12 +8,14 @@ mod error;
 mod models;
 mod unauthed;
 mod validators;
+mod update_batcher;
 use crate::auth_middleware::AuthenticateMiddlewareFactory;
 use crate::config::Config;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
 use tokio_postgres::NoTls;
+use tokio::sync::mpsc;
 
 use mimalloc::MiMalloc;
 
@@ -33,6 +35,12 @@ async fn main() -> std::io::Result<()> {
 
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());
+
+    let update_batcher_pool = config.pg.create_pool(None, NoTls).unwrap();
+    let (tx, rx) = mpsc::channel::<models::GroupMember>(10000);
+    tokio::spawn(async move {
+        update_batcher::background_worker(update_batcher_pool, rx).await;
+    });
 
     HttpServer::new(move || {
         let unauthed_scope = web::scope("/api")
@@ -73,6 +81,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(tx.clone()))
             .service(authed_scope)
             .service(unauthed_scope)
     })
