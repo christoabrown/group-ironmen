@@ -76,10 +76,11 @@ class CollectionLog {
     const reverseMapping = new Map();
     for (const [itemId, dupeItemIds] of Object.entries(duplicateMapping)) {
       for (const dupeItemId of dupeItemIds) {
-        if (reverseMapping.has(dupeItemId)) {
+        const a = parseInt(dupeItemId, 10);
+        if (reverseMapping.has(a)) {
           continue;
         }
-        reverseMapping.set(dupeItemId, itemId);
+        reverseMapping.set(a, parseInt(itemId, 10));
       }
     }
     this.info = await collectionLogInfo.json();
