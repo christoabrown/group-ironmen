@@ -627,116 +627,6 @@ ON CONFLICT (type) DO NOTHING
         transaction.commit().await?;
     }
 
-//     if !has_migration_run(client, "add_collection_log").await? {
-//         let transaction = client.transaction().await?;
-
-//         transaction
-//             .execute(
-//                 r#"
-// CREATE TABLE IF NOT EXISTS groupironman.collection_tab (
-//     tab_id SMALLSERIAL PRIMARY KEY,
-//     name TEXT NOT NULL
-// )
-// "#,
-//                 &[],
-//             )
-//             .await?;
-//         transaction
-//             .execute(
-//                 r#"
-// INSERT INTO groupironman.collection_tab (tab_id, name) VALUES
-//     (0, 'Bosses'),
-//     (1, 'Raids'),
-//     (2, 'Clues'),
-//     (3, 'Minigames'),
-//     (4, 'Other')
-// ON CONFLICT (tab_id) DO NOTHING
-// "#,
-//                 &[],
-//             )
-//             .await?;
-
-//         transaction
-//             .execute(
-//                 r#"
-// CREATE TABLE IF NOT EXISTS groupironman.collection_page (
-//     page_id SMALLSERIAL PRIMARY KEY,
-//     tab_id SMALLSERIAL REFERENCES groupironman.collection_tab(tab_id),
-//     page_name TEXT NOT NULL,
-
-//     UNIQUE(tab_id, page_name)
-// )
-// "#,
-//                 &[],
-//             )
-//             .await?;
-
-//         for tab in COLLECTION_LOG_INFO.iter() {
-//             for page in tab.pages.iter() {
-//                 transaction
-//                     .execute(
-//                         r#"
-// INSERT INTO groupironman.collection_page (tab_id, page_name) VALUES ($1, $2)
-// ON CONFLICT (tab_id, page_name) DO NOTHING
-// "#,
-//                         &[&tab.tabId, &page.name],
-//                     )
-//                     .await?;
-//             }
-//         }
-
-//         transaction
-//             .execute(
-//                 r#"
-// CREATE TABLE IF NOT EXISTS groupironman.collection_log (
-//     member_id BIGSERIAL REFERENCES groupironman.members(member_id),
-//     page_id SMALLSERIAL REFERENCES groupironman.collection_page(page_id),
-//     items INTEGER[],
-//     counts INTEGER[],
-//     last_updated TIMESTAMPTZ,
-
-
-//     PRIMARY KEY (member_id, page_id)
-// )
-// "#,
-//                 &[],
-//             )
-//             .await?;
-
-//         transaction
-//             .execute(
-//                 r#"
-// CREATE TABLE IF NOT EXISTS groupironman.collection_log_new (
-//     member_id BIGSERIAL REFERENCES groupironman.members(member_id),
-//     page_id SMALLSERIAL REFERENCES groupironman.collection_page(page_id),
-//     new_items INTEGER[],
-//     last_updated TIMESTAMPTZ,
-
-
-//     PRIMARY KEY (member_id, page_id)
-// )
-// "#,
-//                 &[],
-//             )
-//             .await?;
-
-//         transaction
-//             .execute(
-//                 r#"
-// DROP TABLE IF EXISTS groupironman.collection_items;
-// "#,
-//                 &[],
-//             )
-//             .await?;
-
-//         // Adding group id column to collection_log table so we can query the whole group's log
-//         add_group_id_column(&transaction, "collection_log").await?;
-//         add_group_id_column(&transaction, "collection_log_new").await?;
-
-//         commit_migration(&transaction, "add_collection_log").await?;
-//         transaction.commit().await?;
-//     }
-
     if !has_migration_run(client, "member_name_citext").await? {
         let transaction = client.transaction().await?;
 
@@ -823,26 +713,6 @@ ORDER BY GREATEST(
         transaction.commit().await?;
     }
 
-//     {
-//         let transaction = client.transaction().await?;
-
-//         for tab in COLLECTION_LOG_INFO.iter() {
-//             for page in tab.pages.iter() {
-//                 transaction
-//                     .execute(
-//                         r#"
-// INSERT INTO groupironman.collection_page (tab_id, page_name) VALUES ($1, $2)
-// ON CONFLICT (tab_id, page_name) DO NOTHING
-// "#,
-//                         &[&tab.tabId, &page.name],
-//                     )
-//                     .await?;
-//             }
-//         }
-
-//         transaction.commit().await?;
-//     }
-
     if !has_migration_run(client, "add_collection_log_member_column").await? {
         let transaction = client.transaction().await?;
         transaction
@@ -859,7 +729,7 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
         transaction.commit().await?;
     }
 
-    if !has_migration_run(client, "migrate_collection_log_v2").await? {
+    if !has_migration_run(client, "migrate_collection_log_v2").await?  && has_migration_run(client, "add_collection_log").await?{
         println!("beginning migration migrate_collection_log_v2");
         let transaction = client.transaction().await?;
 
