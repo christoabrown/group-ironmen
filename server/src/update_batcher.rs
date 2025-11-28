@@ -8,17 +8,58 @@ use tokio_postgres::types::Type;
 use tokio::sync::mpsc;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use crate::error::ApiError;
+use tokio::time::{self, Instant, Duration};
 
-static BATCH_SIZE: usize = 10000;
-static CHUNK_SIZE: usize = 100;
+static BATCH_SIZE: usize = 5000;
+static CHUNK_SIZE: usize = 50;
 
 pub async fn background_worker(pool: Pool, mut rx: mpsc::Receiver<GroupMember>) {
+    let batch_timeout = Duration::from_millis(50);
+
     loop {
         let mut buffer: Vec<GroupMember> = Vec::with_capacity(BATCH_SIZE);
-        let result = rx.recv_many(&mut buffer, BATCH_SIZE).await;
 
-        if result == 0 {
-            break;
+        match rx.recv().await {
+            Some(item) => {
+                buffer.push(item);
+            },
+            None => {
+                break;
+            }
+        }
+
+        let timeout_at = Instant::now() + batch_timeout;
+
+        loop {
+            let remaining_time = timeout_at.saturating_duration_since(Instant::now());
+            if remaining_time.is_zero() || buffer.len() >= BATCH_SIZE {
+                break;
+            }
+
+            let sleep = time::sleep(remaining_time);
+
+            tokio::select! {
+                item = rx.recv() => {
+                    match item {
+                        Some(data) => {
+                            buffer.push(data);
+                            if buffer.len() >= BATCH_SIZE {
+                                break;
+                            }
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                },
+                _ = sleep => {
+                    break;
+                }
+            }
+        }
+
+        if buffer.is_empty() {
+            continue;
         }
 
         // Filter out duplicate member updates to avoid deadlocks
