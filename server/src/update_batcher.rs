@@ -155,7 +155,7 @@ FROM (VALUES {}) AS b(
   diary_vars,
   collection_log
 )
-WHERE a.group_id=b.group_id AND a.member_name=b.member_name
+WHERE a.group_id=b.group_id AND a.member_name=b.member_name::citext
 "#, values_clause);
 
     statement
@@ -173,7 +173,7 @@ lazy_static! {
     };
     pub static ref VALUE_CASTS: Vec<Type> = vec![
         Type::INT8, // group_id
-        Type::TEXT, // member_name
+        Type::UNKNOWN, // member_name
         Type::INT4_ARRAY, // stats
         Type::INT4_ARRAY, // coordinates
         Type::INT4_ARRAY, // skills

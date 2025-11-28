@@ -729,7 +729,7 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
         transaction.commit().await?;
     }
 
-    if !has_migration_run(client, "migrate_collection_log_v2").await?  && has_migration_run(client, "add_collection_log").await?{
+    if !has_migration_run(client, "migrate_collection_log_v2").await? && has_migration_run(client, "add_collection_log").await? {
         println!("beginning migration migrate_collection_log_v2");
         let transaction = client.transaction().await?;
 
