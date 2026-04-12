@@ -1,5 +1,5 @@
 import { pubsub } from "./pubsub";
-import { MemberData } from "./member-data";
+import { MemberData, memberInventoryFields } from "./member-data";
 import { Item } from "./item";
 import { SkillName } from "./skill";
 import { QuestState, Quest } from "./quest";
@@ -58,12 +58,7 @@ export class GroupData {
       }
     }
 
-    let receivedItemData =
-      updatedAttributes.has("inventory") ||
-      updatedAttributes.has("bank") ||
-      updatedAttributes.has("equipment") ||
-      updatedAttributes.has("runePouch") ||
-      updatedAttributes.has("seedVault");
+    const receivedItemData = memberInventoryFields.some((fieldName) => updatedAttributes.has(fieldName));
 
     const encounteredItemIds = new Set();
     if (receivedItemData) {
@@ -300,16 +295,9 @@ export class GroupData {
 
   transformFromStorage(groupData) {
     for (const memberData of groupData) {
-      memberData.inventory = GroupData.transformItemsFromStorage(memberData.inventory);
-      memberData.bank = GroupData.transformItemsFromStorage(memberData.bank);
-      memberData.equipment = GroupData.transformItemsFromStorage(memberData.equipment);
-      memberData.rune_pouch = GroupData.transformItemsFromStorage(memberData.rune_pouch);
-      memberData.seed_vault = GroupData.transformItemsFromStorage(memberData.seed_vault);
-      memberData.skills = GroupData.transformSkillsFromStorage(memberData.skills);
-      memberData.stats = GroupData.transformStatsFromStorage(memberData.stats);
-      memberData.coordinates = GroupData.transformCoordinatesFromStorage(memberData.coordinates);
-      memberData.quests = GroupData.transformQuestsFromStorage(memberData.quests);
-      memberData.collection_log_v2 = GroupData.transformItemsFromStorage(memberData.collection_log_v2);
+      for (const [fieldName, transform] of storageFieldTransformers) {
+        memberData[fieldName] = transform(memberData[fieldName]);
+      }
 
       if (memberData.interacting) {
         memberData.interacting.location = GroupData.transformCoordinatesFromStorage([
@@ -321,6 +309,20 @@ export class GroupData {
     }
   }
 }
+
+const storageFieldTransformers = [
+  ["inventory", GroupData.transformItemsFromStorage],
+  ["bank", GroupData.transformItemsFromStorage],
+  ["equipment", GroupData.transformItemsFromStorage],
+  ["rune_pouch", GroupData.transformItemsFromStorage],
+  ["seed_vault", GroupData.transformItemsFromStorage],
+  ["skills", GroupData.transformSkillsFromStorage],
+  ["stats", GroupData.transformStatsFromStorage],
+  ["coordinates", GroupData.transformCoordinatesFromStorage],
+  ["quests", GroupData.transformQuestsFromStorage],
+  ["collection_log_v2", GroupData.transformItemsFromStorage],
+];
+
 const groupData = new GroupData();
 
 export { groupData };

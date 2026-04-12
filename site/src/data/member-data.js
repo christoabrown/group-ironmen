@@ -14,16 +14,85 @@ const playerColors = [
 ];
 let currentColor = 0;
 
+export const memberInventoryFields = ["bank", "inventory", "equipment", "runePouch", "seedVault"];
+
+const parsedFieldMappings = [
+  {
+    sourceKey: "stats",
+    targetKey: "stats",
+    parser: (value) => value,
+    publishKey: "stats",
+    updatedAttribute: "stats",
+  },
+  {
+    sourceKey: "quests",
+    targetKey: "quests",
+    parser: Quest.parseQuestData,
+    publishKey: "quests",
+    updatedAttribute: "quests",
+  },
+  {
+    sourceKey: "diary_vars",
+    targetKey: "diaries",
+    parser: AchievementDiary.parseDiaryData,
+    publishKey: "diaries",
+    updatedAttribute: "diaries",
+  },
+  {
+    sourceKey: "collection_log_v2",
+    targetKey: "collectionLog",
+    parser: Item.parseItemData,
+    publishKey: "collection_log_v2",
+    publishValueKey: "collectionLog",
+    updatedAttribute: "collection_log_v2",
+  },
+];
+
+const itemFieldMappings = [
+  {
+    sourceKey: "inventory",
+    targetKey: "inventory",
+    inventoryName: "inventory",
+    publishKey: "inventory",
+    updatedAttribute: "inventory",
+  },
+  {
+    sourceKey: "equipment",
+    targetKey: "equipment",
+    inventoryName: "equipment",
+    publishKey: "equipment",
+    updatedAttribute: "equipment",
+  },
+  {
+    sourceKey: "bank",
+    targetKey: "bank",
+    inventoryName: "bank",
+    publishKey: "bank",
+    updatedAttribute: "bank",
+  },
+  {
+    sourceKey: "rune_pouch",
+    targetKey: "runePouch",
+    inventoryName: "runePouch",
+    publishKey: "runePouch",
+    updatedAttribute: "runePouch",
+  },
+  {
+    sourceKey: "seed_vault",
+    targetKey: "seedVault",
+    inventoryName: "seedVault",
+    publishKey: "seedVault",
+    updatedAttribute: "seedVault",
+  },
+];
+
 export class MemberData {
   constructor(name) {
     this.name = name;
-    this.itemQuantities = {
-      bank: new Map(),
-      inventory: new Map(),
-      equipment: new Map(),
-      runePouch: new Map(),
-      seedVault: new Map(),
-    };
+    this.itemQuantities = {};
+    for (const inventoryField of memberInventoryFields) {
+      this.itemQuantities[inventoryField] = new Map();
+    }
     this.inactive = false;
 
     this.color = playerColors[currentColor];
@@ -35,10 +104,8 @@ export class MemberData {
   update(memberData) {
     let updatedAttributes = new Set();
 
-    if (memberData.stats) {
-      this.stats = memberData.stats;
-      this.publishUpdate("stats");
-      updatedAttributes.add("stats");
+    for (const field of parsedFieldMappings) {
+      this.applyParsedFieldUpdate(memberData, field, updatedAttributes);
     }
 
     if (memberData.last_updated) {
@@ -61,12 +128,6 @@ export class MemberData {
       updatedAttributes.add("coordinates");
     }
 
-    if (memberData.quests) {
-      this.quests = Quest.parseQuestData(memberData.quests);
-      this.publishUpdate("quests");
-      updatedAttributes.add("quests");
-    }
-
     if (memberData.skills) {
       const previousSkills = this.skills;
       this.skills = Skill.parseSkillData(memberData.skills);
@@ -77,75 +138,52 @@ export class MemberData {
       this.computeCombatLevel();
     }
 
-    if (memberData.inventory) {
-      this.inventory = Item.parseItemData(memberData.inventory);
-      this.updateItemQuantitiesIn("inventory");
-      this.publishUpdate("inventory");
-      updatedAttributes.add("inventory");
+    for (const field of itemFieldMappings) {
+      this.applyItemFieldUpdate(memberData, field, updatedAttributes);
     }
 
-    if (memberData.equipment) {
-      this.equipment = Item.parseItemData(memberData.equipment);
-      this.updateItemQuantitiesIn("equipment");
-      this.publishUpdate("equipment");
-      updatedAttributes.add("equipment");
-    }
-
-    if (memberData.bank) {
-      this.bank = Item.parseItemData(memberData.bank);
-      this.updateItemQuantitiesIn("bank");
-      this.publishUpdate("bank");
-      updatedAttributes.add("bank");
-    }
-
-    if (memberData.rune_pouch) {
-      this.runePouch = Item.parseItemData(memberData.rune_pouch);
-      this.updateItemQuantitiesIn("runePouch");
-      this.publishUpdate("runePouch");
-      updatedAttributes.add("runePouch");
-    }
-
-    if (memberData.interacting) {
-      memberData.interacting.name = utility.removeTags(memberData.interacting.name);
-      this.interacting = memberData.interacting;
-      this.publishUpdate("interacting");
-      updatedAttributes.add("interacting");
-    }
-
-    if (memberData.seed_vault) {
-      this.seedVault = Item.parseItemData(memberData.seed_vault);
-      this.updateItemQuantitiesIn("seedVault");
-      this.publishUpdate("seedVault");
-      updatedAttributes.add("seedVault");
-    }
-
-    if (memberData.diary_vars) {
-      this.diaries = AchievementDiary.parseDiaryData(memberData.diary_vars);
-      this.publishUpdate("diaries");
-      updatedAttributes.add("diaries");
-    }
-
-    if (memberData.collection_log_v2) {
-      this.collectionLog = Item.parseItemData(memberData.collection_log_v2);
-      this.publishUpdate("collection_log_v2");
-      updatedAttributes.add("collection_log_v2");
-    }
+    this.applyInteractingUpdate(memberData, updatedAttributes);
 
     return updatedAttributes;
   }
 
-  publishUpdate(attributeName) {
-    pubsub.publish(`${attributeName}:${this.name}`, this[attributeName], this);
+  applyParsedFieldUpdate(memberData, field, updatedAttributes) {
+    if (!memberData[field.sourceKey]) return;
+    this[field.targetKey] = field.parser(memberData[field.sourceKey]);
+    this.publishUpdate(field.publishKey, field.publishValueKey);
+    updatedAttributes.add(field.updatedAttribute);
+  }
+
+  applyItemFieldUpdate(memberData, field, updatedAttributes) {
+    if (!memberData[field.sourceKey]) return;
+    this[field.targetKey] = Item.parseItemData(memberData[field.sourceKey]);
+    this.updateItemQuantitiesIn(field.inventoryName);
+    this.publishUpdate(field.publishKey);
+    updatedAttributes.add(field.updatedAttribute);
+  }
+
+  applyInteractingUpdate(memberData, updatedAttributes) {
+    if (!Object.hasOwn(memberData, "interacting")) return;
+
+    if (memberData.interacting) {
+      memberData.interacting.name = utility.removeTags(memberData.interacting.name);
+    }
+
+    this.interacting = memberData.interacting;
+    this.publishUpdate("interacting");
+    updatedAttributes.add("interacting");
+  }
+
+  publishUpdate(attributeName, publishValueKey = attributeName) {
+    pubsub.publish(`${attributeName}:${this.name}`, this[publishValueKey], this);
   }
 
   totalItemQuantity(itemId) {
-    return (
-      (this.itemQuantities.bank.get(itemId) || 0) +
-      (this.itemQuantities.equipment.get(itemId) || 0) +
-      (this.itemQuantities.inventory.get(itemId) || 0) +
-      (this.itemQuantities.runePouch.get(itemId) || 0) +
-      (this.itemQuantities.seedVault.get(itemId) || 0)
-    );
+    let total = 0;
+    for (const inventoryField of memberInventoryFields) {
+      total += this.itemQuantities[inventoryField].get(itemId) || 0;
+    }
+    return total;
   }
 
   updateItemQuantitiesIn(inventoryName) {
@@ -158,7 +196,7 @@ export class MemberData {
 
   *allItems() {
     const yieldedIds = new Set();
-    for (const item of this.itemsIn("inventory", "bank", "equipment", "runePouch", "seedVault")) {
+    for (const item of this.itemsIn(...memberInventoryFields)) {
       if (!yieldedIds.has(item.id)) {
         yieldedIds.add(item.id);
         yield item;
@@ -198,6 +236,10 @@ export class MemberData {
 
   computeCombatLevel() {
     const s = 0.325;
+    const relevantSkillNames = ["Defence", "Hitpoints", "Prayer", "Attack", "Strength", "Ranged", "Magic"];
+    const hasAllSkills = relevantSkillNames.every((skillName) => typeof this.skills?.[skillName]?.level === "number");
+    if (!hasAllSkills) return;
+
     const defence = Math.min(this.skills.Defence.level, 99);
     const hitpoints = Math.min(this.skills.Hitpoints.level, 99);
     const prayer = Math.min(this.skills.Prayer.level, 99);
@@ -220,6 +262,8 @@ export class MemberData {
   }
 
   hasQuestComplete(questName) {
+    if (!Quest.lookupByName || !this.quests) return false;
+
     const questId = Quest.lookupByName.get(questName);
 
     if (!questId) {
