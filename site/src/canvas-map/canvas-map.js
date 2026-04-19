@@ -80,16 +80,33 @@ export class CanvasMap extends BaseElement {
     this.getMapJson();
     this.update = this._update.bind(this);
     this.requestUpdate();
-    window.requestAnimationFrame(this.update);
+    if (this.frameRequestId) {
+      window.cancelAnimationFrame(this.frameRequestId);
+    }
+    this.frameRequestId = window.requestAnimationFrame(this.update);
   }
 
   disconnectedCallback() {
+    if (this.frameRequestId) {
+      window.cancelAnimationFrame(this.frameRequestId);
+      this.frameRequestId = null;
+    }
     super.disconnectedCallback();
   }
 
   async getMapJson() {
-    const response = await fetch("/data/map.json");
-    const data = await response.json();
+    let data;
+    try {
+      const response = await fetch("/data/map.json");
+      if (!response.ok) {
+        throw new Error(`failed to fetch map.json (${response.status})`);
+      }
+      data = await response.json();
+    } catch (ex) {
+      console.error("failed to load map data", ex);
+      return;
+    }
+
     this.validTiles = [];
     for (const x of data.tiles) {
       this.validTiles.push(new Set(x));
@@ -209,6 +226,10 @@ export class CanvasMap extends BaseElement {
     this.updateRequested = 1;
   }
 
+  coordinateKey(x, y) {
+    return `${x},${y}`;
+  }
+
   cantor(x, y) {
     return ((x + y) * (x + y + 1)) / 2 + y;
   }
@@ -315,7 +336,12 @@ export class CanvasMap extends BaseElement {
     }
 
     this.updateRequested = doAnotherUpdate ? Math.max(1, this.updateRequested) : this.updateRequested;
-    window.requestAnimationFrame(this.update);
+    if (!this.isConnected) {
+      this.frameRequestId = null;
+      return;
+    }
+
+    this.frameRequestId = window.requestAnimationFrame(this.update);
   }
 
   addInteractingMarker(x, y, label) {
@@ -347,11 +373,11 @@ export class CanvasMap extends BaseElement {
   drawLabels(labels, fillColor, strokeColor, position) {
     const groupedByTile = new Map();
     for (const label of labels) {
-      const x = this.cantor(label.x, label.y);
-      if (!groupedByTile.has(x)) {
-        groupedByTile.set(x, []);
+      const key = this.coordinateKey(label.x, label.y);
+      if (!groupedByTile.has(key)) {
+        groupedByTile.set(key, []);
       }
-      groupedByTile.get(x).push(label);
+      groupedByTile.get(key).push(label);
     }
 
     this.ctx.fillStyle = fillColor;
@@ -459,7 +485,7 @@ export class CanvasMap extends BaseElement {
             const [x, y] = this.gamePositionToCanvas(labels[i], labels[i + 1]);
             const labelId = labels[i + 2];
 
-            const key = this.cantor(x, y);
+            const key = this.coordinateKey(x, y);
             let mapLabelImage = this.mapLabelImages.get(key);
             if (!mapLabelImage && loadNewImages) {
               mapLabelImage = new Image();
@@ -703,8 +729,9 @@ export class CanvasMap extends BaseElement {
       this.cursor.dy = utility.average(this.cursor.frameY) || 0;
     }
 
-    this.cursor.x = x - this.canvas.offsetTop;
-    this.cursor.y = y - this.canvas.offsetLeft;
+    const canvasRect = this.canvas.getBoundingClientRect();
+    this.cursor.x = x - canvasRect.left;
+    this.cursor.y = y - canvasRect.top;
     this.cursor.tileX = Math.floor((this.cursor.x + this.camera.x.current) / this.tileSize / this.camera.zoom.current);
     this.cursor.tileY = Math.floor(
       (this.camera.y.current - this.cursor.y + this.tileSize) / this.tileSize / this.camera.zoom.current
