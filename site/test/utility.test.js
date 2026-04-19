@@ -42,4 +42,27 @@ describe("utility", () => {
     expect(utility.removeTags("<b>Rune</b> scimitar")).toBe("Rune scimitar");
     expect(utility.removeTags(undefined)).toBeUndefined();
   });
+
+  it("compares sets for equality", () => {
+    expect(utility.setsEqual(new Set([1, 2]), new Set([2, 1]))).toBe(true);
+    expect(utility.setsEqual(new Set([1, 2]), new Set([1]))).toBe(false);
+    expect(utility.setsEqual(undefined, new Set([1]))).toBe(false);
+  });
+
+  it("checks whether a bit is set", () => {
+    expect(utility.isBitSet(0b0101, 0)).toBe(true);
+    expect(utility.isBitSet(0b0101, 1)).toBe(false);
+    expect(utility.isBitSet(0b0101, 2)).toBe(true);
+  });
+
+  it("computes array average", () => {
+    expect(utility.average([2, 4, 6, 8])).toBe(5);
+  });
+
+  it("calculates time since last update", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:10.000Z"));
+
+    expect(utility.timeSinceLastUpdate("2026-01-01T00:00:00.000Z")).toBe(10000);
+  });
 });
