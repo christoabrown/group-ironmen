@@ -33,7 +33,7 @@ class Router {
   }
 
   unregister(path) {
-    this.registeredRoute.delete(path);
+    this.registeredRoutes.delete(path);
   }
 
   get location() {
