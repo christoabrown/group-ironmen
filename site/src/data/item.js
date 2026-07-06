@@ -84,6 +84,7 @@ export class Item {
 
       if (!Item.itemDetails[data[i].id]) {
         console.warn(`Unrecognized item id: ${data[i].id}`);
+        result.push(new Item(0, 0));
         continue;
       }
 
