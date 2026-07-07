@@ -37,7 +37,7 @@ describe("item", () => {
     expect(Item.imageUrl(4151, 10)).toBe("/icons/items/4152.webp");
   });
 
-  it("parses item payloads while skipping unknown ids", () => {
+  it("parses item payloads replacing unknown ids with placeholders", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const parsed = Item.parseItemData([
@@ -46,11 +46,13 @@ describe("item", () => {
       { id: 4151, quantity: 2 },
     ]);
 
-    expect(parsed).toHaveLength(2);
+    expect(parsed).toHaveLength(3);
     expect(parsed[0].id).toBe(0);
     expect(parsed[0].quantity).toBe(0);
-    expect(parsed[1].id).toBe(4151);
-    expect(parsed[1].quantity).toBe(2);
+    expect(parsed[1].id).toBe(0);
+    expect(parsed[1].quantity).toBe(0);
+    expect(parsed[2].id).toBe(4151);
+    expect(parsed[2].quantity).toBe(2);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
