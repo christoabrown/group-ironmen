@@ -134,7 +134,7 @@
           },
           {
             "id": 29784,
-            "name": "Araxyte venom sack"
+            "name": "Araxyte venom sac"
           },
           {
             "id": 29782,
@@ -795,6 +795,10 @@
           {
             "id": 7416,
             "name": "Mole claw"
+          },
+          {
+            "id": 33382,
+            "name": "Immaculate mole skin"
           }
         ]
       },
@@ -1114,6 +1118,27 @@
           {
             "id": 28334,
             "name": "Awakener\u0027s orb"
+          }
+        ]
+      },
+      {
+        "name": "Maggot King",
+        "completion_labels": [
+          "Personal Best",
+          "Nex kills"
+        ],
+        "items": [
+          {
+            "id": 33642,
+            "name": "Maggot marquess"
+          },
+          {
+            "id": 33631,
+            "name": "Crimson kisten"
+          },
+          {
+            "id": 33634,
+            "name": "Elder venator fang"
           }
         ]
       },
@@ -6527,6 +6552,10 @@
           {
             "id": 33124,
             "name": "Beef"
+          },
+          {
+            "id": 33642,
+            "name": "Maggot marquess"
           }
         ]
       },
@@ -7141,6 +7170,10 @@
           {
             "id": 33143,
             "name": "Ballistic attractor schematic"
+          },
+          {
+            "id": 33423,
+            "name": "Bosun\u0027s workbench schematic"
           }
         ]
       },
@@ -8272,6 +8305,20 @@
           {
             "id": 21304,
             "name": "Obsidian platelegs"
+          }
+        ]
+      },
+      {
+        "name": "Venators",
+        "completion_labels": [],
+        "items": [
+          {
+            "id": 33663,
+            "name": "Venator tooth"
+          },
+          {
+            "id": 33661,
+            "name": "Venator fang"
           }
         ]
       },
