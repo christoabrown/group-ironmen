@@ -3,10 +3,6 @@ import { utility } from "../utility";
 import { Animation } from "./animation";
 
 export class CanvasMap extends BaseElement {
-  constructor() {
-    super();
-  }
-
   html() {
     return `{{canvas-map.html}}`;
   }
@@ -20,8 +16,8 @@ export class CanvasMap extends BaseElement {
     this.ctx = this.canvas.getContext("2d", { alpha: true });
     this.eventListener(this, "mousedown", this.onPointerDown.bind(this));
     this.eventListener(this, "touchstart", this.onTouchStart.bind(this));
-    this.eventListener(this, "mouseup", this.onPointerUp.bind(this));
-    this.eventListener(this, "touchend", this.onPointerUp.bind(this));
+    this.eventListener(this, "mouseup", this.stopDragging.bind(this));
+    this.eventListener(this, "touchend", this.stopDragging.bind(this));
     this.eventListener(this, "mousemove", this.onPointerMove.bind(this));
     this.eventListener(this, "touchmove", this.onTouchMove.bind(this));
     this.eventListener(this, "wheel", this.onScroll.bind(this));
@@ -69,9 +65,7 @@ export class CanvasMap extends BaseElement {
       frameX: [0],
       frameY: [0],
     };
-    this.touch = {
-      pinchDistance: 0,
-    };
+    this.touch = {};
 
     const [startX, startY] = this.gamePositionToCameraCenter(3103, 3095);
     this.camera.x.goTo(startX, 1);
@@ -112,31 +106,8 @@ export class CanvasMap extends BaseElement {
       this.validTiles.push(new Set(x));
     }
 
-    this.locations = {};
-    for (const tileRegionX of Object.keys(data.icons)) {
-      const x = parseInt(tileRegionX);
-      this.locations[x] = {};
-      for (const tileRegionY of Object.keys(data.icons[tileRegionX])) {
-        const y = parseInt(tileRegionY);
-        this.locations[x][y] = {};
-        for (const spriteIndex of Object.keys(data.icons[tileRegionX][tileRegionY])) {
-          this.locations[x][y][parseInt(spriteIndex)] = data.icons[tileRegionX][tileRegionY][spriteIndex];
-        }
-      }
-    }
-
-    this.mapLabels = {};
-    for (const tileRegionX of Object.keys(data.labels)) {
-      const x = parseInt(tileRegionX);
-      this.mapLabels[x] = {};
-      for (const tileRegionY of Object.keys(data.labels[tileRegionX])) {
-        const y = parseInt(tileRegionY);
-        this.mapLabels[x][y] = {};
-        for (const z of Object.keys(data.labels[tileRegionX][tileRegionY])) {
-          this.mapLabels[x][y][parseInt(z)] = data.labels[tileRegionX][tileRegionY][z];
-        }
-      }
-    }
+    this.locations = this.parseIntKeys(data.icons);
+    this.mapLabels = this.parseIntKeys(data.labels);
 
     this.locationIconsSheet = new Image();
     this.locationIconsSheet.src = "/map/icons/map_icons.webp";
@@ -226,6 +197,16 @@ export class CanvasMap extends BaseElement {
     this.updateRequested = 1;
   }
 
+  parseIntKeys(obj) {
+    const result = {};
+    for (const key of Object.keys(obj)) {
+      const intKey = parseInt(key);
+      const value = obj[key];
+      result[intKey] = value && typeof value === "object" && !Array.isArray(value) ? this.parseIntKeys(value) : value;
+    }
+    return result;
+  }
+
   coordinateKey(x, y) {
     return `${x},${y}`;
   }
@@ -243,13 +224,11 @@ export class CanvasMap extends BaseElement {
       // Handle the camera panning
       const panStopThreshold = 0.001;
       const speed = this.cursor.dx * this.cursor.dx + this.cursor.dy * this.cursor.dy;
-      if (!this.camera.isDragging) {
-        if (speed > panStopThreshold) {
+      if (speed > panStopThreshold) {
+        if (!this.camera.isDragging) {
           this.camera.x.goTo(this.camera.x.current + this.cursor.dx * elapsed, 1);
           this.camera.y.goTo(this.camera.y.current + this.cursor.dy * elapsed, 1);
         }
-      }
-      if (speed > panStopThreshold) {
         this.cursor.dx /= elapsed * 0.005 + 1;
         this.cursor.dy /= elapsed * 0.005 + 1;
         // The camera's speed is still high enough to animate it for at least another frame
@@ -487,12 +466,11 @@ export class CanvasMap extends BaseElement {
 
             const key = this.coordinateKey(x, y);
             let mapLabelImage = this.mapLabelImages.get(key);
-            if (!mapLabelImage && loadNewImages) {
+            if (!mapLabelImage) {
+              if (!loadNewImages) continue;
               mapLabelImage = new Image();
               mapLabelImage.src = `/map/labels/${labelId}.webp`;
               this.mapLabelImages.set(key, mapLabelImage);
-            } else if (!mapLabelImage && !loadNewImages) {
-              continue;
             }
 
             mapLabelImage.loaded = mapLabelImage.loaded || mapLabelImage.complete;
@@ -538,15 +516,14 @@ export class CanvasMap extends BaseElement {
         }
         let tile = tiles.get(i);
 
-        if (!tile && loadNewTiles) {
+        if (!tile) {
+          if (!loadNewTiles) continue;
           tile = new Image(this.tileSize, this.tileSize);
           const tileFileBaseName = `${this.plane - 1}_${tileX}_${tileY}`;
           tile.src = `/map/${tileFileBaseName}.webp`;
           tile.regionX = tileX;
           tile.regionY = tileY;
           tiles.set(i, tile);
-        } else if (!tile && !loadNewTiles) {
-          continue;
         }
 
         this.tilesInView.push(tile);
@@ -649,10 +626,6 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
-  onPointerUp() {
-    this.stopDragging();
-  }
-
   stopDragging() {
     this.classList.remove("dragging");
     // To handle cases when the pointer stops moving before letting go
@@ -665,14 +638,16 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
-  onPointerMove(event) {
-    const x = event.clientX;
-    const y = event.clientY;
+  processPointerMove(x, y) {
     const dx = x - this.cursor.previousX || 0;
     const dy = y - this.cursor.previousY || 0;
     this.cursor.previousX = x;
     this.cursor.previousY = y;
     this.handleMovement(x, y, dx, dy);
+  }
+
+  onPointerMove(event) {
+    this.processPointerMove(event.clientX, event.clientY);
   }
 
   onTouchMove(event) {
@@ -681,13 +656,7 @@ export class CanvasMap extends BaseElement {
       if (!this.camera.isDragging) {
         this.startDragging(touch.clientX, touch.clientY);
       }
-      const x = touch.clientX;
-      const y = touch.clientY;
-      const dx = x - this.cursor.previousX || 0;
-      const dy = y - this.cursor.previousY || 0;
-      this.cursor.previousX = x;
-      this.cursor.previousY = y;
-      this.handleMovement(x, y, dx, dy);
+      this.processPointerMove(touch.clientX, touch.clientY);
     } else if (event.touches.length === 2) {
       this.stopDragging();
       const pinchDistance = this.pinchDistance(event.touches);
@@ -704,6 +673,13 @@ export class CanvasMap extends BaseElement {
     }
   }
 
+  pushFrame(key, value, maxItems) {
+    this.cursor[key].push(value);
+    if (this.cursor[key].length > maxItems) {
+      this.cursor[key] = this.cursor[key].slice(this.cursor[key].length - maxItems);
+    }
+  }
+
   handleMovement(x, y, dx, dy) {
     const elapsed = performance.now() - this.cursor.lastPointerMoveTime;
     this.cursor.lastPointerMoveTime = performance.now();
@@ -712,14 +688,8 @@ export class CanvasMap extends BaseElement {
     // to calculate the speed after dragging has stopped which is used to animate and convey momentum.
     if (elapsed) {
       const eventsToKeep = 10;
-      this.cursor.frameX.push(-dx / elapsed);
-      if (this.cursor.frameX.length > eventsToKeep) {
-        this.cursor.frameX = this.cursor.frameX.slice(this.cursor.frameX.length - eventsToKeep);
-      }
-      this.cursor.frameY.push(dy / elapsed);
-      if (this.cursor.frameY.length > eventsToKeep) {
-        this.cursor.frameY = this.cursor.frameY.slice(this.cursor.frameY.length - eventsToKeep);
-      }
+      this.pushFrame("frameX", -dx / elapsed, eventsToKeep);
+      this.pushFrame("frameY", dy / elapsed, eventsToKeep);
     }
 
     if (this.camera.isDragging) {
@@ -774,11 +744,7 @@ export class CanvasMap extends BaseElement {
       // a non integer size or it will cause black border to show around them.
       const targetTileSize = this.tileSize * options.delta;
       const delta = Math.round(targetTileSize) / this.tileSize;
-      if (options.delta > 0) {
-        newZoom = Math.min(Math.max(this.camera.zoom.target + delta, this.camera.minZoom), this.camera.maxZoom);
-      } else {
-        newZoom = Math.min(Math.max(this.camera.zoom.target + delta, this.camera.minZoom), this.camera.maxZoom);
-      }
+      newZoom = Math.min(Math.max(this.camera.zoom.target + delta, this.camera.minZoom), this.camera.maxZoom);
     } else {
       // touch zoom
       newZoom = Math.min(Math.max(options.zoom, this.camera.minZoom), this.camera.maxZoom);

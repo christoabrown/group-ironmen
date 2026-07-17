@@ -10,5 +10,3 @@ This project uses `vitest` for unit/integration tests.
 
 Coverage reports are written to `site/coverage/`.
 Open `site/coverage/index.html` to view the HTML report.
-
-DOM/custom-element integration tests are intentionally deferred to a later wave.
