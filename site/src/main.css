@@ -341,6 +341,7 @@ ul {
 .rsborder {
   border-image: url(/ui/border.png) 32 32 / 32px / 3px 4px 4px 3px round;
   border-style: solid;
+  border-width: 4px 3px 3px 4px;
   border-radius: 4px;
 }
 
@@ -352,6 +353,7 @@ ul {
 
 .dark-mode .rsborder {
   border-image: url(/ui/border-dark.png) 32 32 / 32px / 4px round;
+  border-width: 3px;
 }
 
 .rsborder-tiny {
