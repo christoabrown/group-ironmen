@@ -1,15 +1,10 @@
-mod auth_middleware;
-mod authed;
-mod config;
-mod crypto;
-mod db;
-mod error;
-mod models;
-mod unauthed;
-mod update_batcher;
-mod validators;
-use crate::auth_middleware::AuthenticateMiddlewareFactory;
-use crate::config::Config;
+use server::auth_middleware::AuthenticateMiddlewareFactory;
+use server::authed;
+use server::config::Config;
+use server::db;
+use server::models;
+use server::unauthed;
+use server::update_batcher;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
@@ -38,8 +33,9 @@ async fn main() -> std::io::Result<()> {
     let update_batcher_pool = config.pg.create_pool(None, NoTls).unwrap();
     let (tx, rx) = mpsc::channel::<models::GroupMember>(10000);
     tokio::spawn(async move {
-        update_batcher::background_worker(update_batcher_pool, rx).await;
+        update_batcher::background_worker(update_batcher_pool, rx, None).await;
     });
+    let auth_cache = std::sync::Arc::new(server::auth_middleware::AuthenticationCache::new());
 
     HttpServer::new(move || {
         let unauthed_scope = web::scope("/api")
@@ -47,7 +43,7 @@ async fn main() -> std::io::Result<()> {
             .service(unauthed::get_ge_prices)
             .service(unauthed::captcha_enabled);
         let authed_scope = web::scope("/api/group/{group_name}")
-            .wrap(AuthenticateMiddlewareFactory::new())
+            .wrap(AuthenticateMiddlewareFactory::new(auth_cache.clone()))
             .service(authed::update_group_member)
             .service(authed::get_group_data)
             .service(authed::add_group_member)

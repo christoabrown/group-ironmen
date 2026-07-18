@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub const SHARED_MEMBER: &str = "@SHARED";
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Coordinates {
     x: i32,
@@ -11,7 +11,7 @@ pub struct Coordinates {
     plane: i32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Interacting {
     name: String,

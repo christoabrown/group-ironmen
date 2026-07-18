@@ -85,16 +85,12 @@ pub async fn rename_group_member(
 pub async fn update_group_member(
     auth: Authenticated,
     group_member: web::Json<GroupMember>,
-    db_pool: web::Data<Pool>,
     sender: web::Data<mpsc::Sender<GroupMember>>,
 ) -> Result<HttpResponse, Error> {
-    {
-        let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-        let in_group: bool =
-            db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
-        if !in_group {
-            return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
-        }
+    if group_member.name.eq(SHARED_MEMBER) {
+        return Ok(
+            HttpResponse::BadRequest().body(format!("Member name {} not allowed", SHARED_MEMBER))
+        );
     }
 
     let mut group_member_inner: GroupMember = group_member.into_inner();
