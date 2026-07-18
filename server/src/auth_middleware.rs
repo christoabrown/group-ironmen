@@ -5,7 +5,7 @@ use actix_web::{
     web, Error, FromRequest, HttpMessage, HttpRequest,
 };
 use deadpool_postgres::Pool;
-use futures::{
+use futures_util::{
     future::{ready, LocalBoxFuture, Ready},
     FutureExt,
 };
@@ -71,7 +71,12 @@ where
     type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-    actix_service::forward_ready!(service);
+    fn poll_ready(
+        &self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let srv = Rc::clone(&self.service);

@@ -86,11 +86,12 @@ pub async fn update_group_member(
     auth: Authenticated,
     group_member: web::Json<GroupMember>,
     db_pool: web::Data<Pool>,
-    sender: web::Data<mpsc::Sender<GroupMember>>
+    sender: web::Data<mpsc::Sender<GroupMember>>,
 ) -> Result<HttpResponse, Error> {
     {
         let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-        let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
+        let in_group: bool =
+            db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
         if !in_group {
             return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
         }
@@ -111,7 +112,12 @@ pub async fn update_group_member(
     validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
     validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
     validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
-    validate_member_prop_length("collection_log_v2", &group_member_inner.collection_log_v2, 0, 4000)?;
+    validate_member_prop_length(
+        "collection_log_v2",
+        &group_member_inner.collection_log_v2,
+        0,
+        4000,
+    )?;
 
     match sender.send(group_member_inner).await {
         Ok(_) => Ok(HttpResponse::Ok().finish()),
@@ -187,7 +193,6 @@ pub async fn am_i_in_group(
 }
 
 #[get("/collection-log")]
-pub async fn get_collection_log(
-) -> Result<web::Json<HashMap<String, Vec<i32>>>, Error> {
+pub async fn get_collection_log() -> Result<web::Json<HashMap<String, Vec<i32>>>, Error> {
     Ok(web::Json(HashMap::new()))
 }

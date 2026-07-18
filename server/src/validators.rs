@@ -1,6 +1,6 @@
 use crate::error::ApiError;
-use lazy_static::lazy_static;
 use regex::Regex;
+use std::sync::LazyLock;
 
 #[cfg(test)]
 mod valid_name_tests {
@@ -67,13 +67,11 @@ mod valid_name_tests {
     }
 }
 
-pub fn valid_name(name: &str) -> bool {
-    lazy_static! {
-        static ref NAME_RE: Regex = Regex::new("[^A-Za-z 0-9-_]").unwrap();
-    }
+static NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new("[^A-Za-z 0-9-_]").unwrap());
 
+pub fn valid_name(name: &str) -> bool {
     let len = name.len();
-    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && name.trim().len() > 0
+    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && !name.trim().is_empty()
 }
 
 pub fn validate_member_prop_length<T>(

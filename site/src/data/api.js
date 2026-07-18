@@ -43,10 +43,6 @@ class Api {
     return `${this.baseUrl}/captcha-enabled`;
   }
 
-  get collectionLogInfoUrl() {
-    return `${this.baseUrl}/collection-log-info`;
-  }
-
   setCredentials(groupName, groupToken) {
     this.groupName = groupName;
     this.groupToken = groupToken;

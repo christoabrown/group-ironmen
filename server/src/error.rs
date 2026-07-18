@@ -2,6 +2,7 @@ use actix_web::{HttpResponse, ResponseError};
 use deadpool_postgres::PoolError;
 use derive_more::{Display, From};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Display, From)]
 pub enum ApiError {
     PoolError(PoolError),
@@ -26,7 +27,7 @@ pub enum ApiError {
     #[from(ignore)]
     GetSkillsDataError(tokio_postgres::error::Error),
     GroupFullError,
-    ReqwestError(reqwest::Error),
+    UreqError(ureq::Error),
     GroupMemberValidationError(String),
 }
 impl std::error::Error for ApiError {}
@@ -67,9 +68,9 @@ impl ResponseError for ApiError {
             }
             ApiError::GroupFullError => HttpResponse::BadRequest()
                 .body("Group has already reached the maximum amount of players"),
-            ApiError::ReqwestError(ref err) => {
-                log::error!("ReqwestError: {}", err);
-                HttpResponse::InternalServerError().body(format!("ReqwestError: {}", err))
+            ApiError::UreqError(ref err) => {
+                log::error!("UreqError: {}", err);
+                HttpResponse::InternalServerError().body(format!("UreqError: {}", err))
             }
             ApiError::GroupMemberValidationError(ref reason) => {
                 log::error!("Validation error: {}", reason);

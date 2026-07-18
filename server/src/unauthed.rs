@@ -1,33 +1,30 @@
-use crate::collection_log::COLLECTION_LOG_DATA;
 use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
 use crate::validators::valid_name;
-use actix_web::{get, http::header::ContentType, post, web, Error, HttpResponse};
+use actix_web::{get, post, web, Error, HttpResponse};
 use arc_swap::{ArcSwap, ArcSwapAny};
 use deadpool_postgres::{Client, Pool};
-use lazy_static::lazy_static;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::{task, time};
 
-lazy_static! {
-    static ref GE_PRICES: ArcSwapAny<Arc<String>> = ArcSwap::from(Arc::new(String::default()));
-    static ref HTTP_CLIENT: reqwest::Client = reqwest::Client::new();
-}
-
+static GE_PRICES: LazyLock<ArcSwapAny<Arc<String>>> =
+    LazyLock::new(|| ArcSwap::from(Arc::new(String::default())));
 pub async fn fetch_latest_prices() -> Result<WikiGEPrices, ApiError> {
-    let res = HTTP_CLIENT
-        .get("https://prices.runescape.wiki/api/v1/osrs/latest")
-        .header("User-Agent", "Group Ironmen - Dprk#8740")
-        .send()
-        .await
-        .map_err(ApiError::ReqwestError)?;
-    let wiki_ge_prices = res
-        .json::<WikiGEPrices>()
-        .await
-        .map_err(ApiError::ReqwestError)?;
+    let wiki_ge_prices = task::spawn_blocking(|| {
+        ureq::get("https://prices.runescape.wiki/api/v1/osrs/latest")
+            .header("User-Agent", "Group Ironmen - Dprk#8740")
+            .call()
+            .map_err(ApiError::UreqError)?
+            .body_mut()
+            .read_json::<WikiGEPrices>()
+            .map_err(ApiError::UreqError)
+    })
+    .await
+    .unwrap()?;
 
     Ok(wiki_ge_prices)
 }
@@ -37,19 +34,15 @@ pub async fn update_ge_prices() -> Result<(), ApiError> {
     let mut ge_prices: GEPrices = std::collections::HashMap::new();
     for (item_id, wiki_ge_price) in wiki_ge_prices.data {
         let mut avg_ge_price: i64 = 0;
-        match wiki_ge_price.high {
-            Some(high) => avg_ge_price = high,
-            None => (),
+        if let Some(high) = wiki_ge_price.high {
+            avg_ge_price = high
         }
-        match wiki_ge_price.low {
-            Some(low) => {
-                if avg_ge_price > 0 {
-                    avg_ge_price = (avg_ge_price + low) / 2
-                } else {
-                    avg_ge_price = low
-                }
+        if let Some(low) = wiki_ge_price.low {
+            if avg_ge_price > 0 {
+                avg_ge_price = (avg_ge_price + low) / 2
+            } else {
+                avg_ge_price = low
             }
-            None => (),
         }
 
         ge_prices.insert(item_id, avg_ge_price);
@@ -113,7 +106,7 @@ pub fn start_skills_aggregator(db_pool: Pool) {
 #[get("/ge-prices")]
 pub async fn get_ge_prices() -> Result<HttpResponse, Error> {
     let ge_prices_opt = GE_PRICES.load();
-    let res: String = (&**ge_prices_opt).clone();
+    let res: String = (**ge_prices_opt).clone();
 
     Ok(HttpResponse::Ok()
         .append_header(("Cache-Control", "public, max-age=86400"))
@@ -122,21 +115,21 @@ pub async fn get_ge_prices() -> Result<HttpResponse, Error> {
 }
 
 pub async fn verify_captcha(
-    response: &String,
-    secret: &String,
+    response: &str,
+    secret: &str,
 ) -> Result<CaptchaVerifyResponse, ApiError> {
-    let body = [("response", response), ("secret", secret)];
-
-    let res = HTTP_CLIENT
-        .post("https://hcaptcha.com/siteverify")
-        .form(&body)
-        .send()
-        .await
-        .map_err(ApiError::ReqwestError)?;
-    let captcha_verify_response = res
-        .json::<CaptchaVerifyResponse>()
-        .await
-        .map_err(ApiError::ReqwestError)?;
+    let response = response.to_owned();
+    let secret = secret.to_owned();
+    let captcha_verify_response = task::spawn_blocking(move || {
+        ureq::post("https://hcaptcha.com/siteverify")
+            .send_form([("response", response.as_str()), ("secret", secret.as_str())])
+            .map_err(ApiError::UreqError)?
+            .body_mut()
+            .read_json::<CaptchaVerifyResponse>()
+            .map_err(ApiError::UreqError)
+    })
+    .await
+    .unwrap()?;
 
     Ok(captcha_verify_response)
 }
@@ -171,9 +164,9 @@ pub async fn create_group(
 
     create_group_inner
         .member_names
-        .retain(|member_name| member_name.trim().len() > 0);
+        .retain(|member_name| !member_name.trim().is_empty());
     for member_name in &create_group_inner.member_names {
-        if !valid_name(&member_name) {
+        if !valid_name(member_name) {
             return Ok(HttpResponse::BadRequest()
                 .body(format!("Member name {} is not valid", member_name)));
         }
@@ -187,11 +180,4 @@ pub async fn create_group(
 #[get("captcha-enabled")]
 pub async fn captcha_enabled(config: web::Data<Config>) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(&config.hcaptcha))
-}
-
-#[get("collection-log-info")]
-pub async fn collection_log_info() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .body(&**COLLECTION_LOG_DATA)
 }

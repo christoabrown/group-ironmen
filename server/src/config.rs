@@ -1,4 +1,3 @@
-use config::{ConfigError, File};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Clone)]
@@ -48,10 +47,8 @@ fn default_captcha_config() -> CaptchaConfig {
     }
 }
 impl Config {
-    pub fn from_env() -> Result<Self, ConfigError> {
-        let cfg = ::config::Config::builder()
-            .add_source(File::with_name("config"))
-            .build()?;
-        cfg.try_deserialize()
+    pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
+        let config_str = std::fs::read_to_string("config.toml")?;
+        Ok(basic_toml::from_str(&config_str)?)
     }
 }

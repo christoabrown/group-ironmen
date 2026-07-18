@@ -102,13 +102,13 @@ pub async fn delete_collection_log_data_for_member(
     member_id: i64,
 ) -> Result<(), ApiError> {
     let a = "DELETE FROM groupironman.collection_log WHERE member_id=$1";
-    let delete_collection_stmt = transaction.prepare_cached(&a).await?;
+    let delete_collection_stmt = transaction.prepare_cached(a).await?;
     transaction
         .execute(&delete_collection_stmt, &[&member_id])
         .await?;
 
     let b = "DELETE FROM groupironman.collection_log_new WHERE member_id=$1";
-    let delete_new_stmt = transaction.prepare_cached(&b).await?;
+    let delete_new_stmt = transaction.prepare_cached(b).await?;
     transaction.execute(&delete_new_stmt, &[&member_id]).await?;
 
     Ok(())
@@ -137,7 +137,7 @@ pub async fn delete_group_member(
     group_id: i64,
     member_name: &str,
 ) -> Result<(), ApiError> {
-    let member_id = get_member_id(&client, group_id, member_name).await?;
+    let member_id = get_member_id(client, group_id, member_name).await?;
     let transaction = client.transaction().await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Day, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Month, member_id).await?;
@@ -284,7 +284,7 @@ FROM groupironman.members WHERE group_id=$2
             diary_vars: row.try_get("diary_vars").ok(),
             shared_bank: Option::None,
             deposited: Option::None,
-            collection_log_v2: row.try_get("collection_log").ok()
+            collection_log_v2: row.try_get("collection_log").ok(),
         };
         result.push(group_member);
     }
@@ -469,7 +469,7 @@ pub async fn has_migration_run(client: &mut Client, name: &str) -> Result<bool, 
         .await?
         .try_get(0)?;
 
-    Ok(if count > 0 { true } else { false })
+    Ok(count > 0)
 }
 
 pub async fn commit_migration(transaction: &Transaction<'_>, name: &str) -> Result<(), ApiError> {
@@ -681,15 +681,15 @@ ORDER BY GREATEST(
                     let uuid = uuid::Uuid::new_v4().hyphenated().to_string();
                     let new_name = &uuid[..uuid.find("-").unwrap()];
                     log::info!("Trying new name '{}'", new_name);
-                    match transaction
+                    if transaction
                         .execute(
                             "UPDATE groupironman.members SET member_name=$1 WHERE member_id=$2",
                             &[&new_name, &member_id],
                         )
                         .await
+                        .is_ok()
                     {
-                        Ok(_) => break,
-                        Err(_) => (),
+                        break;
                     }
                 }
             }
@@ -729,7 +729,9 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
         transaction.commit().await?;
     }
 
-    if !has_migration_run(client, "migrate_collection_log_v2").await? && has_migration_run(client, "add_collection_log").await? {
+    if !has_migration_run(client, "migrate_collection_log_v2").await?
+        && has_migration_run(client, "add_collection_log").await?
+    {
         println!("beginning migration migrate_collection_log_v2");
         let transaction = client.transaction().await?;
 
@@ -744,8 +746,12 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
             let items: Vec<i32> = row.try_get("items")?;
 
             match member_data.get_mut(&member_id) {
-                Some(collection_log) => { collection_log.extend(items.iter()); }
-                None => { member_data.insert(member_id, items); }
+                Some(collection_log) => {
+                    collection_log.extend(items.iter());
+                }
+                None => {
+                    member_data.insert(member_id, items);
+                }
             };
         }
         println!("need to migrate {} members", member_data.len());
@@ -762,10 +768,19 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
 
         // update new collection log column
         for (i, chunk) in chunks.iter().enumerate() {
-            println!("migrating chunk {}/{} size {}", i + 1, chunks.len(), chunk.len());
+            println!(
+                "migrating chunk {}/{} size {}",
+                i + 1,
+                chunks.len(),
+                chunk.len()
+            );
             let mut values_clause = String::new();
             for i in 0..chunk.len() {
-                values_clause.push_str(&format!("(${}::BIGINT, ${}::INTEGER[])", i * 2 + 1, i * 2 + 2));
+                values_clause.push_str(&format!(
+                    "(${}::BIGINT, ${}::INTEGER[])",
+                    i * 2 + 1,
+                    i * 2 + 2
+                ));
                 if i < chunk.len() - 1 {
                     values_clause.push_str(", ");
                 }
@@ -777,11 +792,14 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
             }
 
             // timestamp is set to value that will return on the initial frontend request, but does not show the player as online
-            let update_query = format!(r#"
+            let update_query = format!(
+                r#"
 UPDATE groupironman.members as a SET collection_log=b.collection_log, collection_log_last_update='epoch'::timestamptz + INTERVAL '5 days'
 FROM (VALUES {}) AS b(member_id, collection_log)
 WHERE a.member_id=b.member_id
-"#, values_clause);
+"#,
+                values_clause
+            );
 
             transaction.execute(&update_query, &params).await?;
         }
@@ -806,11 +824,12 @@ WHERE a.member_id=b.member_id
             "interacting",
             "seed_vault",
             "diary_vars",
-            "collection_log"
+            "collection_log",
         ];
 
         for name in names {
-            let create_update_timestamp_fn = format!(r#"
+            let create_update_timestamp_fn = format!(
+                r#"
 CREATE OR REPLACE FUNCTION groupironman.update_{}_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -818,10 +837,15 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
-"#, name, name);
-            transaction.execute(&create_update_timestamp_fn, &[]).await?;
+"#,
+                name, name
+            );
+            transaction
+                .execute(&create_update_timestamp_fn, &[])
+                .await?;
 
-            let trigger_stmt = format!(r#"
+            let trigger_stmt = format!(
+                r#"
 DO
 $$BEGIN
   CREATE TRIGGER set_{}_timestamp
@@ -833,7 +857,9 @@ EXCEPTION
   WHEN duplicate_object THEN
     NULL;
 END;$$;
-"#, name, name, name, name);
+"#,
+                name, name, name, name
+            );
             transaction.execute(&trigger_stmt, &[]).await?;
         }
 
