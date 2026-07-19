@@ -34,10 +34,57 @@ skill-graph {
   padding: 1em 2em 0 2em;
 }
 
+.skill-graph__summary {
+  display: flex;
+  gap: 0.75em;
+  padding: 0.75em 0 1em 0;
+  font-size: 18px;
+  color: var(--secondary-text, #b0b0b0);
+}
+
+.skill-graph__summary span {
+  min-width: 0;
+  padding-right: 0.75em;
+  border-right: 1px solid var(--graph-grid-border);
+}
+
+.skill-graph__summary span:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.skill-graph__table-scroll {
+  overflow-x: auto;
+}
+
 .skill-graph__table-container table {
   width: 100%;
   border-collapse: collapse;
   font-size: 20px;
+}
+
+.skill-graph__table-container th {
+  text-align: left;
+  padding: 4px 8px;
+  font-size: 16px;
+  font-weight: normal;
+  color: var(--secondary-text, #b0b0b0);
+  border-bottom: 1px solid var(--graph-grid-border);
+}
+
+.skill-graph__table-container th:nth-child(n + 3),
+.skill-graph__table-container td:nth-child(n + 3) {
+  text-align: right;
+}
+
+.skill-graph__rank-header {
+  width: 2em;
+  text-align: center;
+}
+
+.skill-graph__rank {
+  text-align: center !important;
+  color: var(--secondary-text, #b0b0b0);
 }
 
 .skill-graph__table-container tr {
@@ -49,16 +96,41 @@ skill-graph {
 }
 
 .skill-graph__table-container td {
-  padding: 4px;
+  padding: 4px 8px;
+}
+
+.skill-graph__player-dot {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  margin-right: 0.5em;
+}
+
+.skill-graph__player-cell {
+  display: flex;
+  align-items: center;
+}
+
+.skill-graph__level-up {
+  color: var(--positive, #4caf50);
+  font-size: 0.8em;
+}
+
+.skill-graph__player-row {
+  font-weight: bold;
+  border-top: 2px solid var(--graph-grid-border);
 }
 
 .skill-graph__overall-skill-change {
   font-size: 18px;
+  color: var(--secondary-text, #b0b0b0);
 }
 
-.skill-graph__overall-skill-change > td:first-child {
+.skill-graph__overall-skill-change > td:nth-child(2) {
   display: flex;
   align-items: center;
+  padding-left: 1.5em;
 }
 
 .skill-graph__overall-skill-change img {

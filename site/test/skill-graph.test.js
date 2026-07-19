@@ -132,13 +132,17 @@ describe("SkillGraph.createTable", () => {
   it("renders stable gradient values when total xp gain is zero", () => {
     const graph = new SkillGraph();
     graph.skillName = SkillName.Attack;
+    graph.period = "Day";
     graph.tableContainer = document.createElement("div");
+    graph.currentGroupData = { members: new Map() };
 
     graph.createTable([
       {
         label: "Player",
         data: [0],
         backgroundColor: "#fff",
+        borderColor: "#fff",
+        totalXpData: [0],
       },
     ]);
 

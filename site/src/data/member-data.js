@@ -10,7 +10,7 @@ const playerColors = [
   "hsl(151, 69%, 26%)", // green
   "hsl(210, 50%, 40%)", // blue
   "hsl(355, 76%, 36%)", // red
-  "hsl(288, 65%, 19%)", // purple
+  "hsl(288, 65%, 45%)", // purple
 ];
 let currentColor = 0;
 
