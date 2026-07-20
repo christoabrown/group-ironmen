@@ -12,10 +12,10 @@ use tokio::time::{self, Duration, Instant};
 static BATCH_SIZE: usize = 5000;
 static CHUNK_SIZE: usize = 50;
 
-/// Number of columns per member update row. With 14 columns, the PostgreSQL
-/// parameter-count limit (65,535) allows a maximum chunk size of 65535 / 14 =
-/// 4681 rows when using the VALUES approach.
-const COLUMNS_PER_ROW: usize = 14;
+/// Number of columns per member update row. With 15 columns, the PostgreSQL
+/// parameter-count limit (65,535) allows a maximum chunk size of 65535 / 15 =
+/// 4369 rows when using the VALUES approach.
+const COLUMNS_PER_ROW: usize = 15;
 
 pub async fn background_worker(
     pool: Pool,
@@ -262,6 +262,9 @@ fn merge_group_member(older: &mut GroupMember, newer: &GroupMember) {
     if newer.collection_log_v2.is_some() {
         older.collection_log_v2 = newer.collection_log_v2.clone();
     }
+    if newer.potion_storage.is_some() {
+        older.potion_storage = newer.potion_storage.clone();
+    }
 
     if let Some(newer_deposited) = &newer.deposited {
         match &older.deposited {
@@ -308,7 +311,7 @@ fn build_values_statement(size: usize) -> String {
         .map(|row| {
             let offset = row * COLUMNS_PER_ROW;
             format!(
-                "(${}::int8,${}::text,${}::int4[],${}::int4[],${}::int4[],${}::bytea,${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::text,${}::int4[],${}::int4[],${}::int4[])",
+                "(${}::int8,${}::text,${}::int4[],${}::int4[],${}::int4[],${}::bytea,${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::text,${}::int4[],${}::int4[],${}::int4[],${}::int4[])",
                 offset + 1,
                 offset + 2,
                 offset + 3,
@@ -323,6 +326,7 @@ fn build_values_statement(size: usize) -> String {
                 offset + 12,
                 offset + 13,
                 offset + 14,
+                offset + 15,
             )
         })
         .collect::<Vec<_>>()
@@ -342,10 +346,12 @@ UPDATE groupironman.members AS a SET
   interacting = COALESCE(b.interacting, a.interacting),
   seed_vault = COALESCE(b.seed_vault, a.seed_vault),
   diary_vars = COALESCE(b.diary_vars, a.diary_vars),
-  collection_log = COALESCE(b.collection_log, a.collection_log)
+  collection_log = COALESCE(b.collection_log, a.collection_log),
+  potion_storage = COALESCE(b.potion_storage, a.potion_storage)
 FROM (VALUES {values}) AS b(
   group_id, member_name, stats, coordinates, skills, quests, inventory,
-  equipment, bank, rune_pouch, interacting, seed_vault, diary_vars, collection_log
+  equipment, bank, rune_pouch, interacting, seed_vault, diary_vars, collection_log,
+  potion_storage
 )
 WHERE a.group_id = b.group_id AND a.member_name = b.member_name::citext
 "#
@@ -410,6 +416,7 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
         params.push(&member_data.seed_vault);
         params.push(&member_data.diary_vars);
         params.push(&member_data.collection_log_v2);
+        params.push(&member_data.potion_storage);
     }
 
     if let Err(e) = client.execute(&update_stmt, &params).await {
@@ -617,6 +624,7 @@ mod tests {
             deposited: None,
             diary_vars: None,
             collection_log_v2: None,
+            potion_storage: None,
             last_updated: None,
         }
     }
@@ -762,6 +770,29 @@ mod tests {
 
         merge_group_member(&mut older, &newer);
         assert_eq!(older.shared_bank, Some(vec![9, 8, 7]));
+    }
+
+    #[test]
+    fn test_merge_group_member_potion_storage_overwrites() {
+        let mut older = make_member(Some(1), "alice");
+        older.potion_storage = Some(vec![101, 4]);
+
+        let mut newer = make_member(Some(1), "alice");
+        newer.potion_storage = Some(vec![201, 1, 202, 3]);
+
+        merge_group_member(&mut older, &newer);
+        assert_eq!(older.potion_storage, Some(vec![201, 1, 202, 3]));
+    }
+
+    #[test]
+    fn test_merge_group_member_potion_storage_none_preserves_older() {
+        let mut older = make_member(Some(1), "alice");
+        older.potion_storage = Some(vec![101, 4]);
+
+        let newer = make_member(Some(1), "alice");
+
+        merge_group_member(&mut older, &newer);
+        assert_eq!(older.potion_storage, Some(vec![101, 4]));
     }
 
     #[test]

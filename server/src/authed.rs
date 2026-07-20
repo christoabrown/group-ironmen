@@ -4,7 +4,7 @@ use crate::error::ApiError;
 use crate::models::{
     AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember, SHARED_MEMBER,
 };
-use crate::validators::{valid_name, validate_member_prop_length};
+use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
@@ -96,23 +96,97 @@ pub async fn update_group_member(
     let mut group_member_inner: GroupMember = group_member.into_inner();
     group_member_inner.group_id = Some(auth.group_id);
 
-    validate_member_prop_length("stats", &group_member_inner.stats, 7, 7)?;
-    validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 4)?;
-    validate_member_prop_length("skills", &group_member_inner.skills, 23, 24)?;
-    validate_member_prop_length("quests", &group_member_inner.quests, 0, 220)?;
-    validate_member_prop_length("inventory", &group_member_inner.inventory, 56, 56)?;
-    validate_member_prop_length("equipment", &group_member_inner.equipment, 28, 28)?;
-    validate_member_prop_length("bank", &group_member_inner.bank, 0, 3000)?;
-    validate_member_prop_length("shared_bank", &group_member_inner.shared_bank, 0, 1000)?;
-    validate_member_prop_length("rune_pouch", &group_member_inner.rune_pouch, 6, 8)?;
-    validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
-    validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
-    validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
+    validate_member_prop_length("stats", &group_member_inner.stats, 7, 7, ArrayFormat::Flat)?;
+    validate_member_prop_length(
+        "coordinates",
+        &group_member_inner.coordinates,
+        3,
+        4,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "skills",
+        &group_member_inner.skills,
+        23,
+        24,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "quests",
+        &group_member_inner.quests,
+        0,
+        250,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "inventory",
+        &group_member_inner.inventory,
+        56,
+        56,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "equipment",
+        &group_member_inner.equipment,
+        28,
+        28,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "bank",
+        &group_member_inner.bank,
+        0,
+        3000,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "shared_bank",
+        &group_member_inner.shared_bank,
+        0,
+        1000,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "rune_pouch",
+        &group_member_inner.rune_pouch,
+        6,
+        8,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "seed_vault",
+        &group_member_inner.seed_vault,
+        0,
+        500,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "deposited",
+        &group_member_inner.deposited,
+        0,
+        200,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "diary_vars",
+        &group_member_inner.diary_vars,
+        0,
+        62,
+        ArrayFormat::Flat,
+    )?;
     validate_member_prop_length(
         "collection_log_v2",
         &group_member_inner.collection_log_v2,
         0,
         4000,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "potion_storage",
+        &group_member_inner.potion_storage,
+        0,
+        400,
+        ArrayFormat::ItemPairs,
     )?;
 
     match sender.send(group_member_inner).await {

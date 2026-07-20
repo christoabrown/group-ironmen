@@ -66,6 +66,8 @@ pub struct GroupMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collection_log_v2: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub potion_storage: Option<Vec<i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
 }
 #[derive(Serialize)]

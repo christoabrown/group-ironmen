@@ -115,6 +115,7 @@ fn make_member(group_id: Option<i64>, name: &str) -> GroupMember {
         deposited: None,
         diary_vars: None,
         collection_log_v2: None,
+        potion_storage: None,
         last_updated: None,
     }
 }
@@ -333,6 +334,7 @@ async fn test_all_field_types_round_trip() {
     alice.seed_vault = Some(vec![7, 14, 21, 28]);
     alice.diary_vars = Some(vec![1; 62]);
     alice.collection_log_v2 = Some(vec![100, 200, 300]);
+    alice.potion_storage = Some(vec![101, 4, 102, 2]);
     alice.interacting = Some(
         serde_json::from_str(
             r#"{"name":"banker","scale":1,"ratio":2,"location":{"x":1,"y":2,"plane":0}}"#,
@@ -357,6 +359,7 @@ async fn test_all_field_types_round_trip() {
     assert_eq!(alice.seed_vault, Some(vec![7, 14, 21, 28]));
     assert_eq!(alice.diary_vars, Some(vec![1; 62]));
     assert_eq!(alice.collection_log_v2, Some(vec![100, 200, 300]));
+    assert_eq!(alice.potion_storage, Some(vec![101, 4, 102, 2]));
     assert!(alice.interacting.is_some(), "interacting should be set");
     let interacting_json = serde_json::to_string(&alice.interacting.unwrap()).unwrap();
     assert!(
@@ -938,6 +941,191 @@ async fn test_non_member_update_is_silent_noop() {
     assert!(
         !members.iter().any(|m| m.name == "ghost"),
         "non-member 'ghost' should not appear in group data"
+    );
+
+    drop(tx);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Integration tests: potion storage
+// ──────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_potion_storage_partial_update() {
+    let _guard = TEST_MUTEX.lock().await;
+    let pool = create_test_pool().await;
+    let group_id = setup_test_group(&pool).await;
+
+    let (tx, mut notify_rx) = spawn_worker(&pool);
+
+    let mut alice = make_member(Some(group_id), "alice");
+    alice.potion_storage = Some(vec![101, 4, 102, 2]);
+
+    tx.send(alice).await.unwrap();
+    notify_rx.recv().await.expect("worker should process batch");
+
+    let client = pool.get().await.expect("failed to get client");
+    let alice = get_member_from_db(&client, group_id, "alice").await;
+    assert_eq!(alice.potion_storage, Some(vec![101, 4, 102, 2]));
+    assert!(
+        alice.last_updated.is_some(),
+        "last_updated should be set after potion_storage update"
+    );
+
+    drop(tx);
+}
+
+#[tokio::test]
+async fn test_potion_storage_last_write_wins() {
+    let _guard = TEST_MUTEX.lock().await;
+    let pool = create_test_pool().await;
+    let group_id = setup_test_group(&pool).await;
+
+    let (tx, mut notify_rx) = spawn_worker(&pool);
+
+    let mut alice1 = make_member(Some(group_id), "alice");
+    alice1.potion_storage = Some(vec![101, 4, 102, 2]);
+
+    let mut alice2 = make_member(Some(group_id), "alice");
+    alice2.potion_storage = Some(vec![201, 1, 202, 3]);
+
+    tx.send(alice1).await.unwrap();
+    tx.send(alice2).await.unwrap();
+    notify_rx.recv().await.expect("worker should process batch");
+
+    let client = pool.get().await.expect("failed to get client");
+    let alice = get_member_from_db(&client, group_id, "alice").await;
+    assert_eq!(
+        alice.potion_storage,
+        Some(vec![201, 1, 202, 3]),
+        "last potion_storage snapshot should win"
+    );
+
+    drop(tx);
+}
+
+#[tokio::test]
+async fn test_potion_storage_empty_array() {
+    let _guard = TEST_MUTEX.lock().await;
+    let pool = create_test_pool().await;
+    let group_id = setup_test_group(&pool).await;
+
+    let (tx, mut notify_rx) = spawn_worker(&pool);
+
+    let mut alice1 = make_member(Some(group_id), "alice");
+    alice1.potion_storage = Some(vec![101, 4]);
+
+    tx.send(alice1).await.unwrap();
+    notify_rx
+        .recv()
+        .await
+        .expect("worker should process batch 1");
+
+    let mut alice2 = make_member(Some(group_id), "alice");
+    alice2.potion_storage = Some(vec![]);
+
+    tx.send(alice2).await.unwrap();
+    notify_rx
+        .recv()
+        .await
+        .expect("worker should process batch 2");
+
+    let client = pool.get().await.expect("failed to get client");
+    let alice = get_member_from_db(&client, group_id, "alice").await;
+    assert_eq!(
+        alice.potion_storage,
+        Some(vec![]),
+        "empty array should replace previous snapshot, not retain it"
+    );
+
+    drop(tx);
+}
+
+#[tokio::test]
+async fn test_potion_storage_incremental_reads() {
+    let _guard = TEST_MUTEX.lock().await;
+    let pool = create_test_pool().await;
+    let group_id = setup_test_group(&pool).await;
+
+    let (tx, mut notify_rx) = spawn_worker(&pool);
+
+    let mut alice = make_member(Some(group_id), "alice");
+    alice.potion_storage = Some(vec![101, 4]);
+
+    tx.send(alice).await.unwrap();
+    notify_rx.recv().await.expect("worker should process batch");
+
+    let client = pool.get().await.expect("failed to get client");
+    let alice_after = get_member_from_db(&client, group_id, "alice").await;
+    let ts_after = alice_after.last_updated.unwrap();
+
+    // Cutoff after the update — potion_storage should be omitted
+    let after_ts = ts_after + chrono::Duration::seconds(10);
+    let members_after_cutoff = db::get_group_data(&client, group_id, &after_ts)
+        .await
+        .expect("failed to get group data");
+    let alice_after_cutoff = members_after_cutoff
+        .iter()
+        .find(|m| m.name == "alice")
+        .expect("alice not found");
+    assert!(
+        alice_after_cutoff.potion_storage.is_none(),
+        "potion_storage should be omitted for cutoff after its update timestamp"
+    );
+
+    // Cutoff at the update timestamp — potion_storage should be present
+    let members_at = db::get_group_data(&client, group_id, &ts_after)
+        .await
+        .expect("failed to get group data");
+    let alice_at = members_at
+        .iter()
+        .find(|m| m.name == "alice")
+        .expect("alice not found");
+    assert_eq!(
+        alice_at.potion_storage,
+        Some(vec![101, 4]),
+        "potion_storage should be included for cutoff at its update timestamp"
+    );
+
+    drop(tx);
+}
+
+#[tokio::test]
+async fn test_potion_storage_idempotent_resend() {
+    let _guard = TEST_MUTEX.lock().await;
+    let pool = create_test_pool().await;
+    let group_id = setup_test_group(&pool).await;
+
+    let (tx, mut notify_rx) = spawn_worker(&pool);
+
+    let mut alice1 = make_member(Some(group_id), "alice");
+    alice1.potion_storage = Some(vec![101, 4]);
+
+    tx.send(alice1).await.unwrap();
+    notify_rx
+        .recv()
+        .await
+        .expect("worker should process batch 1");
+
+    let client = pool.get().await.expect("failed to get client");
+    let alice_after_1 = get_member_from_db(&client, group_id, "alice").await;
+    let ts1 = alice_after_1.last_updated.unwrap();
+
+    let mut alice2 = make_member(Some(group_id), "alice");
+    alice2.potion_storage = Some(vec![101, 4]);
+
+    tx.send(alice2).await.unwrap();
+    notify_rx
+        .recv()
+        .await
+        .expect("worker should process batch 2");
+
+    let alice_after_2 = get_member_from_db(&client, group_id, "alice").await;
+    let ts2 = alice_after_2.last_updated.unwrap();
+
+    assert_eq!(
+        ts1, ts2,
+        "timestamp should not change when identical potion_storage is resent"
     );
 
     drop(tx);

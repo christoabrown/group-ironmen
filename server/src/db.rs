@@ -241,7 +241,7 @@ SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
 rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update,
-collection_log_last_update) as last_updated,
+collection_log_last_update, potion_storage_last_update) as last_updated,
 CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
 CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
 CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,
@@ -253,7 +253,8 @@ CASE WHEN rune_pouch_last_update >= $1::TIMESTAMPTZ THEN rune_pouch ELSE NULL EN
 CASE WHEN interacting_last_update >= $1::TIMESTAMPTZ THEN interacting ELSE NULL END as interacting,
 CASE WHEN seed_vault_last_update >= $1::TIMESTAMPTZ THEN seed_vault ELSE NULL END as seed_vault,
 CASE WHEN diary_vars_last_update >= $1::TIMESTAMPTZ THEN diary_vars ELSE NULL END as diary_vars,
-CASE WHEN collection_log_last_update > $1::TIMESTAMPTZ THEN collection_log ELSE NULL END as collection_log
+CASE WHEN collection_log_last_update >= $1::TIMESTAMPTZ THEN collection_log ELSE NULL END as collection_log,
+CASE WHEN potion_storage_last_update >= $1::TIMESTAMPTZ THEN potion_storage ELSE NULL END as potion_storage
 FROM groupironman.members WHERE group_id=$2
 "#,
         )
@@ -285,6 +286,7 @@ FROM groupironman.members WHERE group_id=$2
             shared_bank: Option::None,
             deposited: Option::None,
             collection_log_v2: row.try_get("collection_log").ok(),
+            potion_storage: row.try_get("potion_storage").ok(),
         };
         result.push(group_member);
     }
@@ -479,6 +481,45 @@ pub async fn commit_migration(transaction: &Transaction<'_>, name: &str) -> Resu
             &[&name],
         )
         .await?;
+
+    Ok(())
+}
+
+async fn create_timestamp_trigger(
+    transaction: &Transaction<'_>,
+    name: &str,
+) -> Result<(), ApiError> {
+    let create_fn = format!(
+        r#"
+CREATE OR REPLACE FUNCTION groupironman.update_{0}_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.{0}_last_update = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+"#,
+        name
+    );
+    transaction.execute(&create_fn, &[]).await?;
+
+    let trigger_stmt = format!(
+        r#"
+DO
+$$BEGIN
+  CREATE TRIGGER set_{0}_timestamp
+  BEFORE UPDATE ON groupironman.members
+  FOR EACH ROW
+  WHEN (OLD.{0} IS DISTINCT FROM NEW.{0})
+  EXECUTE FUNCTION groupironman.update_{0}_timestamp();
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END;$$;
+"#,
+        name
+    );
+    transaction.execute(&trigger_stmt, &[]).await?;
 
     Ok(())
 }
@@ -828,42 +869,29 @@ WHERE a.member_id=b.member_id
         ];
 
         for name in names {
-            let create_update_timestamp_fn = format!(
-                r#"
-CREATE OR REPLACE FUNCTION groupironman.update_{}_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.{}_last_update = now();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-"#,
-                name, name
-            );
-            transaction
-                .execute(&create_update_timestamp_fn, &[])
-                .await?;
-
-            let trigger_stmt = format!(
-                r#"
-DO
-$$BEGIN
-  CREATE TRIGGER set_{}_timestamp
-  BEFORE UPDATE ON groupironman.members
-  FOR EACH ROW
-  WHEN (OLD.{} IS DISTINCT FROM NEW.{})
-  EXECUTE FUNCTION groupironman.update_{}_timestamp();
-EXCEPTION
-  WHEN duplicate_object THEN
-    NULL;
-END;$$;
-"#,
-                name, name, name, name
-            );
-            transaction.execute(&trigger_stmt, &[]).await?;
+            create_timestamp_trigger(&transaction, name).await?;
         }
 
         commit_migration(&transaction, "update_timestamp_triggers").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "add_potion_storage").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .execute(
+                r#"
+ALTER TABLE groupironman.members
+ADD COLUMN IF NOT EXISTS potion_storage_last_update TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS potion_storage INTEGER[]
+"#,
+                &[],
+            )
+            .await?;
+
+        create_timestamp_trigger(&transaction, "potion_storage").await?;
+
+        commit_migration(&transaction, "add_potion_storage").await?;
         transaction.commit().await?;
     }
 
