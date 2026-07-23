@@ -48,6 +48,7 @@ class ExampleData {
         coordinates: [3029, 3000, 0],
         last_updated: "2022-01-23T01:34:06.104Z",
         diary_vars: AchievementDiary.randomDiaries(),
+        potion_storage: this.randomPotionStorage(),
       },
       "group alt two": {
         rune_pouch: [563, 1922, 561, 5, 554, 15194],
@@ -58,6 +59,7 @@ class ExampleData {
         skills: Object.values(SkillName).map(() => Math.floor(Math.random() * 14000000)),
         bank: [995, Math.floor(Math.random() * 5000000)],
         diary_vars: AchievementDiary.randomDiaries(),
+        potion_storage: this.randomPotionStorage(),
         inventory: [
           26382,
           1,
@@ -127,6 +129,7 @@ class ExampleData {
         coordinates: [3103, 3025, 0],
         quests: Quest.randomQuestStates(),
         diary_vars: AchievementDiary.randomDiaries(),
+        potion_storage: this.randomPotionStorage(),
         interacting: {
           last_updated: "2050-01-01T00:00:00.000Z",
           name: "Goblin",
@@ -143,6 +146,22 @@ class ExampleData {
         bank: [995, 1000000],
       },
     };
+  }
+
+  randomPotionStorage() {
+    const potionIds = [2428, 113, 2430, 2432, 2434, 2444, 2452, 3008, 3032];
+    const count = Math.floor(Math.random() * 5) + 1;
+    const result = [];
+    const used = new Set();
+    for (let i = 0; i < count; ++i) {
+      let id;
+      do {
+        id = potionIds[Math.floor(Math.random() * potionIds.length)];
+      } while (used.has(id));
+      used.add(id);
+      result.push(id, Math.floor(Math.random() * 100) + 1);
+    }
+    return result;
   }
 
   getGroupData() {

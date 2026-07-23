@@ -16,6 +16,8 @@ let currentColor = 0;
 
 export const memberInventoryFields = ["bank", "inventory", "equipment", "runePouch", "seedVault"];
 
+const allItemSourceFields = [...memberInventoryFields, "potionStorage"];
+
 const parsedFieldMappings = [
   {
     sourceKey: "stats",
@@ -84,13 +86,20 @@ const itemFieldMappings = [
     publishKey: "seedVault",
     updatedAttribute: "seedVault",
   },
+  {
+    sourceKey: "potion_storage",
+    targetKey: "potionStorage",
+    inventoryName: "potionStorage",
+    publishKey: "potionStorage",
+    updatedAttribute: "potion_storage",
+  },
 ];
 
 export class MemberData {
   constructor(name) {
     this.name = name;
     this.itemQuantities = {};
-    for (const inventoryField of memberInventoryFields) {
+    for (const inventoryField of allItemSourceFields) {
       this.itemQuantities[inventoryField] = new Map();
     }
     this.inactive = false;

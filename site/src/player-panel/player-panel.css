@@ -2,7 +2,6 @@ player-panel {
   display: block;
   width: 100%;
   position: relative;
-  transform: translate3d(0, 0, 1px);
   color: white;
   box-sizing: border-box;
 }
@@ -36,7 +35,6 @@ player-panel.expanded .player-panel__minibar {
   pointer-events: none;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
-  transform: translateZ(0);
   padding: 4px 0;
 }
 

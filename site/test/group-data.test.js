@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { GroupData } from "../src/data/group-data";
 import { SkillName } from "../src/data/skill";
 import { Quest } from "../src/data/quest";
+import { Item } from "../src/data/item";
+import { pubsub } from "../src/data/pubsub";
 
 describe("group-data", () => {
   it("transforms packed item data from storage", () => {
@@ -67,5 +69,101 @@ describe("group-data", () => {
     expect(data.groupItems[1].visible).toBe(false);
     expect(data.groupItems[2].visible).toBe(true);
     expect(data.groupItems[4151].visible).toBe(false);
+  });
+
+  describe("potion storage", () => {
+    beforeEach(() => {
+      Item.itemDetails = {
+        244: { id: 244, name: "Attack potion(1)", highalch: 1 },
+        245: { id: 245, name: "Strength potion(1)", highalch: 2 },
+        4151: { id: 4151, name: "Abyssal whip", highalch: 100 },
+      };
+      Item.gePrices = { 244: 50, 245: 60, 4151: 1000 };
+      pubsub.unpublishAll();
+    });
+
+    it("transforms packed potion_storage via transformItemsFromStorage", () => {
+      expect(GroupData.transformItemsFromStorage([244, 6, 245, 3])).toEqual([
+        { id: 244, quantity: 6 },
+        { id: 245, quantity: 3 },
+      ]);
+    });
+
+    it("aggregates per-member doses into group-level potion collection", () => {
+      const data = new GroupData();
+      data.update([
+        { name: "Alice", potion_storage: [244, 4] },
+        { name: "Bob", potion_storage: [244, 2, 245, 1] },
+      ]);
+
+      expect(data.potionStorageItems[244].quantity).toBe(6);
+      expect(data.potionStorageItems[244].quantities.Alice).toBe(4);
+      expect(data.potionStorageItems[244].quantities.Bob).toBe(2);
+      expect(data.potionStorageItems[245].quantity).toBe(1);
+      expect(data.potionStorageItems[244].source).toBe("potion-storage");
+    });
+
+    it("removes potion entries after an explicit empty update", () => {
+      const data = new GroupData();
+      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
+      expect(data.potionStorageItems[244]).toBeDefined();
+
+      data.update([{ name: "Alice", potion_storage: [] }]);
+      expect(data.potionStorageItems[244]).toBeUndefined();
+    });
+
+    it("publishes items-updated when potion storage changes", () => {
+      const data = new GroupData();
+      let itemsUpdated = false;
+      pubsub.subscribe("items-updated", () => {
+        itemsUpdated = true;
+      });
+
+      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
+      expect(itemsUpdated).toBe(true);
+    });
+
+    it("publishes source-specific potion-storage-item-update events", () => {
+      const data = new GroupData();
+      const events = [];
+      pubsub.subscribe("potion-storage-item-update:244", (item) => {
+        events.push(item);
+      });
+
+      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
+      expect(events).toHaveLength(1);
+      expect(events[0].id).toBe(244);
+      expect(events[0].quantity).toBe(4);
+    });
+
+    it("applies text filters to the potion storage collection", () => {
+      const data = new GroupData();
+      data.update([
+        { name: "Alice", potion_storage: [244, 4, 245, 2] },
+      ]);
+
+      data.applyTextFilter("attack");
+      expect(data.potionStorageItems[244].visible).toBe(true);
+      expect(data.potionStorageItems[245].visible).toBe(false);
+    });
+
+    it("applies player filters to the potion storage collection", () => {
+      const data = new GroupData();
+      data.update([
+        { name: "Alice", potion_storage: [244, 4] },
+        { name: "Bob", potion_storage: [245, 2] },
+      ]);
+
+      data.applyPlayerFilter("Alice");
+      expect(data.potionStorageItems[244].visible).toBe(true);
+      expect(data.potionStorageItems[245].visible).toBe(false);
+    });
+
+    it("does not include potion doses in normal groupItems", () => {
+      const data = new GroupData();
+      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
+
+      expect(data.groupItems[244]).toBeUndefined();
+    });
   });
 });

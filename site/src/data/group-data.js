@@ -9,6 +9,7 @@ export class GroupData {
   constructor() {
     this.members = new Map();
     this.groupItems = {};
+    this.potionStorageItems = {};
     this.textFilter = "";
     this.textFilters = [""];
     this.playerFilter = "@ALL";
@@ -60,6 +61,8 @@ export class GroupData {
 
     const receivedItemData = memberInventoryFields.some((fieldName) => updatedAttributes.has(fieldName));
 
+    const receivedPotionStorage = updatedAttributes.has("potion_storage");
+
     const encounteredItemIds = new Set();
     if (receivedItemData) {
       for (const item of this.allItems()) {
@@ -96,6 +99,12 @@ export class GroupData {
           delete this.groupItems[item.id];
           anyItemUpdates = true;
         }
+      }
+    }
+
+    if (receivedPotionStorage || removedMembers.size > 0) {
+      if (this.rebuildPotionStorageItems()) {
+        anyItemUpdates = true;
       }
     }
 
@@ -160,22 +169,22 @@ export class GroupData {
     return this.passesTextFilter(item, textFilters) && this.passesPlayerFilter(item, playerFilter);
   }
 
+  applyVisibilityAllItems(textFilters, playerFilter) {
+    for (const item of [...Object.values(this.groupItems), ...Object.values(this.potionStorageItems)]) {
+      item.visible = this.shouldItemBeVisible(item, textFilters, playerFilter);
+    }
+  }
+
   applyTextFilter(textFilter) {
     this.textFilter = textFilter || "";
     const textFilters = this.convertFilterToFilterList(textFilter);
     this.textFilters = textFilters;
-    const items = Object.values(this.groupItems);
-    for (const item of items) {
-      item.visible = this.shouldItemBeVisible(item, textFilters, this.playerFilter);
-    }
+    this.applyVisibilityAllItems(textFilters, this.playerFilter);
   }
 
   applyPlayerFilter(playerFilter) {
     this.playerFilter = playerFilter;
-    const items = Object.values(this.groupItems);
-    for (const item of items) {
-      item.visible = this.shouldItemBeVisible(item, this.textFilters, playerFilter);
-    }
+    this.applyVisibilityAllItems(this.textFilters, playerFilter);
   }
 
   itemQuantities(itemId) {
@@ -209,6 +218,48 @@ export class GroupData {
         }
       }
     }
+  }
+
+  rebuildPotionStorageItems() {
+    const newItems = {};
+    const memberNames = [...this.members.keys()];
+    for (const member of this.members.values()) {
+      const potionMap = member.itemQuantities.potionStorage;
+      if (!potionMap) continue;
+      for (const [itemId, doses] of potionMap) {
+        if (doses <= 0) continue;
+        if (!newItems[itemId]) {
+          const item = new Item(itemId, 0);
+          item.source = "potion-storage";
+          item.quantities = {};
+          for (const name of memberNames) {
+            item.quantities[name] = 0;
+          }
+          newItems[itemId] = item;
+        }
+        newItems[itemId].quantities[member.name] = doses;
+        newItems[itemId].quantity += doses;
+      }
+    }
+
+    let changed = false;
+    for (const item of Object.values(newItems)) {
+      item.visible = this.shouldItemBeVisible(item, this.textFilters, this.playerFilter);
+      const previous = this.potionStorageItems[item.id];
+      if (!this.quantitiesEqual(previous?.quantities, item.quantities)) {
+        pubsub.publish(`potion-storage-item-update:${item.id}`, item);
+        changed = true;
+      }
+    }
+
+    for (const itemId of Object.keys(this.potionStorageItems)) {
+      if (!newItems[itemId]) {
+        changed = true;
+      }
+    }
+
+    this.potionStorageItems = newItems;
+    return changed;
   }
 
   static transformItemsFromStorage(items) {
@@ -321,6 +372,7 @@ const storageFieldTransformers = [
   ["coordinates", GroupData.transformCoordinatesFromStorage],
   ["quests", GroupData.transformQuestsFromStorage],
   ["collection_log_v2", GroupData.transformItemsFromStorage],
+  ["potion_storage", GroupData.transformItemsFromStorage],
 ];
 
 const groupData = new GroupData();

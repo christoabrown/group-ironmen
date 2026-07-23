@@ -96,6 +96,59 @@ describe("member-data", () => {
     expect(member.combatLevel).toBeGreaterThan(0);
   });
 
+  it("parses packed potion storage data into its own source map", () => {
+    Item.itemDetails[244] = { id: 244, name: "Attack potion(1)" };
+    const member = new MemberData("Alice");
+
+    const updated = member.update({ potion_storage: [{ id: 244, quantity: 6 }, { id: 244, quantity: 2 }] });
+
+    expect(updated.has("potion_storage")).toBe(true);
+    expect(member.itemQuantities.potionStorage.get(244)).toBe(8);
+    expect(member.totalItemQuantity(244)).toBe(0);
+  });
+
+  it("publishes potion storage update on its own topic", () => {
+    Item.itemDetails[244] = { id: 244, name: "Attack potion(1)" };
+    const member = new MemberData("Alice");
+
+    member.update({ potion_storage: [{ id: 244, quantity: 4 }] });
+
+    const event = pubsub.getMostRecent("potionStorage:Alice");
+    expect(event).toBeDefined();
+    expect(event[0]).toHaveLength(1);
+    expect(event[0][0].id).toBe(244);
+    expect(event[0][0].quantity).toBe(4);
+  });
+
+  it("replaces prior potion storage with a new snapshot", () => {
+    Item.itemDetails[244] = { id: 244, name: "Attack potion(1)" };
+    Item.itemDetails[245] = { id: 245, name: "Strength potion(1)" };
+    const member = new MemberData("Alice");
+
+    member.update({ potion_storage: [{ id: 244, quantity: 6 }] });
+    member.update({ potion_storage: [{ id: 245, quantity: 3 }] });
+
+    expect(member.itemQuantities.potionStorage.get(244)).toBeUndefined();
+    expect(member.itemQuantities.potionStorage.get(245)).toBe(3);
+  });
+
+  it("clears potion storage with an empty array without affecting normal items", () => {
+    Item.itemDetails[244] = { id: 244, name: "Attack potion(1)" };
+    Item.itemDetails[4151] = { id: 4151, name: "Abyssal whip" };
+    const member = new MemberData("Alice");
+
+    member.update({ inventory: [{ id: 4151, quantity: 2 }] });
+    member.update({ potion_storage: [{ id: 244, quantity: 4 }] });
+
+    expect(member.itemQuantities.potionStorage.get(244)).toBe(4);
+
+    member.update({ potion_storage: [] });
+
+    expect(member.itemQuantities.potionStorage.get(244)).toBeUndefined();
+    expect(member.itemQuantities.potionStorage.size).toBe(0);
+    expect(member.totalItemQuantity(4151)).toBe(2);
+  });
+
   afterEach(() => {
     Quest.lookupByName = originalLookupByName;
   });

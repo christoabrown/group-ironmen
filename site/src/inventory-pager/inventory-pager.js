@@ -98,27 +98,44 @@ export class InventoryPager extends BaseElement {
   }
 
   compareOnQuantity(a, b) {
-    return this.itemQuantity(b) - this.itemQuantity(a);
+    const diff = this.itemQuantity(b) - this.itemQuantity(a);
+    if (diff !== 0) return diff;
+    return this.sourceTieBreaker(a, b);
   }
 
   compareOnHighAlch(a, b) {
+    let diff;
     if (this.showIndividualPrices) {
-      return b.highAlch - a.highAlch;
+      diff = b.highAlch - a.highAlch;
+    } else {
+      diff = this.itemQuantity(b) * b.highAlch - this.itemQuantity(a) * a.highAlch;
     }
-
-    return this.itemQuantity(b) * b.highAlch - this.itemQuantity(a) * a.highAlch;
+    if (diff !== 0) return diff;
+    return this.sourceTieBreaker(a, b);
   }
 
   compareOnGePrice(a, b) {
+    let diff;
     if (this.showIndividualPrices) {
-      return b.gePrice - a.gePrice;
+      diff = b.gePrice - a.gePrice;
+    } else {
+      diff = this.itemQuantity(b) * b.gePrice - this.itemQuantity(a) * a.gePrice;
     }
-
-    return this.itemQuantity(b) * b.gePrice - this.itemQuantity(a) * a.gePrice;
+    if (diff !== 0) return diff;
+    return this.sourceTieBreaker(a, b);
   }
 
   compareAlphabetical(a, b) {
-    return a.name.localeCompare(b.name);
+    const diff = a.name.localeCompare(b.name);
+    if (diff !== 0) return diff;
+    return this.sourceTieBreaker(a, b);
+  }
+
+  sourceTieBreaker(a, b) {
+    const aSource = a.source || "normal";
+    const bSource = b.source || "normal";
+    if (aSource !== bSource) return aSource.localeCompare(bSource);
+    return a.id - b.id;
   }
 
   handleUpdatedItems() {
@@ -133,7 +150,9 @@ export class InventoryPager extends BaseElement {
   maybeRenderPage(pageNumber, forceRender = false) {
     const previousPageItems = this.pageItems;
 
-    const items = Object.values(groupData.groupItems).filter((item) => item.visible);
+    const items = [...Object.values(groupData.groupItems), ...Object.values(groupData.potionStorageItems)].filter(
+      (item) => item.visible
+    );
     this.numberOfPages = Math.floor(items.length / this.pageLimit);
     this.numberOfItems = items.length;
     if (items.length - this.pageLimit * this.numberOfPages > 0) this.numberOfPages++;
@@ -156,6 +175,9 @@ export class InventoryPager extends BaseElement {
 
     for (let i = 0; i < current.length; ++i) {
       if (current[i].id !== previous[i].id) return true;
+      const curSource = current[i].source || "normal";
+      const prevSource = previous[i].source || "normal";
+      if (curSource !== prevSource) return true;
     }
     return false;
   }
@@ -179,11 +201,13 @@ export class InventoryPager extends BaseElement {
   renderPage(page) {
     let items = "";
     for (const item of page) {
+      const potionAttr = item.source === "potion-storage" ? "potion-storage" : "";
       items += `
 <inventory-item item-id="${item.id}"
                 class="rsborder rsbackground"
                 ${this.showIndividualPrices ? "individual-prices" : ""}
-                ${groupData.playerFilter !== "@ALL" ? `player-filter="${groupData.playerFilter}"` : ""}>
+                ${groupData.playerFilter !== "@ALL" ? `player-filter="${groupData.playerFilter}"` : ""}
+                ${potionAttr}>
 </inventory-item>
 `;
     }
@@ -194,7 +218,8 @@ export class InventoryPager extends BaseElement {
   updateItemValues() {
     let totalGeValue = 0;
     let totalHaValue = 0;
-    for (const item of Object.values(groupData.groupItems)) {
+    const allItems = [...Object.values(groupData.groupItems), ...Object.values(groupData.potionStorageItems)];
+    for (const item of allItems) {
       if (item.visible) {
         const quantity = this.itemQuantity(item);
         totalGeValue += item.gePrice * quantity;
