@@ -22,6 +22,7 @@ inventory-item.rendered {
   grid-template-columns: 2fr 1fr;
   align-items: center;
   padding: 8px;
+  margin: -1px 0 0 -1px;
 
   background: rgba(255, 255, 255, 0.05);
 }

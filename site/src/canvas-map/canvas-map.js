@@ -1,6 +1,9 @@
 import { BaseElement } from "../base-element/base-element";
+import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 import { utility } from "../utility";
 import { Animation } from "./animation";
+
+export const ICON_SPRITE_SIZE = 15;
 
 export class CanvasMap extends BaseElement {
   html() {
@@ -15,13 +18,13 @@ export class CanvasMap extends BaseElement {
     this.canvas = this.querySelector("canvas");
     this.ctx = this.canvas.getContext("2d", { alpha: true });
     this.eventListener(this, "mousedown", this.onPointerDown.bind(this));
-    this.eventListener(this, "touchstart", this.onTouchStart.bind(this));
+    this.eventListener(this, "touchstart", this.onTouchStart.bind(this), { passive: false });
     this.eventListener(this, "mouseup", this.stopDragging.bind(this));
     this.eventListener(this, "touchend", this.stopDragging.bind(this));
     this.eventListener(this, "mousemove", this.onPointerMove.bind(this));
     this.eventListener(this, "touchmove", this.onTouchMove.bind(this));
     this.eventListener(this, "wheel", this.onScroll.bind(this));
-    this.eventListener(this, "mouseleave", this.stopDragging.bind(this));
+    this.eventListener(this, "mouseleave", this.onMouseLeave.bind(this));
     this.eventListener(this, "mouseenter", this.stopDragging.bind(this));
     this.eventListener(this, "touchcancel", this.stopDragging.bind(this));
     this.eventListener(window, "resize", this.onResize.bind(this));
@@ -85,6 +88,7 @@ export class CanvasMap extends BaseElement {
       window.cancelAnimationFrame(this.frameRequestId);
       this.frameRequestId = null;
     }
+    this.hideMapLinkTooltip();
     super.disconnectedCallback();
   }
 
@@ -107,6 +111,7 @@ export class CanvasMap extends BaseElement {
     }
 
     this.locations = this.parseIntKeys(data.icons);
+    this.buildIconIndex();
     this.mapLabels = this.parseIntKeys(data.labels);
 
     this.locationIconsSheet = new Image();
@@ -114,6 +119,50 @@ export class CanvasMap extends BaseElement {
     this.locationIconsSheet.onload = () => {
       this.requestUpdate();
     };
+
+    this.loadMapLinks(data.links);
+  }
+
+  loadMapLinks(data) {
+    try {
+      this.linksByPlane = {};
+      for (const [key, destination] of Object.entries(data || {})) {
+        const parts = key.split(",");
+        if (parts.length !== 3) {
+          console.error(`malformed map link key "${key}"`);
+          continue;
+        }
+        const x = parseInt(parts[0]);
+        const y = parseInt(parts[1]);
+        const plane = parseInt(parts[2]);
+        if (isNaN(x) || isNaN(y) || isNaN(plane)) {
+          console.error(`malformed map link key "${key}"`);
+          continue;
+        }
+        if (!Array.isArray(destination) || destination.length !== 3 || !destination.every((v) => !isNaN(v))) {
+          console.error(`malformed map link destination for key "${key}"`);
+          continue;
+        }
+        const destTileX = Math.floor(destination[0] / (this.tileSize / this.pixelsPerGameTile));
+        const destTileY = Math.floor(destination[1] / (this.tileSize / this.pixelsPerGameTile));
+        if (!this.validTiles?.[destination[2]]?.has(this.cantor(destTileX, destTileY))) {
+          continue;
+        }
+        const linkKey = this.positionKey(x, y + 1, plane);
+        const dest = {
+          x: destination[0],
+          y: destination[1],
+          plane: destination[2],
+        };
+        const parsed = { key: linkKey, x, y: y + 1, plane, destination: dest };
+        if (!this.linksByPlane[plane]) this.linksByPlane[plane] = [];
+        this.linksByPlane[plane].push(parsed);
+      }
+      this.buildLinkIconOverrides();
+      this.requestUpdate();
+    } catch (ex) {
+      console.error("failed to load map links", ex);
+    }
   }
 
   handleUpdatedMembers(members) {
@@ -141,7 +190,8 @@ export class CanvasMap extends BaseElement {
         this.followingPlayer.coordinates = coordinates;
       }
 
-      if (this.isGameTileInView(coordinates.x, coordinates.y)) {
+      const padPx = this.pixelsPerGameTile * this.camera.zoom.current;
+      if (this.isGameTileInView(coordinates.x, coordinates.y, padPx)) {
         this.requestUpdate();
       }
     }
@@ -185,12 +235,18 @@ export class CanvasMap extends BaseElement {
     return [x * this.pixelsPerGameTile, -y * this.pixelsPerGameTile + this.tileSize];
   }
 
-  // Checks if a tile in the runescape world is currently visible on the canvas
-  isGameTileInView(x, y) {
-    const padding = this.tileSize / this.pixelsPerGameTile;
-    const [clientLeft, clientTop] = this.gamePositionToClient(x + padding, y - padding);
-    const [clientRight, clientBottom] = this.gamePositionToClient(x - padding, y + padding);
-    return clientLeft >= 0 && clientRight <= this.canvas.width && clientTop >= 0 && clientBottom <= this.canvas.height;
+  // Checks if a game tile's canvas draw position is currently visible on the screen.
+  // padPx is padding in screen pixels to account for icon/marker sizes that extend beyond the tile corner.
+  isGameTileInView(x, y, padPx = 0) {
+    const zoom = this.camera.zoom.current;
+    const screenX = x * this.pixelsPerGameTile * zoom - this.camera.x.current;
+    const screenY = (-y * this.pixelsPerGameTile + this.tileSize) * zoom + this.camera.y.current;
+    return (
+      screenX >= -padPx &&
+      screenX <= this.canvas.width + padPx &&
+      screenY >= -padPx &&
+      screenY <= this.canvas.height + padPx
+    );
   }
 
   requestUpdate() {
@@ -209,6 +265,128 @@ export class CanvasMap extends BaseElement {
 
   coordinateKey(x, y) {
     return `${x},${y}`;
+  }
+
+  positionKey(x, y, plane) {
+    return `${x},${y},${plane}`;
+  }
+
+  iconCanvasSize() {
+    const scale = Math.min(this.camera.zoom.current, 3);
+    return ICON_SPRITE_SIZE / scale;
+  }
+
+  mapLinkScreenCenter(x, y) {
+    const [canvasX, canvasY] = this.gamePositionToCanvas(x, y);
+    return [
+      canvasX * this.camera.zoom.current - this.camera.x.current,
+      canvasY * this.camera.zoom.current + this.camera.y.current,
+    ];
+  }
+
+  linksOnCurrentPlane() {
+    if (!this.linksByPlane) return [];
+    return this.linksByPlane[this.plane - 1] || [];
+  }
+
+  buildIconIndex() {
+    this.iconIndex = new Set();
+    if (!this.locations) return;
+    for (const regionX of Object.keys(this.locations)) {
+      const regionYMap = this.locations[regionX];
+      if (!regionYMap) continue;
+      for (const regionY of Object.keys(regionYMap)) {
+        const spriteMap = regionYMap[regionY];
+        if (!spriteMap) continue;
+        for (const coordinates of Object.values(spriteMap)) {
+          for (let i = 0; i < coordinates.length; i += 3) {
+            this.iconIndex.add(this.positionKey(coordinates[i], coordinates[i + 1], coordinates[i + 2]));
+          }
+        }
+      }
+    }
+  }
+
+  buildLinkIconOverrides() {
+    this.linkIconOverrides = {};
+    this.linkedIconPositions = new Set();
+    if (!this.linksByPlane || !this.iconIndex) return;
+    for (const links of Object.values(this.linksByPlane)) {
+      for (const link of links) {
+        const { key, x, y, plane } = link;
+        if (this.iconIndex.has(this.positionKey(x, y, plane))) {
+          this.linkIconOverrides[key] = { iconX: x, iconY: y };
+          this.linkedIconPositions.add(this.positionKey(x, y, plane));
+        } else if (this.iconIndex.has(this.positionKey(x, y + 1, plane))) {
+          this.linkIconOverrides[key] = { iconX: x, iconY: y + 1 };
+          this.linkedIconPositions.add(this.positionKey(x, y + 1, plane));
+        }
+      }
+    }
+  }
+
+  getLinkAtClient(clientX, clientY) {
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const cx = clientX - canvasRect.left;
+    const cy = clientY - canvasRect.top;
+    const canvasSize = this.iconCanvasSize();
+    const halfSize = (canvasSize * this.camera.zoom.current) / 2;
+    let bestLink = null;
+    let bestDist = Infinity;
+    for (const link of this.linksOnCurrentPlane()) {
+      const override = this.linkIconOverrides?.[link.key];
+      const hitX = override ? override.iconX : link.x;
+      const hitY = override ? override.iconY : link.y;
+      const [linkScreenX, linkScreenY] = this.mapLinkScreenCenter(hitX, hitY);
+      const dx = cx - linkScreenX;
+      const dy = cy - linkScreenY;
+      if (Math.abs(dx) <= halfSize && Math.abs(dy) <= halfSize) {
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestLink = link;
+        }
+      }
+    }
+    return bestLink;
+  }
+
+  goToMapLink(destination) {
+    this.stopFollowingPlayer();
+    this.showPlane(destination.plane + 1);
+    const [targetX, targetY] = this.gamePositionToCameraCenter(destination.x, destination.y);
+    this.camera.x.goTo(targetX, 0);
+    this.camera.y.goTo(targetY, 0);
+    this.cursor.dx = 0;
+    this.cursor.dy = 0;
+    this.requestUpdate();
+  }
+
+  buildMapLinkTooltip(destination) {
+    const mapSquareX = Math.floor(destination.x / 64);
+    const mapSquareY = Math.floor(destination.y / 64);
+    const url = `/map/${destination.plane}_${mapSquareX}_${mapSquareY}.webp`;
+    const alt = `Destination: (${destination.x}, ${destination.y}) plane ${destination.plane + 1}`;
+    const localX = destination.x - mapSquareX * 64;
+    const localY = destination.y - mapSquareY * 64;
+    const pctX = (localX / 64) * 100;
+    const pctY = 100 - (localY / 64) * 100;
+    return `<div class="map-link-tooltip__container">
+      <img src="${url}" alt="${alt}" class="map-link-tooltip__image" />
+      <div class="map-link-tooltip__marker" style="left: ${pctX}%; top: ${pctY}%"></div>
+    </div>`;
+  }
+
+  hideMapLinkTooltip() {
+    if (this.mapLinkTooltipShown) {
+      this.mapLinkTooltipShown = false;
+      tooltipManager.hideTooltip();
+    }
+  }
+
+  showMapLinkTooltip(link, event) {
+    this.mapLinkTooltipShown = true;
+    tooltipManager.showTooltip(this.buildMapLinkTooltip(link.destination), event);
   }
 
   cantor(x, y) {
@@ -296,6 +474,7 @@ export class CanvasMap extends BaseElement {
       this.drawMapSquaresInView(!isPanningABigDistance);
       this.drawLocations();
       this.drawMapAreaLabels(!isPanningABigDistance);
+      this.drawMapLinks();
 
       this.drawTileMarkers(this.playerMarkers.values(), {
         fillColor: "#348feb",
@@ -400,7 +579,10 @@ export class CanvasMap extends BaseElement {
       this.ctx.globalAlpha = 1 - Math.abs(this.plane - 1 - plane) * 0.25;
 
       const positions = [];
+      const labelPadPx = 64;
+      const padPx = this.pixelsPerGameTile * this.camera.zoom.current + labelPadPx;
       for (const tileMarker of tilesOnPlane) {
+        if (!this.isGameTileInView(tileMarker.coordinates.x, tileMarker.coordinates.y, padPx)) continue;
         const [x, y] = this.gamePositionToCanvas(tileMarker.coordinates.x, tileMarker.coordinates.y);
         positions.push({ x, y, text: tileMarker.label });
       }
@@ -411,25 +593,54 @@ export class CanvasMap extends BaseElement {
     this.ctx.globalAlpha = 1;
   }
 
+  drawMapLinks() {
+    const links = this.linksOnCurrentPlane().filter((l) => !this.linkIconOverrides?.[l.key]);
+    if (links.length === 0) return;
+    const destinationSize = this.iconCanvasSize();
+    const padPx = (destinationSize * this.camera.zoom.current) / 2 + 2;
+    for (const link of links) {
+      if (!this.isGameTileInView(link.x, link.y, padPx)) continue;
+      const [x, y] = this.gamePositionToCanvas(link.x, link.y);
+      this.drawLinkHighlight(x, y, destinationSize, true);
+    }
+  }
+
+  drawLinkHighlight(centerX, centerY, iconSize, filled) {
+    const radius = iconSize / 2 + 2 / this.camera.zoom.current;
+    this.ctx.beginPath();
+    this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    if (filled) {
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+      this.ctx.fill();
+    }
+    this.ctx.strokeStyle = "rgb(255, 255, 255)";
+    this.ctx.lineWidth = 2 / this.camera.zoom.current;
+    this.ctx.stroke();
+    this.ctx.closePath();
+  }
+
   drawCursorTile() {
     this.drawGameTiles([{ x: this.cursor.canvasX, y: this.cursor.canvasY }], "#348feb", "#34d8eb");
   }
 
   drawLocations() {
     if (!this.locations) return;
-    const imageSize = 15;
-    const imageSizeHalf = imageSize / 2;
-    // Scale the location icons down with zoom down up to a maximum. Larger number here means a smaller icon.
-    const scale = Math.min(this.camera.zoom.current, 3);
-    const shift = imageSizeHalf / scale;
-    const destinationSize = imageSize / scale;
+    const imageSize = ICON_SPRITE_SIZE;
+    const destinationSize = this.iconCanvasSize();
+    const shift = destinationSize / 2;
 
+    const currentPlane = this.plane - 1;
     for (const tile of this.tilesInView) {
       const locations = this.locations[tile.regionX]?.[tile.regionY];
       if (locations) {
         for (const [spriteIndex, coordinates] of Object.entries(locations)) {
-          for (let i = 0; i < coordinates.length; i += 2) {
-            const [x, y] = this.gamePositionToCanvas(coordinates[i], coordinates[i + 1]);
+          for (let i = 0; i < coordinates.length; i += 3) {
+            if (coordinates[i + 2] !== currentPlane) continue;
+            const iconX = coordinates[i];
+            const iconY = coordinates[i + 1];
+            const [x, y] = this.gamePositionToCanvas(iconX, iconY);
+            const drawX = Math.round(x - shift);
+            const drawY = Math.round(y - shift);
             try {
               this.ctx.drawImage(
                 this.locationIconsSheet,
@@ -437,13 +648,16 @@ export class CanvasMap extends BaseElement {
                 0,
                 imageSize,
                 imageSize,
-                Math.round(x - shift),
-                Math.round(y - shift),
+                drawX,
+                drawY,
                 destinationSize,
                 destinationSize
               );
             } catch (ex) {
               console.error(`failed to draw map icon ${spriteIndex} ${coordinates}`, ex);
+            }
+            if (this.linkedIconPositions?.has(this.positionKey(iconX, iconY, currentPlane))) {
+              this.drawLinkHighlight(drawX + destinationSize / 2, drawY + destinationSize / 2, destinationSize, false);
             }
           }
         }
@@ -582,7 +796,42 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
+  onMouseLeave() {
+    this.pendingMapLink = null;
+    this.pointerDragged = false;
+    this.hoveredMapLink = null;
+    this.hideMapLinkTooltip();
+    this.style.cursor = "";
+    this.stopDragging();
+  }
+
+  beginMapLinkPress(link, clientX, clientY) {
+    this.pendingMapLink = link;
+    this.pointerDownX = clientX;
+    this.pointerDownY = clientY;
+    this.pointerDragged = false;
+  }
+
+  checkMapLinkDragThreshold(clientX, clientY) {
+    const dx = clientX - this.pointerDownX;
+    const dy = clientY - this.pointerDownY;
+    if (dx * dx + dy * dy > 25) {
+      this.pointerDragged = true;
+      this.pendingMapLink = null;
+      this.hideMapLinkTooltip();
+      this.style.cursor = "grabbing";
+      this.startDragging(clientX, clientY);
+      return true;
+    }
+    return false;
+  }
+
   onPointerDown(event) {
+    const link = this.getLinkAtClient(event.clientX, event.clientY);
+    if (link) {
+      this.beginMapLinkPress(link, event.clientX, event.clientY);
+      return;
+    }
     this.startDragging(event.clientX, event.clientY);
   }
 
@@ -603,7 +852,16 @@ export class CanvasMap extends BaseElement {
   }
 
   onTouchStart(event) {
-    if (event.touches.length === 2) {
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      const link = this.getLinkAtClient(touch.clientX, touch.clientY);
+      if (link) {
+        this.beginMapLinkPress(link, touch.clientX, touch.clientY);
+        event.preventDefault();
+        return;
+      }
+    } else if (event.touches.length === 2) {
+      this.pendingMapLink = null;
       this.touch.startDistance = this.pinchDistance(event.touches);
       this.touch.startZoom = this.camera.zoom.current;
     }
@@ -627,10 +885,18 @@ export class CanvasMap extends BaseElement {
   }
 
   stopDragging() {
+    if (this.pendingMapLink) {
+      if (!this.pointerDragged) {
+        this.goToMapLink(this.pendingMapLink.destination);
+      }
+      this.pendingMapLink = null;
+      this.pointerDragged = false;
+      return;
+    }
     this.classList.remove("dragging");
     // To handle cases when the pointer stops moving before letting go
     const elapsed = performance.now() - this.cursor.lastPointerMoveTime;
-    if (elapsed > 100) {
+    if (elapsed > 200) {
       this.cursor.dx = 0;
       this.cursor.dy = 0;
     }
@@ -647,12 +913,39 @@ export class CanvasMap extends BaseElement {
   }
 
   onPointerMove(event) {
+    if (this.pendingMapLink) {
+      if (this.checkMapLinkDragThreshold(event.clientX, event.clientY)) {
+        this.processPointerMove(event.clientX, event.clientY);
+      }
+      return;
+    }
     this.processPointerMove(event.clientX, event.clientY);
+    if (this.camera.isDragging) return;
+    const link = this.getLinkAtClient(event.clientX, event.clientY);
+    if (link) {
+      if (this.hoveredMapLink?.key !== link.key) {
+        this.hoveredMapLink = link;
+        this.showMapLinkTooltip(link, event);
+      }
+      this.style.cursor = "pointer";
+      return;
+    }
+    if (this.hoveredMapLink) {
+      this.hoveredMapLink = null;
+      this.hideMapLinkTooltip();
+    }
+    this.style.cursor = "";
   }
 
   onTouchMove(event) {
     if (event.touches.length === 1) {
       const touch = event.touches[0];
+      if (this.pendingMapLink) {
+        if (this.checkMapLinkDragThreshold(touch.clientX, touch.clientY)) {
+          this.processPointerMove(touch.clientX, touch.clientY);
+        }
+        return;
+      }
       if (!this.camera.isDragging) {
         this.startDragging(touch.clientX, touch.clientY);
       }
@@ -684,10 +977,10 @@ export class CanvasMap extends BaseElement {
     const elapsed = performance.now() - this.cursor.lastPointerMoveTime;
     this.cursor.lastPointerMoveTime = performance.now();
 
-    // cursor.dx and cursor.dy are calculated as the average movement over 10 frames. This is used
+    // cursor.dx and cursor.dy are calculated as the average movement over the last 5 frames. This is used
     // to calculate the speed after dragging has stopped which is used to animate and convey momentum.
     if (elapsed) {
-      const eventsToKeep = 10;
+      const eventsToKeep = 5;
       this.pushFrame("frameX", -dx / elapsed, eventsToKeep);
       this.pushFrame("frameY", dy / elapsed, eventsToKeep);
     }

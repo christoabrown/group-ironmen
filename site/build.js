@@ -25,10 +25,18 @@ const mapJsonPlugin = {
 
     const labels = JSON.parse(fs.readFileSync("public/data/map_labels.json", 'utf8'));
 
+    let links;
+    try {
+      links = JSON.parse(fs.readFileSync("public/data/map_links.json", 'utf8'));
+    } catch {
+      links = {};
+    }
+
     const result = {
       tiles,
       icons,
-      labels
+      labels,
+      links
     };
 
     fs.writeFileSync('public/data/map.json', JSON.stringify(result));

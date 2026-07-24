@@ -28,20 +28,27 @@ export class RsTooltip extends BaseElement {
   updatePosition(mouseEvent) {
     const x = mouseEvent.clientX;
     const y = mouseEvent.clientY;
-    const top = Math.max(0, y - this.height);
+    const tooltipWidth = this.offsetWidth;
+    const tooltipHeight = this.offsetHeight;
+    const viewportWidth = document.body.clientWidth;
+    const viewportHeight = window.innerHeight;
+    const top = Math.max(0, Math.min(y - tooltipHeight, viewportHeight - tooltipHeight));
     let left = x + 2;
-    if (left >= document.body.clientWidth / 2) {
-      left -= this.offsetWidth + 2;
+    if (left + tooltipWidth > viewportWidth) {
+      left = x - tooltipWidth - 2;
     }
+    left = Math.max(0, Math.min(left, viewportWidth - tooltipWidth));
 
     this.style.transform = `translate(${left}px, ${top}px)`;
   }
 
-  showTooltip(tooltipText) {
+  showTooltip(tooltipText, mouseEvent) {
     this.tooltipText = tooltipText;
     this.eventListener(document.body, "mousemove", this.updatePosition.bind(this));
     this.render();
-    this.height = this.offsetHeight;
+    if (mouseEvent) {
+      this.updatePosition(mouseEvent);
+    }
   }
 
   hideTooltip() {

@@ -1,6 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { Animation } from "../src/canvas-map/animation";
-import { CanvasMap } from "../src/canvas-map/canvas-map";
+
+const { mockShowTooltip, mockHideTooltip } = vi.hoisted(() => ({
+  mockShowTooltip: vi.fn(),
+  mockHideTooltip: vi.fn(),
+}));
+
+vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
+  tooltipManager: {
+    showTooltip: mockShowTooltip,
+    hideTooltip: mockHideTooltip,
+  },
+}));
+
+import { CanvasMap, ICON_SPRITE_SIZE } from "../src/canvas-map/canvas-map";
 
 function createMockCtx() {
   return {
@@ -21,11 +34,28 @@ function createMockCtx() {
     drawImage: vi.fn(),
     fillText: vi.fn(),
     strokeText: vi.fn(),
+    arc: vi.fn(),
     imageSmoothingEnabled: true,
   };
 }
 
-function createMapInstance(overrides = {}) {
+function setMapLinks(map, links) {
+  map.linksByPlane = {};
+  for (const [key, destination] of Object.entries(links)) {
+    const [x, y, plane] = key.split(",").map(Number);
+    if (!map.linksByPlane[plane]) map.linksByPlane[plane] = [];
+    const linkKey = `${x},${y + 1},${plane}`;
+    map.linksByPlane[plane].push({ key: linkKey, x, y: y + 1, plane, destination });
+  }
+}
+
+function centerCameraOn(map, x, y) {
+  const [cx, cy] = map.gamePositionToCameraCenter(x, y);
+  map.camera.x.current = cx;
+  map.camera.y.current = cy;
+}
+
+function createMapInstance() {
   const map = new CanvasMap();
   map.plane = 1;
   map.tileSize = 256;
@@ -53,7 +83,6 @@ function createMapInstance(overrides = {}) {
   map.tilesInView = [];
   map.updateRequested = 0;
   map.coordinatesDisplay = { innerText: "" };
-  Object.assign(map, overrides);
   return map;
 }
 
@@ -599,5 +628,832 @@ describe("CanvasMap._update pan momentum", () => {
     const decayFactor = 100 * 0.005 + 1;
     expect(map.cursor.dx).toBeCloseTo(0.5 / decayFactor);
     expect(map.cursor.dy).toBeCloseTo(0.5 / decayFactor);
+  });
+});
+
+describe("CanvasMap.loadMapLinks", () => {
+  it("parses valid link entries into linksByPlane lookup", () => {
+    const map = createMapInstance();
+    map.requestUpdate = vi.fn();
+    const fakeData = {
+      "100,200,0": [300, 400, 1],
+      "500,600,2": [700, 800, 3],
+    };
+    const destTileX1 = Math.floor(300 / (map.tileSize / map.pixelsPerGameTile));
+    const destTileY1 = Math.floor(400 / (map.tileSize / map.pixelsPerGameTile));
+    const destTileX2 = Math.floor(700 / (map.tileSize / map.pixelsPerGameTile));
+    const destTileY2 = Math.floor(800 / (map.tileSize / map.pixelsPerGameTile));
+    map.validTiles = [
+      new Set(),
+      new Set([map.cantor(destTileX1, destTileY1)]),
+      new Set(),
+      new Set([map.cantor(destTileX2, destTileY2)]),
+    ];
+    map.loadMapLinks(fakeData);
+    const plane0Links = map.linksByPlane[0];
+    const plane2Links = map.linksByPlane[2];
+    expect(plane0Links).toHaveLength(1);
+    expect(plane0Links[0].key).toBe("100,201,0");
+    expect(plane0Links[0].destination).toEqual({ x: 300, y: 400, plane: 1 });
+    expect(plane2Links).toHaveLength(1);
+    expect(plane2Links[0].key).toBe("500,601,2");
+    expect(plane2Links[0].destination).toEqual({ x: 700, y: 800, plane: 3 });
+  });
+
+  it("rejects malformed keys with wrong number of parts", () => {
+    const map = createMapInstance();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    map.loadMapLinks({ "100,200": [300, 400, 0] });
+    expect(map.linksByPlane[0]).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it("rejects malformed keys with NaN values", () => {
+    const map = createMapInstance();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    map.loadMapLinks({ "abc,def,ghi": [300, 400, 0] });
+    expect(Object.keys(map.linksByPlane)).toHaveLength(0);
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it("rejects malformed destinations", () => {
+    const map = createMapInstance();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    map.loadMapLinks({
+      "100,200,0": [300, 400],
+      "500,600,0": "not-an-array",
+    });
+    expect(Object.keys(map.linksByPlane)).toHaveLength(0);
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  it("handles null/undefined data gracefully", () => {
+    const map = createMapInstance();
+    map.loadMapLinks(null);
+    expect(Object.keys(map.linksByPlane)).toHaveLength(0);
+    map.loadMapLinks(undefined);
+    expect(Object.keys(map.linksByPlane)).toHaveLength(0);
+  });
+});
+
+describe("CanvasMap.positionKey", () => {
+  const map = createMapInstance();
+
+  it("returns a string key from x,y,plane", () => {
+    expect(map.positionKey(3, 5, 0)).toBe("3,5,0");
+    expect(map.positionKey(-1, 0, 2)).toBe("-1,0,2");
+  });
+});
+
+describe("CanvasMap.getLinkAtClient", () => {
+  function createMapWithLinks(overrides = {}) {
+    const map = createMapInstance();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "500,600,0": { x: 700, y: 800, plane: 2 },
+      "100,200,1": { x: 900, y: 1000, plane: 3 },
+    });
+    Object.assign(map, overrides);
+    return map;
+  }
+
+  it("returns null when mapLinks is not set", () => {
+    const map = createMapInstance();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    expect(map.getLinkAtClient(0, 0)).toBeNull();
+  });
+
+  it("returns null when no link is on the current plane", () => {
+    const map = createMapWithLinks({ plane: 4 });
+    expect(map.getLinkAtClient(0, 0)).toBeNull();
+  });
+
+  it("finds a link on the current plane (plane 1 = zero-based 0)", () => {
+    const map = createMapWithLinks({ plane: 1 });
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const link = map.getLinkAtClient(linkX, linkY);
+    expect(link).not.toBeNull();
+    expect(link.key).toBe("100,201,0");
+    expect(link.destination).toEqual({ x: 300, y: 400, plane: 1 });
+  });
+
+  it("does not find a link on a different plane", () => {
+    const map = createMapWithLinks({ plane: 4 });
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const link = map.getLinkAtClient(linkX, linkY);
+    expect(link).toBeNull();
+  });
+
+  it("hitbox matches icon footprint at zoom 1", () => {
+    const map = createMapWithLinks({ plane: 1 });
+    map.camera.zoom.current = 1;
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const halfSize = (ICON_SPRITE_SIZE / 1) * 1 / 2;
+    const link = map.getLinkAtClient(linkX + halfSize - 1, linkY + halfSize - 1);
+    expect(link).not.toBeNull();
+    const noLink = map.getLinkAtClient(linkX + halfSize + 1, linkY + halfSize + 1);
+    expect(noLink).toBeNull();
+  });
+
+  it("hitbox matches icon footprint at zoom 2", () => {
+    const map = createMapWithLinks({ plane: 1 });
+    map.camera.zoom.current = 2;
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const halfSize = (ICON_SPRITE_SIZE / 2) * 2 / 2;
+    const link = map.getLinkAtClient(linkX + halfSize - 0.5, linkY + halfSize - 0.5);
+    expect(link).not.toBeNull();
+    const noLink = map.getLinkAtClient(linkX + halfSize + 1, linkY + halfSize + 1);
+    expect(noLink).toBeNull();
+  });
+
+  it("hitbox matches icon footprint at zoom 3 (scale cap)", () => {
+    const map = createMapWithLinks({ plane: 1 });
+    map.camera.zoom.current = 5;
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const halfSize = (ICON_SPRITE_SIZE / 3) * 5 / 2;
+    const link = map.getLinkAtClient(linkX + halfSize - 0.5, linkY + halfSize - 0.5);
+    expect(link).not.toBeNull();
+    const noLink = map.getLinkAtClient(linkX + halfSize + 1, linkY + halfSize + 1);
+    expect(noLink).toBeNull();
+  });
+
+  it("selects deterministic closest hit when multiple links overlap", () => {
+    const map = createMapInstance();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    map.camera.zoom.current = 1;
+    map.plane = 1;
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "101,201,0": { x: 700, y: 800, plane: 2 },
+    });
+    const [linkAX, linkAY] = map.mapLinkScreenCenter(100, 201);
+    const [linkBX, linkBY] = map.mapLinkScreenCenter(101, 202);
+    const midX = (linkAX + linkBX) / 2;
+    const midY = (linkAY + linkBY) / 2;
+    const link = map.getLinkAtClient(midX, midY);
+    expect(link).not.toBeNull();
+  });
+});
+
+describe("CanvasMap.goToMapLink", () => {
+  it("stops following player, switches plane, and centers camera", () => {
+    const map = createMapInstance();
+    map.followingPlayer = { name: "Alice", coordinates: { x: 100, y: 200, plane: 0 } };
+    const showPlaneSpy = vi.spyOn(map, "showPlane");
+    const xGoToSpy = vi.spyOn(map.camera.x, "goTo");
+    const yGoToSpy = vi.spyOn(map.camera.y, "goTo");
+    map.goToMapLink({ x: 500, y: 600, plane: 2 });
+    expect(map.followingPlayer.name).toBeNull();
+    expect(showPlaneSpy).toHaveBeenCalledWith(3);
+    expect(xGoToSpy).toHaveBeenCalled();
+    expect(yGoToSpy).toHaveBeenCalled();
+    expect(map.cursor.dx).toBe(0);
+    expect(map.cursor.dy).toBe(0);
+  });
+});
+
+describe("CanvasMap.buildMapLinkTooltip", () => {
+  const map = createMapInstance();
+
+  it("builds an img tag with the correct map square URL", () => {
+    const html = map.buildMapLinkTooltip({ x: 100, y: 200, plane: 0 });
+    expect(html).toContain('src="/map/0_1_3.webp"');
+    expect(html).toContain('class="map-link-tooltip__image"');
+  });
+
+  it("includes destination coordinates and one-based plane in alt text", () => {
+    const html = map.buildMapLinkTooltip({ x: 100, y: 200, plane: 2 });
+    expect(html).toContain("(100, 200)");
+    expect(html).toContain("plane 3");
+  });
+
+  it("wraps image in a container with a positioned destination marker", () => {
+    const html = map.buildMapLinkTooltip({ x: 100, y: 200, plane: 0 });
+    expect(html).toContain('class="map-link-tooltip__container"');
+    expect(html).toContain('class="map-link-tooltip__marker"');
+    const localX = 100 - Math.floor(100 / 64) * 64;
+    const localY = 200 - Math.floor(200 / 64) * 64;
+    const pctX = (localX / 64) * 100;
+    const pctY = 100 - (localY / 64) * 100;
+    expect(html).toContain(`left: ${pctX}%`);
+    expect(html).toContain(`top: ${pctY}%`);
+  });
+});
+
+function createLinkMap() {
+  const map = createMapInstance();
+  map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+  map.style = { cursor: "" };
+  setMapLinks(map, {
+    "100,200,0": { x: 300, y: 400, plane: 1 },
+  });
+  map.plane = 1;
+  map.camera.zoom.current = 1;
+  vi.spyOn(map, "requestUpdate").mockImplementation(() => {});
+  return map;
+}
+
+describe("CanvasMap map link pointer interactions", () => {
+  it("onPointerDown over a link defers navigation without starting drag", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    expect(map.pendingMapLink).not.toBeNull();
+    expect(startDragSpy).not.toHaveBeenCalled();
+  });
+
+  it("onPointerDown outside a link starts dragging", () => {
+    const map = createLinkMap();
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.onPointerDown({ clientX: 0, clientY: 0 });
+    expect(startDragSpy).toHaveBeenCalled();
+    expect(map.pendingMapLink).toBeUndefined();
+  });
+
+  it("stopDragging after click navigates to destination", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    const goToSpy = vi.spyOn(map, "goToMapLink");
+    map.stopDragging({});
+    expect(goToSpy).toHaveBeenCalledWith({ x: 300, y: 400, plane: 1 });
+    expect(map.pendingMapLink).toBeNull();
+  });
+
+  it("stopDragging after drag does not navigate", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    map.pointerDragged = true;
+    const goToSpy = vi.spyOn(map, "goToMapLink");
+    map.stopDragging({});
+    expect(goToSpy).not.toHaveBeenCalled();
+  });
+
+  it("onPointerMove beyond drag threshold starts dragging and cancels link", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onPointerMove({ clientX: linkX + 10, clientY: linkY + 10 });
+    expect(map.pointerDragged).toBe(true);
+    expect(map.pendingMapLink).toBeNull();
+    expect(startDragSpy).toHaveBeenCalled();
+  });
+
+  it("onPointerMove within drag threshold does not start dragging", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onPointerMove({ clientX: linkX + 2, clientY: linkY + 2 });
+    expect(map.pointerDragged).toBe(false);
+    expect(startDragSpy).not.toHaveBeenCalled();
+  });
+
+  it("onPointerMove within drag threshold does not call processPointerMove", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    const moveSpy = vi.spyOn(map, "processPointerMove");
+    map.onPointerMove({ clientX: linkX + 2, clientY: linkY + 2 });
+    expect(moveSpy).not.toHaveBeenCalled();
+  });
+
+  it("onPointerMove beyond drag threshold calls processPointerMove once", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onPointerDown({ clientX: linkX, clientY: linkY });
+    const moveSpy = vi.spyOn(map, "processPointerMove");
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onPointerMove({ clientX: linkX + 10, clientY: linkY + 10 });
+    expect(moveSpy).toHaveBeenCalledOnce();
+  });
+});
+
+describe("CanvasMap map link touch interactions", () => {
+  it("onTouchStart over a link defers navigation without starting drag", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.onTouchStart({ touches: [{ clientX: linkX, clientY: linkY }], preventDefault: () => {} });
+    expect(map.pendingMapLink).not.toBeNull();
+    expect(startDragSpy).not.toHaveBeenCalled();
+  });
+
+  it("onTouchStart outside a link does not set pendingMapLink", () => {
+    const map = createLinkMap();
+    map.onTouchStart({ touches: [{ clientX: 0, clientY: 0 }] });
+    expect(map.pendingMapLink).toBeUndefined();
+  });
+
+  it("stopDragging after tap navigates to destination", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onTouchStart({ touches: [{ clientX: linkX, clientY: linkY }], preventDefault: () => {} });
+    const goToSpy = vi.spyOn(map, "goToMapLink");
+    map.stopDragging({});
+    expect(goToSpy).toHaveBeenCalledWith({ x: 300, y: 400, plane: 1 });
+    expect(map.pendingMapLink).toBeNull();
+  });
+
+  it("onTouchMove beyond drag threshold cancels link and starts dragging", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onTouchStart({ touches: [{ clientX: linkX, clientY: linkY }], preventDefault: () => {} });
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onTouchMove({ touches: [{ clientX: linkX + 10, clientY: linkY + 10 }] });
+    expect(map.pointerDragged).toBe(true);
+    expect(map.pendingMapLink).toBeNull();
+    expect(startDragSpy).toHaveBeenCalled();
+  });
+
+  it("onTouchMove within drag threshold does not cancel link", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onTouchStart({ touches: [{ clientX: linkX, clientY: linkY }], preventDefault: () => {} });
+    const startDragSpy = vi.spyOn(map, "startDragging");
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onTouchMove({ touches: [{ clientX: linkX + 2, clientY: linkY + 2 }] });
+    expect(map.pointerDragged).toBe(false);
+    expect(map.pendingMapLink).not.toBeNull();
+    expect(startDragSpy).not.toHaveBeenCalled();
+  });
+
+  it("onTouchStart with two fingers clears pendingMapLink and sets pinch state", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.onTouchStart({ touches: [{ clientX: linkX, clientY: linkY }], preventDefault: () => {} });
+    expect(map.pendingMapLink).not.toBeNull();
+    map.onTouchStart({ touches: [{ clientX: 0, clientY: 0 }, { clientX: 100, clientY: 100 }] });
+    expect(map.pendingMapLink).toBeNull();
+    expect(map.touch.startDistance).toBeGreaterThan(0);
+  });
+});
+
+describe("CanvasMap map link tooltip and cursor", () => {
+  it("shows tooltip and sets pointer cursor on hover over link", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    mockShowTooltip.mockClear();
+    map.onPointerMove({ clientX: linkX, clientY: linkY });
+    expect(mockShowTooltip).toHaveBeenCalled();
+    expect(map.style.cursor).toBe("pointer");
+  });
+
+  it("hides tooltip and restores cursor when moving away from link", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onPointerMove({ clientX: linkX, clientY: linkY });
+    mockHideTooltip.mockClear();
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onPointerMove({ clientX: 0, clientY: 0 });
+    expect(mockHideTooltip).toHaveBeenCalled();
+    expect(map.style.cursor).toBe("");
+  });
+
+  it("hideMapLinkTooltip does not call tooltipManager when not shown", () => {
+    const map = createLinkMap();
+    mockHideTooltip.mockClear();
+    map.mapLinkTooltipShown = false;
+    map.hideMapLinkTooltip();
+    expect(mockHideTooltip).not.toHaveBeenCalled();
+  });
+
+  it("onMouseLeave clears link state and hides tooltip", () => {
+    const map = createLinkMap();
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    map.cursor.previousX = linkX;
+    map.cursor.previousY = linkY;
+    map.onPointerMove({ clientX: linkX, clientY: linkY });
+    expect(map.hoveredMapLink).not.toBeNull();
+    mockHideTooltip.mockClear();
+    map.onMouseLeave();
+    expect(map.pendingMapLink).toBeNull();
+    expect(map.hoveredMapLink).toBeNull();
+    expect(mockHideTooltip).toHaveBeenCalled();
+    expect(map.style.cursor).toBe("");
+  });
+
+  it("disconnectedCallback hides tooltip", () => {
+    const map = createLinkMap();
+    map.mapLinkTooltipShown = true;
+    mockHideTooltip.mockClear();
+    map.disconnectedCallback();
+    expect(mockHideTooltip).toHaveBeenCalled();
+  });
+});
+
+describe("CanvasMap.drawMapLinks", () => {
+  function createDrawMapLinksInstance() {
+    const map = createMapInstance();
+    map.ctx = createMockCtx();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "500,600,0": { x: 700, y: 800, plane: 2 },
+      "100,200,1": { x: 900, y: 1000, plane: 3 },
+    });
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    centerCameraOn(map, 100, 201);
+    map.view = { left: -1000, right: 1000, top: 1000, bottom: -1000 };
+    return map;
+  }
+
+  it("returns early when linksByPlane is not set", () => {
+    const map = createMapInstance();
+    map.ctx = createMockCtx();
+    map.linksByPlane = undefined;
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).not.toHaveBeenCalled();
+  });
+
+  it("returns early when no links are on the current plane", () => {
+    const map = createDrawMapLinksInstance();
+    map.plane = 4;
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).not.toHaveBeenCalled();
+  });
+
+  it("draws a circle for each visible link on the current plane", () => {
+    const map = createDrawMapLinksInstance();
+    map.drawMapLinks();
+    expect(map.ctx.arc).toHaveBeenCalledOnce();
+  });
+
+  it("uses semi-transparent white fill and white stroke", () => {
+    const map = createDrawMapLinksInstance();
+    map.drawMapLinks();
+    expect(map.ctx.fillStyle).toBe("rgba(255, 255, 255, 0.25)");
+    expect(map.ctx.strokeStyle).toBe("rgb(255, 255, 255)");
+  });
+
+  it("scales line width inversely with zoom", () => {
+    const map = createDrawMapLinksInstance();
+    map.camera.zoom.current = 2;
+    centerCameraOn(map, 100, 201);
+    map.drawMapLinks();
+    expect(map.ctx.lineWidth).toBe(1);
+  });
+
+  it("circle radius matches icon footprint at zoom 1", () => {
+    const map = createDrawMapLinksInstance();
+    map.camera.zoom.current = 1;
+    map.drawMapLinks();
+    const expectedSize = ICON_SPRITE_SIZE / 1;
+    const expectedRadius = expectedSize / 2 + 2 / 1;
+    const [x, y, r] = map.ctx.arc.mock.calls[0];
+    const [canvasX, canvasY] = map.gamePositionToCanvas(100, 201);
+    expect(r).toBe(expectedRadius);
+    expect(x).toBe(canvasX);
+    expect(y).toBe(canvasY);
+  });
+
+  it("circle radius matches icon footprint at zoom 3 (scale cap)", () => {
+    const map = createDrawMapLinksInstance();
+    map.camera.zoom.current = 5;
+    centerCameraOn(map, 100, 201);
+    map.drawMapLinks();
+    const expectedSize = ICON_SPRITE_SIZE / 3;
+    const expectedRadius = expectedSize / 2 + 2 / 5;
+    const [x, y, r] = map.ctx.arc.mock.calls[0];
+    const [canvasX, canvasY] = map.gamePositionToCanvas(100, 201);
+    expect(r).toBeCloseTo(expectedRadius);
+    expect(x).toBeCloseTo(canvasX);
+    expect(y).toBeCloseTo(canvasY);
+  });
+
+  it("only draws links matching the current zero-based plane", () => {
+    const map = createDrawMapLinksInstance();
+    map.plane = 2;
+    map.drawMapLinks();
+    const plane1Links = map.linksByPlane[1];
+    expect(map.ctx.arc).toHaveBeenCalledTimes(plane1Links.length);
+  });
+
+  it("calls beginPath, fill, stroke, and closePath per visible link", () => {
+    const map = createDrawMapLinksInstance();
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).toHaveBeenCalledOnce();
+    expect(map.ctx.fill).toHaveBeenCalledOnce();
+    expect(map.ctx.stroke).toHaveBeenCalledOnce();
+    expect(map.ctx.closePath).toHaveBeenCalledOnce();
+  });
+
+  it("skips links outside the visible canvas area", () => {
+    const map = createDrawMapLinksInstance();
+    map.camera.x.current = 10000;
+    map.camera.y.current = 10000;
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).not.toHaveBeenCalled();
+    expect(map.ctx.arc).not.toHaveBeenCalled();
+  });
+});
+
+describe("CanvasMap.buildIconIndex", () => {
+  it("builds a Set of position keys from locations", () => {
+    const map = createMapInstance();
+    map.locations = {
+      10: {
+        20: {
+          0: [100, 200, 0, 300, 400, 1],
+          1: [500, 600, 0],
+        },
+      },
+    };
+    map.buildIconIndex();
+    expect(map.iconIndex.has("100,200,0")).toBe(true);
+    expect(map.iconIndex.has("300,400,1")).toBe(true);
+    expect(map.iconIndex.has("500,600,0")).toBe(true);
+    expect(map.iconIndex.size).toBe(3);
+  });
+
+  it("returns empty Set when locations is not set", () => {
+    const map = createMapInstance();
+    map.buildIconIndex();
+    expect(map.iconIndex).toBeInstanceOf(Set);
+    expect(map.iconIndex.size).toBe(0);
+  });
+});
+
+describe("CanvasMap.buildLinkIconOverrides", () => {
+  it("overrides link when icon is at the same position", () => {
+    const map = createMapInstance();
+    map.iconIndex = new Set(["100,201,0"]);
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "500,600,0": { x: 700, y: 800, plane: 2 },
+    });
+    map.buildLinkIconOverrides();
+    expect(map.linkIconOverrides["100,201,0"]).toEqual({ iconX: 100, iconY: 201 });
+    expect(map.linkIconOverrides["500,601,0"]).toBeUndefined();
+  });
+
+  it("overrides link when icon is 1 tile north (y+1)", () => {
+    const map = createMapInstance();
+    map.iconIndex = new Set(["100,202,0"]);
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+    });
+    map.buildLinkIconOverrides();
+    expect(map.linkIconOverrides["100,201,0"]).toEqual({ iconX: 100, iconY: 202 });
+  });
+
+  it("does not override when no icon matches same or north position", () => {
+    const map = createMapInstance();
+    map.iconIndex = new Set(["999,999,0"]);
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+    });
+    map.buildLinkIconOverrides();
+    expect(map.linkIconOverrides["100,201,0"]).toBeUndefined();
+  });
+
+  it("produces empty overrides when mapLinks is not set", () => {
+    const map = createMapInstance();
+    map.iconIndex = new Set(["100,200,0"]);
+    map.buildLinkIconOverrides();
+    expect(map.linkIconOverrides).toEqual({});
+  });
+
+  it("produces empty overrides when iconIndex is not set", () => {
+    const map = createMapInstance();
+    setMapLinks(map, { "100,200,0": { x: 300, y: 400, plane: 1 } });
+    map.buildLinkIconOverrides();
+    expect(map.linkIconOverrides).toEqual({});
+  });
+
+  it("prefers same-position icon over north icon", () => {
+    const map = createMapInstance();
+    map.iconIndex = new Set(["100,201,0", "100,202,0"]);
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+    });
+    map.buildLinkIconOverrides();
+    expect(map.linkIconOverrides["100,201,0"]).toEqual({ iconX: 100, iconY: 201 });
+  });
+
+  it("populates linkedIconPositions Set for overridden links", () => {
+    const map = createMapInstance();
+    map.iconIndex = new Set(["100,201,0"]);
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "200,300,0": { x: 500, y: 600, plane: 2 },
+    });
+    map.buildLinkIconOverrides();
+    expect(map.linkedIconPositions.has("100,201,0")).toBe(true);
+    expect(map.linkedIconPositions.has("200,301,0")).toBe(false);
+    expect(map.linkedIconPositions.size).toBe(1);
+  });
+});
+
+describe("CanvasMap.getLinkAtClient with icon overrides", () => {
+  function createOverrideMap() {
+    const map = createMapInstance();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+    });
+    map.linkIconOverrides = {
+      "100,201,0": { iconX: 100, iconY: 202 },
+    };
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    return map;
+  }
+
+  it("hit tests at icon position instead of link position", () => {
+    const map = createOverrideMap();
+    const [iconX, iconY] = map.mapLinkScreenCenter(100, 202);
+    const link = map.getLinkAtClient(iconX, iconY);
+    expect(link).not.toBeNull();
+    expect(link.key).toBe("100,201,0");
+  });
+
+  it("does not hit test at original link position when far enough away", () => {
+    const map = createMapInstance();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+    });
+    map.linkIconOverrides = {
+      "100,201,0": { iconX: 100, iconY: 250 },
+    };
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
+    const link = map.getLinkAtClient(linkX, linkY);
+    expect(link).toBeNull();
+  });
+});
+
+describe("CanvasMap.drawMapLinks with icon overrides", () => {
+  function createOverrideDrawMap() {
+    const map = createMapInstance();
+    map.ctx = createMockCtx();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "102,202,0": { x: 700, y: 800, plane: 2 },
+    });
+    map.linkIconOverrides = {
+      "100,201,0": { iconX: 100, iconY: 201 },
+    };
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    centerCameraOn(map, 102, 203);
+    map.view = { left: -1000, right: 1000, top: 1000, bottom: -1000 };
+    return map;
+  }
+
+  it("skips overridden links entirely", () => {
+    const map = createOverrideDrawMap();
+    map.drawMapLinks();
+    const arcCalls = map.ctx.arc.mock.calls;
+    const [linkCanvasX, linkCanvasY] = map.gamePositionToCanvas(100, 201);
+    const hasOverriddenArc = arcCalls.some(
+      ([x, y]) => x === linkCanvasX && y === linkCanvasY
+    );
+    expect(hasOverriddenArc).toBe(false);
+  });
+
+  it("still draws circle for non-overridden links", () => {
+    const map = createOverrideDrawMap();
+    map.drawMapLinks();
+    const arcCalls = map.ctx.arc.mock.calls;
+    const [canvasX, canvasY] = map.gamePositionToCanvas(102, 203);
+    const hasNormalArc = arcCalls.some(
+      ([x, y]) => x === canvasX && y === canvasY
+    );
+    expect(hasNormalArc).toBe(true);
+  });
+
+  it("calls beginPath once per non-overridden link when both overridden and normal links exist", () => {
+    const map = createOverrideDrawMap();
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).toHaveBeenCalledOnce();
+    expect(map.ctx.fill).toHaveBeenCalledOnce();
+    expect(map.ctx.stroke).toHaveBeenCalledOnce();
+    expect(map.ctx.closePath).toHaveBeenCalledOnce();
+  });
+
+  it("calls beginPath once per link when no links are overridden", () => {
+    const map = createMapInstance();
+    map.ctx = createMockCtx();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "102,202,0": { x: 700, y: 800, plane: 2 },
+    });
+    map.linkIconOverrides = {};
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    centerCameraOn(map, 101, 202);
+    map.view = { left: -1000, right: 1000, top: 1000, bottom: -1000 };
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).toHaveBeenCalledTimes(2);
+    expect(map.ctx.fill).toHaveBeenCalledTimes(2);
+    expect(map.ctx.stroke).toHaveBeenCalledTimes(2);
+    expect(map.ctx.closePath).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not call beginPath when all links are overridden", () => {
+    const map = createMapInstance();
+    map.ctx = createMockCtx();
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    setMapLinks(map, {
+      "100,200,0": { x: 300, y: 400, plane: 1 },
+      "102,202,0": { x: 700, y: 800, plane: 2 },
+    });
+    map.linkIconOverrides = {
+      "100,201,0": { iconX: 100, iconY: 200 },
+      "102,203,0": { iconX: 102, iconY: 202 },
+    };
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    centerCameraOn(map, 101, 202);
+    map.view = { left: -1000, right: 1000, top: 1000, bottom: -1000 };
+    map.drawMapLinks();
+    expect(map.ctx.beginPath).not.toHaveBeenCalled();
+    expect(map.ctx.fill).not.toHaveBeenCalled();
+    expect(map.ctx.stroke).not.toHaveBeenCalled();
+    expect(map.ctx.closePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("CanvasMap.drawLocations with linked icon highlights", () => {
+  function createLinkedIconMap() {
+    const map = createMapInstance();
+    map.ctx = createMockCtx();
+    map.locationIconsSheet = { width: 100, height: 100 };
+    map.locations = {
+      10: {
+        20: {
+          0: [100, 200, 0],
+          1: [500, 600, 0],
+        },
+      },
+    };
+    map.tilesInView = [{ regionX: 10, regionY: 20 }];
+    map.plane = 1;
+    map.camera.zoom.current = 1;
+    map.linkedIconPositions = new Set(["100,200,0"]);
+    return map;
+  }
+
+  it("draws highlight circle around linked icon after drawing it", () => {
+    const map = createLinkedIconMap();
+    map.drawLocations();
+    const arcCalls = map.ctx.arc.mock.calls;
+    const [canvasX, canvasY] = map.gamePositionToCanvas(100, 200);
+    const destinationSize = map.iconCanvasSize();
+    const shift = destinationSize / 2;
+    const expectedRadius = destinationSize / 2 + 2 / map.camera.zoom.current;
+    const expectedCenterX = Math.round(canvasX - shift) + destinationSize / 2;
+    const expectedCenterY = Math.round(canvasY - shift) + destinationSize / 2;
+    const hasHighlight = arcCalls.some(
+      ([x, y, r]) => x === expectedCenterX && y === expectedCenterY && r === expectedRadius
+    );
+    expect(hasHighlight).toBe(true);
+  });
+
+  it("does not draw highlight for non-linked icons", () => {
+    const map = createLinkedIconMap();
+    map.drawLocations();
+    const arcCalls = map.ctx.arc.mock.calls;
+    const [canvasX, canvasY] = map.gamePositionToCanvas(500, 600);
+    const hasHighlight = arcCalls.some(
+      ([x, y]) => x === canvasX && y === canvasY
+    );
+    expect(hasHighlight).toBe(false);
+  });
+
+  it("uses white stroke for linked icon highlight", () => {
+    const map = createLinkedIconMap();
+    map.drawLocations();
+    expect(map.ctx.strokeStyle).toBe("rgb(255, 255, 255)");
+  });
+
+  it("does not draw highlight when linkedIconPositions is not set", () => {
+    const map = createLinkedIconMap();
+    map.linkedIconPositions = undefined;
+    map.drawLocations();
+    expect(map.ctx.beginPath).not.toHaveBeenCalled();
   });
 });

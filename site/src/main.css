@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --primary-text: white;
   --elevated: rgba(255, 255, 255, 0.08);
   --light-border: rgba(255, 255, 255, 0.12);
@@ -254,7 +255,7 @@ select:focus-visible {
 }
 
 option {
-  color: initial;
+  color: var(--orange);
   text-shadow: none;
 }
 
