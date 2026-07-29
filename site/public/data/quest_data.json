@@ -1113,6 +1113,12 @@
     "member": true,
     "hidden": true
   },
+  "7133": {
+    "name": "Fallen From Grace",
+    "difficulty": "Experienced",
+    "points": "2",
+    "member": true
+  },
   "72": {
     "name": "Heroes' Quest",
     "difficulty": "Experienced",
