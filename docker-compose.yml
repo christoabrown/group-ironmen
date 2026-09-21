@@ -27,7 +27,7 @@ services:
     ports:
       - 5000:8080  # replace this if using a docker-compatible reverse proxy like traefik
   postgres:
-    image: postgres
+    image: postgres:17
     restart: always
     container_name: group-ironmen-tracker-postgres
     environment:
