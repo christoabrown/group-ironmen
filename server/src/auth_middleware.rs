@@ -415,6 +415,10 @@ where
 
             // Update last seen (best effort)
             let _ = db::update_user_last_seen(&client, user.user_id).await;
+            // Return the connection to the pool before running the handler, which
+            // takes its own. Holding both lets concurrent requests exhaust the
+            // pool and wait on each other forever.
+            drop(client);
 
             let session_result = SessionAuthResult { user, group_id };
             req.extensions_mut()

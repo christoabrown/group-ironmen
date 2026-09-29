@@ -218,6 +218,7 @@ impl Config {
 }
 
 const DEFAULT_POOL_MAX_SIZE: usize = 16;
+const POOL_WAIT_TIMEOUT_SECS: u64 = 15;
 
 fn env_string(name: &str) -> Option<String> {
     env::var(name)
@@ -266,10 +267,15 @@ impl Config {
             self.pg.dbname = Some(dbname);
         }
         let pool_max_size = env_string("PG_POOL_MAX_SIZE").and_then(|size| size.parse().ok());
-        if pool_max_size.is_some() || self.pg.pool.is_none() {
-            self.pg.pool = Some(deadpool_postgres::PoolConfig::new(
-                pool_max_size.unwrap_or(DEFAULT_POOL_MAX_SIZE),
-            ));
+        let pool = self.pg.pool.get_or_insert_with(|| {
+            deadpool_postgres::PoolConfig::new(pool_max_size.unwrap_or(DEFAULT_POOL_MAX_SIZE))
+        });
+        if let Some(max_size) = pool_max_size {
+            pool.max_size = max_size;
+        }
+        // Fail requests instead of waiting forever when the pool is exhausted.
+        if pool.timeouts.wait.is_none() {
+            pool.timeouts.wait = Some(std::time::Duration::from_secs(POOL_WAIT_TIMEOUT_SECS));
         }
 
         if let Some(secure_cookies) = env_bool("COOKIE_SECURE") {

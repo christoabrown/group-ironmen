@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
+use deadpool_postgres::Runtime;
 use tokio::sync::mpsc;
 use tokio_postgres::NoTls;
 
@@ -21,7 +22,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config = Config::from_env().unwrap();
-    let pool = config.pg.create_pool(None, NoTls).unwrap();
+    let pool = config.pg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
     env_logger::init_from_env(
         env_logger::Env::new().default_filter_or(config.logger.level.to_string()),
     );
@@ -38,7 +39,7 @@ async fn main() -> std::io::Result<()> {
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());
 
-    let update_batcher_pool = config.pg.create_pool(None, NoTls).unwrap();
+    let update_batcher_pool = config.pg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
     let (tx, rx) = mpsc::channel::<models::GroupMember>(10000);
     tokio::spawn(async move {
         update_batcher::background_worker(update_batcher_pool, rx, None).await;
