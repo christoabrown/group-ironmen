@@ -81,7 +81,8 @@ fn env_string(name: &str) -> Option<String> {
 }
 
 fn env_bool(name: &str) -> Option<bool> {
-    env_string(name).map(|value| matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+    env_string(name)
+        .map(|value| matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
 }
 
 impl Config {

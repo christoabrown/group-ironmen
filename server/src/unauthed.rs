@@ -16,7 +16,10 @@ static GE_PRICES: LazyLock<ArcSwapAny<Arc<String>>> =
 pub async fn fetch_latest_prices() -> Result<WikiGEPrices, ApiError> {
     let wiki_ge_prices = task::spawn_blocking(|| {
         ureq::get("https://prices.runescape.wiki/api/v1/osrs/latest")
-            .header("User-Agent", "ha-osrs-map (github.com/RedFirebreak/ha-osrs-map)")
+            .header(
+                "User-Agent",
+                "ha-osrs-map (github.com/RedFirebreak/ha-osrs-map)",
+            )
             .call()
             .map_err(ApiError::UreqError)?
             .body_mut()

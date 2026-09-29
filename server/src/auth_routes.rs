@@ -201,8 +201,7 @@ pub async fn change_password(
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
 
     // Verify current password
-    let (_, current_hash, _, _) =
-        db::get_user_by_username(&client, &session.user.username).await?;
+    let (_, current_hash, _, _) = db::get_user_by_username(&client, &session.user.username).await?;
     let valid = verify_password(&body.current_password, &current_hash)?;
     if !valid {
         return Ok(HttpResponse::BadRequest().body("Current password is incorrect"));

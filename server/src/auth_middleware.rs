@@ -122,7 +122,6 @@ where
     }
 }
 
-
 // Legacy group auth result (kept for backward compatibility with authed routes)
 pub struct AuthenticationResult {
     pub group_id: i64,
@@ -374,35 +373,30 @@ where
             let session_token = match extract_session_token(&req) {
                 Some(token) => token,
                 None => {
-                    return Ok(
-                        req.error_response(actix_web::error::ErrorUnauthorized("Not authenticated"))
-                    );
+                    return Ok(req
+                        .error_response(actix_web::error::ErrorUnauthorized("Not authenticated")));
                 }
             };
 
             let db_pool = match req.app_data::<web::Data<Pool>>() {
                 Some(db_pool) => db_pool,
                 None => {
-                    return Ok(
-                        req.error_response(actix_web::error::ErrorInternalServerError(""))
-                    );
+                    return Ok(req.error_response(actix_web::error::ErrorInternalServerError("")));
                 }
             };
             let client = match db_pool.get().await {
                 Ok(client) => client,
                 Err(_) => {
-                    return Ok(
-                        req.error_response(actix_web::error::ErrorInternalServerError(""))
-                    );
+                    return Ok(req.error_response(actix_web::error::ErrorInternalServerError("")));
                 }
             };
 
             let user = match db::get_session_user(&client, &session_token).await {
                 Ok(user) => user,
                 Err(_) => {
-                    return Ok(
-                        req.error_response(actix_web::error::ErrorUnauthorized("Invalid or expired session"))
-                    );
+                    return Ok(req.error_response(actix_web::error::ErrorUnauthorized(
+                        "Invalid or expired session",
+                    )));
                 }
             };
 
@@ -412,7 +406,9 @@ where
                 Some(gid) => *gid.get_ref(),
                 None => {
                     return Ok(
-                        req.error_response(actix_web::error::ErrorInternalServerError("No group configured"))
+                        req.error_response(actix_web::error::ErrorInternalServerError(
+                            "No group configured",
+                        )),
                     );
                 }
             };

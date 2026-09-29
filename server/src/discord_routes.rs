@@ -157,9 +157,8 @@ pub async fn discord_callback(
         .any(|allowed| user_guild_ids.contains(&allowed.as_str()));
 
     if !is_in_allowed_server {
-        return Ok(HttpResponse::Forbidden().body(
-            "You are not a member of any allowed Discord server for auto-registration.",
-        ));
+        return Ok(HttpResponse::Forbidden()
+            .body("You are not a member of any allowed Discord server for auto-registration."));
     }
 
     // Auto-register: create a new user account
@@ -174,7 +173,10 @@ pub async fn discord_callback(
         .take(MAX_USERNAME_LEN)
         .collect();
     let base_username = if sanitized.is_empty() {
-        format!("discord_{}", &discord_user.id[..8.min(discord_user.id.len())])
+        format!(
+            "discord_{}",
+            &discord_user.id[..8.min(discord_user.id.len())]
+        )
     } else {
         sanitized
     };
@@ -189,21 +191,28 @@ pub async fn discord_callback(
                 break;
             }
             Err(_) if attempt < MAX_USERNAME_CREATION_ATTEMPTS - 1 => {
-                let suffix = &discord_user.id
-                    [discord_user.id.len().saturating_sub(4)..];
-                username = format!("{}_{}", &base_username[..base_username.len().min(MAX_USERNAME_PREFIX_LEN)], suffix);
+                let suffix = &discord_user.id[discord_user.id.len().saturating_sub(4)..];
+                username = format!(
+                    "{}_{}",
+                    &base_username[..base_username.len().min(MAX_USERNAME_PREFIX_LEN)],
+                    suffix
+                );
             }
             Err(e) => return Err(e.into()),
         }
     }
 
-    let user_id = user_id.ok_or_else(|| {
-        ApiError::BadRequest("Could not create unique username".to_string())
-    })?;
+    let user_id = user_id
+        .ok_or_else(|| ApiError::BadRequest("Could not create unique username".to_string()))?;
 
     // Link Discord account
-    db::create_discord_user_link(&db_client, &discord_user.id, user_id, &discord_user.username)
-        .await?;
+    db::create_discord_user_link(
+        &db_client,
+        &discord_user.id,
+        user_id,
+        &discord_user.username,
+    )
+    .await?;
 
     // Write audit log
     let matched_servers: Vec<&str> = config

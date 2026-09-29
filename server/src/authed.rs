@@ -1,9 +1,7 @@
 use crate::auth_middleware::Authenticated;
 use crate::db;
 use crate::error::ApiError;
-use crate::models::{
-    AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember,
-};
+use crate::models::{AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember};
 use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};

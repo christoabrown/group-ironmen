@@ -27,7 +27,9 @@ async fn main() -> std::io::Result<()> {
     db::update_schema(&mut client).await.unwrap();
 
     // Get or create singleton group
-    let group_id = db::get_or_create_singleton_group(&mut client).await.unwrap();
+    let group_id = db::get_or_create_singleton_group(&mut client)
+        .await
+        .unwrap();
     log::info!("Singleton group_id: {}", group_id);
 
     unauthed::start_ge_updater();
@@ -40,9 +42,9 @@ async fn main() -> std::io::Result<()> {
     });
     let auth_cache = std::sync::Arc::new(server::auth_middleware::AuthenticationCache::new());
 
-    let token_lockout = web::Data::new(
-        token_lockout::TokenLockout::new(std::time::Duration::from_secs(15 * 60)),
-    );
+    let token_lockout = web::Data::new(token_lockout::TokenLockout::new(
+        std::time::Duration::from_secs(15 * 60),
+    ));
 
     HttpServer::new(move || {
         // Public auth endpoints (no session required)

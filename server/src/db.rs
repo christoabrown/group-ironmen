@@ -1,8 +1,8 @@
 use crate::crypto::token_hash;
 use crate::error::ApiError;
 use crate::models::{
-    AggregateSkillData, AuditLogEntry, CreateGroup, GroupMember, GroupSkillData,
-    MemberSkillData, PlayerInfo, SessionUser, UserInfo,
+    AggregateSkillData, AuditLogEntry, CreateGroup, GroupMember, GroupSkillData, MemberSkillData,
+    PlayerInfo, SessionUser, UserInfo,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -90,18 +90,29 @@ pub async fn delete_collection_log_data_for_member(
 
     for (idx, query) in delete_queries.iter().enumerate() {
         let savepoint = format!("sp_collection_log_{}", idx);
-        transaction.execute(&format!("SAVEPOINT {}", savepoint), &[]).await?;
-        
+        transaction
+            .execute(&format!("SAVEPOINT {}", savepoint), &[])
+            .await?;
+
         match transaction.execute(*query, &[&member_id]).await {
             Ok(_) => {
-                transaction.execute(&format!("RELEASE SAVEPOINT {}", savepoint), &[]).await?;
+                transaction
+                    .execute(&format!("RELEASE SAVEPOINT {}", savepoint), &[])
+                    .await?;
             }
             Err(err) if err.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-                log::debug!("Skipping collection-log cleanup for missing table: {}", query);
-                transaction.execute(&format!("ROLLBACK TO SAVEPOINT {}", savepoint), &[]).await?;
+                log::debug!(
+                    "Skipping collection-log cleanup for missing table: {}",
+                    query
+                );
+                transaction
+                    .execute(&format!("ROLLBACK TO SAVEPOINT {}", savepoint), &[])
+                    .await?;
             }
             Err(err) => {
-                transaction.execute(&format!("ROLLBACK TO SAVEPOINT {}", savepoint), &[]).await?;
+                transaction
+                    .execute(&format!("ROLLBACK TO SAVEPOINT {}", savepoint), &[])
+                    .await?;
                 return Err(err.into());
             }
         }
@@ -497,10 +508,7 @@ pub async fn store_pairing_code(
     Ok(())
 }
 
-pub async fn consume_pairing_code(
-    client: &Client,
-    code: &str,
-) -> Result<i64, ApiError> {
+pub async fn consume_pairing_code(client: &Client, code: &str) -> Result<i64, ApiError> {
     let stmt = client
         .prepare_cached(
             "DELETE FROM groupironman.pairing_codes WHERE code=$1 AND expires_at > NOW() RETURNING group_id",
@@ -530,10 +538,7 @@ pub async fn store_device(
     Ok(())
 }
 
-pub async fn get_device_group(
-    client: &Client,
-    token_hash: &str,
-) -> Result<i64, ApiError> {
+pub async fn get_device_group(client: &Client, token_hash: &str) -> Result<i64, ApiError> {
     let stmt = client
         .prepare_cached(
             "SELECT d.group_id FROM groupironman.devices d \
@@ -566,16 +571,11 @@ pub async fn ensure_member_exists(
             "INSERT INTO groupironman.members (group_id, member_name) VALUES($1, $2) ON CONFLICT (group_id, member_name) DO NOTHING",
         )
         .await?;
-    client
-        .execute(&stmt, &[&group_id, &member_name])
-        .await?;
+    client.execute(&stmt, &[&group_id, &member_name]).await?;
     Ok(())
 }
 
-pub async fn list_players(
-    client: &Client,
-    group_id: i64,
-) -> Result<Vec<PlayerInfo>, ApiError> {
+pub async fn list_players(client: &Client, group_id: i64) -> Result<Vec<PlayerInfo>, ApiError> {
     let stmt = client
         .prepare_cached(
             r#"
@@ -1223,10 +1223,7 @@ pub async fn get_user_by_username(
     ))
 }
 
-pub async fn get_user_by_id(
-    client: &Client,
-    user_id: i64,
-) -> Result<UserInfo, ApiError> {
+pub async fn get_user_by_id(client: &Client, user_id: i64) -> Result<UserInfo, ApiError> {
     let stmt = client
         .prepare_cached(
             "SELECT user_id, username, role, enabled, created_at, last_seen FROM groupironman.users WHERE user_id=$1",
@@ -1267,11 +1264,7 @@ pub async fn list_users(client: &Client) -> Result<Vec<UserInfo>, ApiError> {
     Ok(users)
 }
 
-pub async fn update_user_role(
-    client: &Client,
-    user_id: i64,
-    role: &str,
-) -> Result<(), ApiError> {
+pub async fn update_user_role(client: &Client, user_id: i64, role: &str) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached("UPDATE groupironman.users SET role=$1 WHERE user_id=$2")
         .await?;
@@ -1303,10 +1296,7 @@ pub async fn update_user_password(
     Ok(())
 }
 
-pub async fn update_user_last_seen(
-    client: &Client,
-    user_id: i64,
-) -> Result<(), ApiError> {
+pub async fn update_user_last_seen(client: &Client, user_id: i64) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached("UPDATE groupironman.users SET last_seen=NOW() WHERE user_id=$1")
         .await?;
@@ -1341,10 +1331,7 @@ pub async fn create_session(
     Ok(())
 }
 
-pub async fn get_session_user(
-    client: &Client,
-    session_id: &str,
-) -> Result<SessionUser, ApiError> {
+pub async fn get_session_user(client: &Client, session_id: &str) -> Result<SessionUser, ApiError> {
     let stmt = client
         .prepare_cached(
             r#"
@@ -1413,10 +1400,7 @@ pub async fn write_audit_log(
     Ok(())
 }
 
-pub async fn get_audit_log(
-    client: &Client,
-    limit: i64,
-) -> Result<Vec<AuditLogEntry>, ApiError> {
+pub async fn get_audit_log(client: &Client, limit: i64) -> Result<Vec<AuditLogEntry>, ApiError> {
     let stmt = client
         .prepare_cached(
             "SELECT log_id, user_id, action, target_user_id, details, created_at FROM groupironman.audit_log ORDER BY created_at DESC LIMIT $1",

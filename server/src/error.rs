@@ -102,15 +102,9 @@ impl ResponseError for ApiError {
                 log::error!("Validation error: {}", reason);
                 HttpResponse::BadRequest().body(reason.clone())
             }
-            ApiError::Unauthorized => {
-                HttpResponse::Unauthorized().body("Unauthorized")
-            }
-            ApiError::Forbidden => {
-                HttpResponse::Forbidden().body("Forbidden")
-            }
-            ApiError::BadRequest(ref msg) => {
-                HttpResponse::BadRequest().body(msg.clone())
-            }
+            ApiError::Unauthorized => HttpResponse::Unauthorized().body("Unauthorized"),
+            ApiError::Forbidden => HttpResponse::Forbidden().body("Forbidden"),
+            ApiError::BadRequest(ref msg) => HttpResponse::BadRequest().body(msg.clone()),
             ApiError::BcryptError(ref err) => {
                 log::error!("BcryptError: {}", err);
                 HttpResponse::InternalServerError().finish()
