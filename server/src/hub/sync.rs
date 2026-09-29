@@ -1,0 +1,387 @@
+//! Mirrors the hub's `/api/v1/snapshot` into the members table.
+//!
+//! - Polls with `since` and `If-None-Match`, and fetches the full snapshot at
+//!   start-up and every `full_refresh_secs` to notice accounts that left the
+//!   key's reach (they are marked orphaned, never deleted).
+//! - Online accounts: changed sections are sent, plus `stats` on every poll as a
+//!   heartbeat, stamped NOW() so the site shows the player as online.
+//! - Offline accounts seen for the first time: every section is sent once,
+//!   stamped with the hub's `last_seen`, so the player shows up as offline.
+//! - Offline accounts already imported: nothing is sent, and the site's
+//!   inactivity rule takes the player offline.
+use crate::config::{DataSource, HubConfig};
+use crate::db;
+use crate::error::ApiError;
+use crate::hub::client::{Fetched, HubClient, HubError, Priority};
+use crate::hub::convert::{section_changed, MemberSections, Section};
+use crate::hub::models::HubAccount;
+use crate::hub::{record_error, DirectSeen, SharedHubStatus};
+use crate::models::GroupMember;
+use crate::validators::valid_name;
+use chrono::{DateTime, Utc};
+use deadpool_postgres::{Client, Pool};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
+
+const UNAUTHORIZED_RETRY: Duration = Duration::from_secs(300);
+const MAX_BACKOFF: Duration = Duration::from_secs(60);
+
+pub struct SyncContext {
+    pub pool: Pool,
+    pub client: Arc<HubClient>,
+    pub sender: mpsc::Sender<GroupMember>,
+    pub group_id: i64,
+    pub config: HubConfig,
+    pub data_source: DataSource,
+    pub status: SharedHubStatus,
+    pub direct_seen: DirectSeen,
+}
+
+/// What the sync remembers about a hub account between polls.
+struct KnownAccount {
+    member_name: String,
+    /// Whether the member already has data, so an offline account is not re-imported.
+    imported: bool,
+    /// The sections last sent to the batcher.
+    sent: Option<MemberSections>,
+    /// The owner's Discord id last linked to a user, if any.
+    linked_owner: Option<String>,
+}
+
+pub fn start(context: SyncContext) {
+    tokio::spawn(async move {
+        let mut sync = HubSync::new(context);
+        sync.run().await;
+    });
+}
+
+pub struct HubSync {
+    context: SyncContext,
+    known: HashMap<String, KnownAccount>,
+    invalid_names: HashSet<String>,
+    etag: Option<String>,
+    since: Option<String>,
+    last_full: Option<Instant>,
+    failures: u32,
+}
+
+impl HubSync {
+    pub fn new(context: SyncContext) -> Self {
+        HubSync {
+            context,
+            known: HashMap::new(),
+            invalid_names: HashSet::new(),
+            etag: None,
+            since: None,
+            last_full: None,
+            failures: 0,
+        }
+    }
+
+    async fn run(&mut self) {
+        log::info!(
+            "Hub sync started: polling {} every {}s",
+            self.context.config.base_url,
+            self.context.config.poll_interval_secs
+        );
+        let poll_interval = Duration::from_secs(self.context.config.poll_interval_secs);
+        loop {
+            let wait = match self.poll_once().await {
+                Ok(()) => {
+                    self.failures = 0;
+                    poll_interval
+                }
+                Err(err) => {
+                    self.failures += 1;
+                    let wait = match &err {
+                        HubError::Unauthorized => UNAUTHORIZED_RETRY,
+                        HubError::RateLimited(after) => (*after).max(poll_interval),
+                        _ => backoff(self.failures),
+                    };
+                    log::warn!("Hub sync failed ({}), retrying in {}s", err, wait.as_secs());
+                    record_error(&self.context.status, err.to_string());
+                    wait
+                }
+            };
+            tokio::time::sleep(wait).await;
+        }
+    }
+
+    /// One poll of the snapshot. Public for the integration tests.
+    pub async fn poll_once(&mut self) -> Result<(), HubError> {
+        let full = self.last_full.is_none_or(|at| {
+            at.elapsed() >= Duration::from_secs(self.context.config.full_refresh_secs)
+        });
+        let mut query = Vec::new();
+        if !full {
+            if let Some(since) = &self.since {
+                query.push(("since", since.clone()));
+            }
+        }
+        let if_none_match = if full { None } else { self.etag.clone() };
+
+        let fetched = self
+            .context
+            .client
+            .get::<Vec<HubAccount>>("/snapshot", &query, if_none_match, Priority::Sync)
+            .await?;
+
+        match fetched {
+            Fetched::NotModified => {}
+            Fetched::Ok { data, meta, etag } => {
+                self.process(&data, full)
+                    .await
+                    .map_err(|err| HubError::Other(format!("storing hub data failed: {}", err)))?;
+                self.etag = etag;
+                if meta.last_modified.is_some() {
+                    self.since = meta.last_modified;
+                }
+                if full {
+                    self.last_full = Some(Instant::now());
+                }
+            }
+        }
+
+        if let Ok(mut status) = self.context.status.write() {
+            status.last_success = Some(Utc::now());
+            status.consecutive_failures = 0;
+            if full {
+                status.last_full_sync = Some(Utc::now());
+            }
+        }
+        Ok(())
+    }
+
+    async fn process(&mut self, accounts: &[HubAccount], full: bool) -> Result<(), ApiError> {
+        let mut client = self.context.pool.get().await?;
+        let mut online = 0;
+        for account in accounts {
+            if account.online == Some(true) {
+                online += 1;
+            }
+            if let Err(err) = self.process_account(&mut client, account).await {
+                log::warn!("Hub sync skipped account {}: {}", account.name, err);
+            }
+        }
+
+        if full {
+            let visible: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
+            let visible_set: HashSet<&String> = visible.iter().collect();
+            self.known.retain(|id, _| visible_set.contains(id));
+            let orphaned = db::mark_hub_orphans(&client, self.context.group_id, &visible).await?;
+            if let Ok(mut status) = self.context.status.write() {
+                status.accounts_visible = accounts.len();
+                status.accounts_online = online;
+                status.members_orphaned = orphaned;
+            }
+        }
+        Ok(())
+    }
+
+    async fn process_account(
+        &mut self,
+        client: &mut Client,
+        account: &HubAccount,
+    ) -> Result<(), ApiError> {
+        if !valid_name(&account.name) {
+            if self.invalid_names.insert(account.name.clone()) {
+                log::warn!(
+                    "Hub account '{}' has a name the map cannot store",
+                    account.name
+                );
+            }
+            return Ok(());
+        }
+
+        if self.context.data_source == DataSource::Both
+            && self.context.direct_seen.seen_within(
+                &account.name,
+                Duration::from_secs(self.context.config.both_direct_grace_secs),
+            )
+        {
+            return Ok(());
+        }
+
+        let group_id = self.context.group_id;
+        if !self.known.contains_key(&account.id) {
+            let known = resolve_member(client, group_id, account).await?;
+            self.known.insert(account.id.clone(), known);
+        }
+        let known = self.known.get_mut(&account.id).expect("inserted above");
+
+        if known.member_name != account.name {
+            known.member_name =
+                follow_rename(client, group_id, account, &known.member_name).await?;
+        }
+
+        let sections = MemberSections::from_account(account);
+        let online = account
+            .online
+            .unwrap_or_else(|| account.location.as_ref().is_some_and(|l| !l.stale));
+
+        let update = if online {
+            let heartbeat = if sections.stats.is_some() {
+                Section::Stats
+            } else {
+                Section::Coordinates
+            };
+            let mut member = sections.to_member(group_id, &known.member_name, |section| {
+                section == heartbeat || section_changed(known.sent.as_ref(), &sections, section)
+            });
+            member.source_time = None;
+            Some(member)
+        } else if !known.imported {
+            let mut member = sections.to_member(group_id, &known.member_name, |_| true);
+            member.source_time = Some(account.last_seen.unwrap_or(DateTime::UNIX_EPOCH));
+            Some(member)
+        } else {
+            None
+        };
+
+        if let Some(member) = update {
+            if !sections.is_empty() && self.context.sender.send(member).await.is_err() {
+                return Err(ApiError::HubError("update channel closed".to_string()));
+            }
+            db::set_hub_seen(client, group_id, &known.member_name, account.last_seen).await?;
+            known.imported = true;
+            known.sent = Some(sections);
+        }
+
+        let owner_discord_id = account
+            .owner
+            .as_ref()
+            .and_then(|owner| owner.discord_id.clone());
+        if let Some(discord_id) = owner_discord_id {
+            if known.linked_owner.as_deref() != Some(discord_id.as_str()) {
+                if let Some(user_id) = db::get_user_id_by_discord_id(client, &discord_id).await? {
+                    db::upsert_user_player_link_with_source(
+                        client,
+                        user_id,
+                        &known.member_name,
+                        group_id,
+                        "hub",
+                    )
+                    .await?;
+                }
+                known.linked_owner = Some(discord_id);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Finds or creates the member for a hub account and binds the account to it.
+async fn resolve_member(
+    client: &mut Client,
+    group_id: i64,
+    account: &HubAccount,
+) -> Result<KnownAccount, ApiError> {
+    if let Some(row) = db::get_member_by_hub_id(client, group_id, &account.id).await? {
+        return Ok(KnownAccount {
+            member_name: row.member_name,
+            imported: row.hub_last_seen.is_some() || row.has_data,
+            sent: None,
+            linked_owner: None,
+        });
+    }
+
+    let existing = db::find_member_for_hub_account(
+        client,
+        group_id,
+        account.account_hash.as_deref(),
+        &account.name,
+    )
+    .await?;
+    let (member_name, imported) = match existing {
+        Some(row) => {
+            if let Some(other) = &row.hub_account_id {
+                log::warn!(
+                    "Member '{}' was bound to hub account {}; rebinding it to {}",
+                    row.member_name,
+                    other,
+                    account.id
+                );
+            }
+            (row.member_name, row.hub_last_seen.is_some() || row.has_data)
+        }
+        None => {
+            db::ensure_member_exists(client, group_id, &account.name).await?;
+            (account.name.clone(), false)
+        }
+    };
+    db::bind_hub_account(
+        client,
+        group_id,
+        &member_name,
+        &account.id,
+        account.account_hash.as_deref(),
+    )
+    .await?;
+    Ok(KnownAccount {
+        member_name,
+        imported,
+        sent: None,
+        linked_owner: None,
+    })
+}
+
+/// Follows a rename on the hub. Returns the member name to use from now on.
+async fn follow_rename(
+    client: &mut Client,
+    group_id: i64,
+    account: &HubAccount,
+    current_name: &str,
+) -> Result<String, ApiError> {
+    let taken = db::find_member_for_hub_account(client, group_id, None, &account.name).await?;
+    match taken {
+        Some(row) if !row.member_name.eq_ignore_ascii_case(current_name) => {
+            log::warn!(
+                "Hub account {} was renamed from '{}' to '{}', which already exists; \
+                 binding the account to the existing member. '{}' can be deleted by an admin.",
+                account.id,
+                current_name,
+                account.name,
+                current_name
+            );
+            db::bind_hub_account(
+                client,
+                group_id,
+                &row.member_name,
+                &account.id,
+                account.account_hash.as_deref(),
+            )
+            .await?;
+            Ok(row.member_name)
+        }
+        _ => {
+            log::info!(
+                "Hub account {} was renamed from '{}' to '{}'",
+                account.id,
+                current_name,
+                account.name
+            );
+            db::rename_hub_member(client, group_id, current_name, &account.name).await?;
+            Ok(account.name.clone())
+        }
+    }
+}
+
+fn backoff(failures: u32) -> Duration {
+    let base = Duration::from_secs(2u64.saturating_pow(failures.min(6)));
+    let jitter = Duration::from_millis(rand::random::<u64>() % 1000);
+    base.min(MAX_BACKOFF) + jitter
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_grows_and_is_capped() {
+        assert!(backoff(1) < Duration::from_secs(4));
+        assert!(backoff(3) >= Duration::from_secs(8));
+        assert!(backoff(20) <= MAX_BACKOFF + Duration::from_secs(1));
+    }
+}

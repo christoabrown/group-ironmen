@@ -1,6 +1,8 @@
 use crate::auth_middleware::Authenticated;
+use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
+use crate::hub::HubContext;
 use crate::models::{AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember};
 use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
@@ -200,6 +202,8 @@ pub async fn get_skill_data(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
     query: web::Query<GetSkillDataQuery>,
+    config: web::Data<Config>,
+    hub_context: web::Data<HubContext>,
 ) -> Result<web::Json<GroupSkillData>, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let aggregate_period = match query.period {
@@ -208,8 +212,18 @@ pub async fn get_skill_data(
         SkillDataPeriod::Month => db::AggregatePeriod::Month,
         SkillDataPeriod::Year => db::AggregatePeriod::Year,
     };
-    let group_skill_data =
+    let mut group_skill_data =
         db::get_skills_for_period(&client, auth.group_id, aggregate_period).await?;
+    if config.hub_history_enabled() {
+        group_skill_data = crate::hub::proxy::merge_skill_data(
+            &hub_context,
+            &client,
+            auth.group_id,
+            &query.period,
+            group_skill_data,
+        )
+        .await?;
+    }
     Ok(web::Json(group_skill_data))
 }
 

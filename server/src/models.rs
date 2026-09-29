@@ -65,6 +65,11 @@ pub struct GroupMember {
     pub potion_storage: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
+    /// When the data was observed at its source. The batcher stores it as the
+    /// `*_last_update` timestamp of each supplied field instead of NOW(), so
+    /// data imported for a player who is offline is not shown as online.
+    #[serde(skip)]
+    pub source_time: Option<DateTime<Utc>>,
 }
 #[derive(Serialize)]
 pub struct AggregateSkillData {
@@ -276,6 +281,9 @@ pub struct IngestItems {
 #[allow(dead_code)]
 pub struct IngestPlayer {
     pub name: String,
+    /// The plugin's salted hash of the account id; stable across renames.
+    #[serde(default, rename = "accountHash")]
+    pub account_hash: Option<String>,
     #[serde(rename = "accountType")]
     pub account_type: Option<String>,
     pub world: Option<String>,

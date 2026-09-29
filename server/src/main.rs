@@ -1,9 +1,12 @@
 use server::auth_middleware::SessionMiddlewareFactory;
 use server::config::Config;
+use server::hub::{self, HubContext, HubStatus};
 use server::{
     admin_routes, auth_routes, authed, db, device, discord_routes, models, token_lockout, unauthed,
     update_batcher,
 };
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
@@ -45,6 +48,48 @@ async fn main() -> std::io::Result<()> {
         std::time::Duration::from_secs(15 * 60),
     ));
 
+    log::info!("Data source: {:?}", config.data_source);
+    let direct_seen = hub::DirectSeen::default();
+    let hub_status = Arc::new(RwLock::new(HubStatus {
+        data_source: format!("{:?}", config.data_source).to_lowercase(),
+        history_enabled: config.hub_history_enabled(),
+        base_url: config.hub.base_url.clone(),
+        ..Default::default()
+    }));
+    let hub_client = config
+        .data_source
+        .uses_hub()
+        .then(|| hub::client::HubClient::new(&config.hub));
+    let hub_events = hub::events::EventBuffer::default();
+    if let Some(client) = &hub_client {
+        hub::sync::start(hub::sync::SyncContext {
+            pool: pool.clone(),
+            client: Arc::clone(client),
+            sender: tx.clone(),
+            group_id,
+            config: config.hub.clone(),
+            data_source: config.data_source,
+            status: Arc::clone(&hub_status),
+            direct_seen: direct_seen.clone(),
+        });
+        if config.hub_history_enabled() {
+            hub::events::start(
+                Arc::clone(client),
+                hub_events.clone(),
+                Duration::from_secs(config.hub.events_poll_secs),
+                Arc::clone(&hub_status),
+            );
+        }
+    }
+    let hub_context = web::Data::new(HubContext {
+        client: hub_client,
+        status: hub_status,
+        cache: Arc::new(hub::cache::TtlCache::new()),
+        events: hub_events,
+    });
+    let direct_seen = web::Data::new(direct_seen);
+    let accepts_direct = config.data_source.accepts_direct();
+
     HttpServer::new(move || {
         // Public auth endpoints (no session required)
         let auth_scope = web::scope("/api/auth")
@@ -75,7 +120,11 @@ async fn main() -> std::io::Result<()> {
             .service(admin_routes::list_players)
             .service(admin_routes::delete_player)
             .service(admin_routes::get_user_players)
-            .service(admin_routes::get_player_users);
+            .service(admin_routes::get_player_users)
+            .service(admin_routes::link_player_user)
+            .service(admin_routes::unlink_player_user)
+            .service(hub::routes::get_hub_status)
+            .service(hub::routes::test_hub_connection);
 
         // Session-protected group data routes
         let session_group_scope = web::scope("/api/group")
@@ -89,14 +138,28 @@ async fn main() -> std::io::Result<()> {
             .service(authed::am_i_in_group)
             .service(authed::get_skill_data)
             .service(authed::get_collection_log)
-            .service(device::create_pairing_code);
+            .service(hub::routes::get_features)
+            .service(hub::proxy::get_gains)
+            .service(hub::proxy::get_locations)
+            .service(hub::proxy::get_events);
+        let session_group_scope = if accepts_direct {
+            session_group_scope.service(device::create_pairing_code)
+        } else {
+            session_group_scope
+        };
 
         // Public endpoints
         let unauthed_scope = web::scope("/api")
             .service(unauthed::get_ge_prices)
-            .service(unauthed::captcha_enabled)
-            .service(device::pair_device)
-            .service(device::ingest);
+            .service(unauthed::captcha_enabled);
+        // Direct plugin pairing and ingest, unless data only comes from the hub.
+        let unauthed_scope = if accepts_direct {
+            unauthed_scope
+                .service(device::pair_device)
+                .service(device::ingest)
+        } else {
+            unauthed_scope
+        };
 
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
@@ -128,6 +191,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tx.clone()))
             .app_data(web::Data::new(group_id))
             .app_data(token_lockout.clone())
+            .app_data(hub_context.clone())
+            .app_data(direct_seen.clone())
             .service(auth_scope)
             .service(session_auth_scope)
             .service(admin_scope)

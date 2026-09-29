@@ -2,42 +2,15 @@ use crate::auth_middleware::SessionAuthenticated;
 use crate::crypto::token_hash;
 use crate::db;
 use crate::error::ApiError;
+use crate::hub::DirectSeen;
 use crate::models::{GroupMember, IngestPayload, PairCodeResponse, PairRequest, PairResponse};
+use crate::osrs::{equipment_slot_index, SKILL_ORDER};
 use crate::token_lockout::TokenLockout;
 use crate::validators::valid_name;
 use actix_web::{post, web, Error, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::{Client, Pool};
 use tokio::sync::mpsc;
-
-// Must match the iteration order of SkillName in site/src/data/skill.js
-// (Object.keys order, excluding Overall)
-const SKILL_ORDER: &[&str] = &[
-    "Agility",
-    "Attack",
-    "Construction",
-    "Cooking",
-    "Crafting",
-    "Defence",
-    "Farming",
-    "Firemaking",
-    "Fishing",
-    "Fletching",
-    "Herblore",
-    "Hitpoints",
-    "Hunter",
-    "Magic",
-    "Mining",
-    "Prayer",
-    "Ranged",
-    "Runecraft",
-    "Slayer",
-    "Smithing",
-    "Strength",
-    "Thieving",
-    "Woodcutting",
-    "Sailing",
-];
 
 const DEVICE_TOKEN_SALT: &str = "osrs-device";
 
@@ -101,23 +74,6 @@ pub async fn pair_device(
 
 // Maps RuneLite equipmentSlot string names to frontend EquipmentSlot indices
 // (see site/src/player-equipment/player-equipment.js)
-fn equipment_slot_index(slot_name: &str) -> Option<usize> {
-    match slot_name {
-        "HEAD" => Some(0),
-        "CAPE" => Some(1),
-        "AMULET" => Some(2),
-        "WEAPON" => Some(3),
-        "BODY" => Some(4),
-        "SHIELD" => Some(5),
-        "LEGS" => Some(7),
-        "GLOVES" => Some(9),
-        "BOOTS" => Some(10),
-        "RING" => Some(12),
-        "AMMO" => Some(13),
-        _ => None,
-    }
-}
-
 fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> GroupMember {
     let player = &payload.player;
 
@@ -229,6 +185,7 @@ pub async fn ingest(
     db_pool: web::Data<Pool>,
     sender: web::Data<mpsc::Sender<GroupMember>>,
     lockout: web::Data<TokenLockout>,
+    direct_seen: web::Data<DirectSeen>,
 ) -> Result<HttpResponse, Error> {
     let token = match req.headers().get("X-Osrs-Token") {
         Some(header) => match header.to_str() {
@@ -270,6 +227,13 @@ pub async fn ingest(
     }
 
     db::ensure_member_exists(&client, group_id, player_name).await?;
+    direct_seen.record(player_name);
+    let account_hash = body
+        .player
+        .account_hash
+        .as_deref()
+        .filter(|hash| !hash.is_empty() && hash.len() <= 128);
+    db::set_direct_source(&client, group_id, player_name, account_hash).await?;
 
     // Track user-player link
     if let Ok(Some(user_id)) = db::get_device_user_id(&client, &hashed_token).await {

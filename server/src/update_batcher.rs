@@ -14,12 +14,13 @@ static CHUNK_SIZE: usize = 50;
 /// Every `<column>_last_update` is set explicitly whenever a value is supplied,
 /// even if the value itself did not change. Data sources such as the RuneLite
 /// data exporter resend unchanged state as a heartbeat and the site relies on
-/// these timestamps to decide whether a member is online.
+/// these timestamps to decide whether a member is online. The timestamp is the
+/// update's `source_time` when given, NOW() otherwise.
 ///
-/// Number of columns per member update row. With 15 columns, the PostgreSQL
-/// parameter-count limit (65,535) allows a maximum chunk size of 65535 / 15 =
-/// 4369 rows when using the VALUES approach.
-const COLUMNS_PER_ROW: usize = 15;
+/// Number of columns per member update row. With 16 columns, the PostgreSQL
+/// parameter-count limit (65,535) allows a maximum chunk size of 65535 / 16 =
+/// 4095 rows when using the VALUES approach.
+const COLUMNS_PER_ROW: usize = 16;
 
 pub async fn background_worker(
     pool: Pool,
@@ -237,6 +238,12 @@ fn merge_group_member(older: &mut GroupMember, newer: &GroupMember) {
         older.last_updated = newer.last_updated;
     }
 
+    // A live update (no source_time, stored as NOW()) is always the newest.
+    older.source_time = match (older.source_time, newer.source_time) {
+        (_, None) | (None, _) => None,
+        (Some(a), Some(b)) => Some(a.max(b)),
+    };
+
     older.name = newer.name.clone();
     older.group_id = newer.group_id;
 }
@@ -263,7 +270,7 @@ fn build_values_statement(size: usize) -> String {
         .map(|row| {
             let offset = row * COLUMNS_PER_ROW;
             format!(
-                "(${}::int8,${}::text,${}::int4[],${}::int4[],${}::int4[],${}::bytea,${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::text,${}::int4[],${}::int4[],${}::int4[],${}::int4[])",
+                "(${}::int8,${}::text,${}::int4[],${}::int4[],${}::int4[],${}::bytea,${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::text,${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::timestamptz)",
                 offset + 1,
                 offset + 2,
                 offset + 3,
@@ -279,6 +286,7 @@ fn build_values_statement(size: usize) -> String {
                 offset + 13,
                 offset + 14,
                 offset + 15,
+                offset + 16,
             )
         })
         .collect::<Vec<_>>()
@@ -288,35 +296,35 @@ fn build_values_statement(size: usize) -> String {
         r#"
 UPDATE groupironman.members AS a SET
   stats = COALESCE(b.stats, a.stats),
-  stats_last_update = CASE WHEN b.stats IS NOT NULL THEN NOW() ELSE a.stats_last_update END,
+  stats_last_update = CASE WHEN b.stats IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.stats_last_update END,
   coordinates = COALESCE(b.coordinates, a.coordinates),
-  coordinates_last_update = CASE WHEN b.coordinates IS NOT NULL THEN NOW() ELSE a.coordinates_last_update END,
+  coordinates_last_update = CASE WHEN b.coordinates IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.coordinates_last_update END,
   skills = COALESCE(b.skills, a.skills),
-  skills_last_update = CASE WHEN b.skills IS NOT NULL THEN NOW() ELSE a.skills_last_update END,
+  skills_last_update = CASE WHEN b.skills IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.skills_last_update END,
   quests = COALESCE(b.quests, a.quests),
-  quests_last_update = CASE WHEN b.quests IS NOT NULL THEN NOW() ELSE a.quests_last_update END,
+  quests_last_update = CASE WHEN b.quests IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.quests_last_update END,
   inventory = COALESCE(b.inventory, a.inventory),
-  inventory_last_update = CASE WHEN b.inventory IS NOT NULL THEN NOW() ELSE a.inventory_last_update END,
+  inventory_last_update = CASE WHEN b.inventory IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.inventory_last_update END,
   equipment = COALESCE(b.equipment, a.equipment),
-  equipment_last_update = CASE WHEN b.equipment IS NOT NULL THEN NOW() ELSE a.equipment_last_update END,
+  equipment_last_update = CASE WHEN b.equipment IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.equipment_last_update END,
   bank = COALESCE(b.bank, a.bank),
-  bank_last_update = CASE WHEN b.bank IS NOT NULL THEN NOW() ELSE a.bank_last_update END,
+  bank_last_update = CASE WHEN b.bank IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.bank_last_update END,
   rune_pouch = COALESCE(b.rune_pouch, a.rune_pouch),
-  rune_pouch_last_update = CASE WHEN b.rune_pouch IS NOT NULL THEN NOW() ELSE a.rune_pouch_last_update END,
+  rune_pouch_last_update = CASE WHEN b.rune_pouch IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.rune_pouch_last_update END,
   interacting = COALESCE(b.interacting, a.interacting),
-  interacting_last_update = CASE WHEN b.interacting IS NOT NULL THEN NOW() ELSE a.interacting_last_update END,
+  interacting_last_update = CASE WHEN b.interacting IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.interacting_last_update END,
   seed_vault = COALESCE(b.seed_vault, a.seed_vault),
-  seed_vault_last_update = CASE WHEN b.seed_vault IS NOT NULL THEN NOW() ELSE a.seed_vault_last_update END,
+  seed_vault_last_update = CASE WHEN b.seed_vault IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.seed_vault_last_update END,
   diary_vars = COALESCE(b.diary_vars, a.diary_vars),
-  diary_vars_last_update = CASE WHEN b.diary_vars IS NOT NULL THEN NOW() ELSE a.diary_vars_last_update END,
+  diary_vars_last_update = CASE WHEN b.diary_vars IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.diary_vars_last_update END,
   collection_log = COALESCE(b.collection_log, a.collection_log),
-  collection_log_last_update = CASE WHEN b.collection_log IS NOT NULL THEN NOW() ELSE a.collection_log_last_update END,
+  collection_log_last_update = CASE WHEN b.collection_log IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.collection_log_last_update END,
   potion_storage = COALESCE(b.potion_storage, a.potion_storage),
-  potion_storage_last_update = CASE WHEN b.potion_storage IS NOT NULL THEN NOW() ELSE a.potion_storage_last_update END
+  potion_storage_last_update = CASE WHEN b.potion_storage IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.potion_storage_last_update END
 FROM (VALUES {values}) AS b(
   group_id, member_name, stats, coordinates, skills, quests, inventory,
   equipment, bank, rune_pouch, interacting, seed_vault, diary_vars, collection_log,
-  potion_storage
+  potion_storage, source_time
 )
 WHERE a.group_id = b.group_id AND a.member_name = b.member_name::citext
 "#
@@ -382,6 +390,7 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
         params.push(&member_data.diary_vars);
         params.push(&member_data.collection_log_v2);
         params.push(&member_data.potion_storage);
+        params.push(&member_data.source_time);
     }
 
     if let Err(e) = client.execute(&update_stmt, &params).await {

@@ -192,7 +192,7 @@ async fn discord_login(code: &str, db_pool: &Pool, config: &Config) -> Result<Ht
         let cookie = session_cookie(
             &session_id,
             cookie::time::Duration::hours(SESSION_DURATION_HOURS),
-            &config,
+            config,
         );
 
         return Ok(HttpResponse::Ok().cookie(cookie).json(LoginResponse {
@@ -307,7 +307,7 @@ async fn discord_login(code: &str, db_pool: &Pool, config: &Config) -> Result<Ht
     let cookie = session_cookie(
         &session_id,
         cookie::time::Duration::hours(SESSION_DURATION_HOURS),
-        &config,
+        config,
     );
 
     Ok(HttpResponse::Ok().cookie(cookie).json(LoginResponse {

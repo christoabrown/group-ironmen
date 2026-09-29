@@ -293,6 +293,7 @@ FROM groupironman.members WHERE group_id=$2
             deposited: Option::None,
             collection_log_v2: row.try_get("collection_log").ok(),
             potion_storage: row.try_get("potion_storage").ok(),
+            source_time: None,
         };
         result.push(group_member);
     }
@@ -601,6 +602,23 @@ ORDER BY member_name
     Ok(result)
 }
 
+/// Member data columns that carry a `<column>_last_update` timestamp.
+pub const TIMESTAMPED_MEMBER_COLUMNS: [&str; 13] = [
+    "stats",
+    "coordinates",
+    "skills",
+    "quests",
+    "inventory",
+    "equipment",
+    "bank",
+    "rune_pouch",
+    "interacting",
+    "seed_vault",
+    "diary_vars",
+    "collection_log",
+    "potion_storage",
+];
+
 async fn create_timestamp_trigger(
     transaction: &Transaction<'_>,
     name: &str,
@@ -610,7 +628,11 @@ async fn create_timestamp_trigger(
 CREATE OR REPLACE FUNCTION groupironman.update_{0}_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.{0}_last_update = now();
+    -- Keep a timestamp the statement set itself (e.g. the source time of
+    -- imported data); only stamp now() when it was left unchanged.
+    IF NEW.{0}_last_update IS NOT DISTINCT FROM OLD.{0}_last_update THEN
+        NEW.{0}_last_update = now();
+    END IF;
     RETURN NEW;
 END;
 $$ language 'plpgsql';
@@ -1187,6 +1209,36 @@ ADD COLUMN IF NOT EXISTS potion_storage INTEGER[]
         transaction.commit().await?;
     }
 
+    if !has_migration_run(client, "timestamp_triggers_respect_explicit").await? {
+        let transaction = client.transaction().await?;
+        for name in TIMESTAMPED_MEMBER_COLUMNS {
+            create_timestamp_trigger(&transaction, name).await?;
+        }
+        commit_migration(&transaction, "timestamp_triggers_respect_explicit").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "add_hub_columns").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+ALTER TABLE groupironman.members
+ADD COLUMN IF NOT EXISTS hub_account_id TEXT UNIQUE,
+ADD COLUMN IF NOT EXISTS hub_last_seen TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS hub_orphaned_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS account_hash TEXT,
+ADD COLUMN IF NOT EXISTS last_source TEXT;
+CREATE INDEX IF NOT EXISTS idx_members_account_hash ON groupironman.members(account_hash);
+ALTER TABLE groupironman.user_player_links
+ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'device';
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "add_hub_columns").await?;
+        transaction.commit().await?;
+    }
+
     Ok(())
 }
 
@@ -1671,4 +1723,272 @@ pub async fn create_user_no_password(
         .await
         .map_err(|_| ApiError::BadRequest("Username already exists".to_string()))?;
     Ok(row.try_get(0)?)
+}
+
+// ===================== Hub Sync Functions =====================
+
+/// A member row as seen by the hub sync.
+pub struct HubMemberRow {
+    pub member_name: String,
+    pub hub_account_id: Option<String>,
+    pub hub_last_seen: Option<DateTime<Utc>>,
+    /// Whether the member already has player data from any source.
+    pub has_data: bool,
+}
+
+fn hub_member_row(row: &tokio_postgres::Row) -> Result<HubMemberRow, ApiError> {
+    Ok(HubMemberRow {
+        member_name: row.try_get("member_name")?,
+        hub_account_id: row.try_get("hub_account_id")?,
+        hub_last_seen: row.try_get("hub_last_seen")?,
+        has_data: row.try_get("has_data")?,
+    })
+}
+
+pub async fn get_member_by_hub_id(
+    client: &Client,
+    group_id: i64,
+    hub_account_id: &str,
+) -> Result<Option<HubMemberRow>, ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "SELECT member_name::text, hub_account_id, hub_last_seen, (GREATEST(stats_last_update, \
+             coordinates_last_update, skills_last_update) IS NOT NULL) AS has_data \
+             FROM groupironman.members \
+             WHERE group_id=$1 AND hub_account_id=$2",
+        )
+        .await?;
+    let row = client
+        .query_opt(&stmt, &[&group_id, &hub_account_id])
+        .await?;
+    row.as_ref().map(hub_member_row).transpose()
+}
+
+/// Finds an existing member for a hub account that is not bound yet: first by
+/// the plugin's account hash (stable across renames), then by name.
+pub async fn find_member_for_hub_account(
+    client: &Client,
+    group_id: i64,
+    account_hash: Option<&str>,
+    name: &str,
+) -> Result<Option<HubMemberRow>, ApiError> {
+    if let Some(account_hash) = account_hash {
+        let stmt = client
+            .prepare_cached(
+                "SELECT member_name::text, hub_account_id, hub_last_seen, (GREATEST(stats_last_update, \
+             coordinates_last_update, skills_last_update) IS NOT NULL) AS has_data \
+             FROM groupironman.members \
+                 WHERE group_id=$1 AND account_hash=$2 ORDER BY member_id LIMIT 1",
+            )
+            .await?;
+        if let Some(row) = client.query_opt(&stmt, &[&group_id, &account_hash]).await? {
+            return Ok(Some(hub_member_row(&row)?));
+        }
+    }
+    let stmt = client
+        .prepare_cached(
+            "SELECT member_name::text, hub_account_id, hub_last_seen, (GREATEST(stats_last_update, \
+             coordinates_last_update, skills_last_update) IS NOT NULL) AS has_data \
+             FROM groupironman.members \
+             WHERE group_id=$1 AND member_name=$2",
+        )
+        .await?;
+    let row = client.query_opt(&stmt, &[&group_id, &name]).await?;
+    row.as_ref().map(hub_member_row).transpose()
+}
+
+/// Binds a hub account id to a member, taking it away from any other member first.
+pub async fn bind_hub_account(
+    client: &mut Client,
+    group_id: i64,
+    member_name: &str,
+    hub_account_id: &str,
+    account_hash: Option<&str>,
+) -> Result<(), ApiError> {
+    let transaction = client.transaction().await?;
+    transaction
+        .execute(
+            "UPDATE groupironman.members SET hub_account_id=NULL \
+             WHERE hub_account_id=$1 AND NOT (group_id=$2 AND member_name=$3)",
+            &[&hub_account_id, &group_id, &member_name],
+        )
+        .await?;
+    transaction
+        .execute(
+            "UPDATE groupironman.members SET hub_account_id=$3, \
+             account_hash=COALESCE($4, account_hash), hub_orphaned_at=NULL \
+             WHERE group_id=$1 AND member_name=$2",
+            &[&group_id, &member_name, &hub_account_id, &account_hash],
+        )
+        .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
+pub async fn set_hub_seen(
+    client: &Client,
+    group_id: i64,
+    member_name: &str,
+    hub_last_seen: Option<DateTime<Utc>>,
+) -> Result<(), ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "UPDATE groupironman.members SET hub_last_seen=COALESCE($3, hub_last_seen, NOW()), \
+             last_source='hub' WHERE group_id=$1 AND member_name=$2",
+        )
+        .await?;
+    client
+        .execute(&stmt, &[&group_id, &member_name, &hub_last_seen])
+        .await?;
+    Ok(())
+}
+
+/// Records that a member was last updated by direct plugin ingest.
+pub async fn set_direct_source(
+    client: &Client,
+    group_id: i64,
+    member_name: &str,
+    account_hash: Option<&str>,
+) -> Result<(), ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "UPDATE groupironman.members SET last_source='direct', \
+             account_hash=COALESCE($3, account_hash) WHERE group_id=$1 AND member_name=$2",
+        )
+        .await?;
+    client
+        .execute(&stmt, &[&group_id, &member_name, &account_hash])
+        .await?;
+    Ok(())
+}
+
+/// Renames a member that is bound to a hub account, keeping user links in step.
+pub async fn rename_hub_member(
+    client: &mut Client,
+    group_id: i64,
+    original_name: &str,
+    new_name: &str,
+) -> Result<(), ApiError> {
+    let transaction = client.transaction().await?;
+    transaction
+        .execute(
+            "UPDATE groupironman.members SET member_name=$3 WHERE group_id=$1 AND member_name=$2",
+            &[&group_id, &original_name, &new_name],
+        )
+        .await?;
+    transaction
+        .execute(
+            "UPDATE groupironman.user_player_links SET member_name=$3 \
+             WHERE group_id=$1 AND member_name=$2",
+            &[&group_id, &original_name, &new_name],
+        )
+        .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
+/// Marks bound members whose hub account is no longer visible, and clears the
+/// mark for those that are. Returns the number of orphaned members.
+pub async fn mark_hub_orphans(
+    client: &Client,
+    group_id: i64,
+    visible_ids: &[String],
+) -> Result<i64, ApiError> {
+    client
+        .execute(
+            "UPDATE groupironman.members SET hub_orphaned_at=NULL \
+             WHERE group_id=$1 AND hub_account_id = ANY($2)",
+            &[&group_id, &visible_ids],
+        )
+        .await?;
+    client
+        .execute(
+            "UPDATE groupironman.members SET hub_orphaned_at=NOW() \
+             WHERE group_id=$1 AND hub_account_id IS NOT NULL \
+             AND NOT (hub_account_id = ANY($2)) AND hub_orphaned_at IS NULL",
+            &[&group_id, &visible_ids],
+        )
+        .await?;
+    let count: i64 = client
+        .query_one(
+            "SELECT COUNT(*) FROM groupironman.members \
+             WHERE group_id=$1 AND hub_orphaned_at IS NOT NULL",
+            &[&group_id],
+        )
+        .await?
+        .try_get(0)?;
+    Ok(count)
+}
+
+/// Member name and hub account id of every member bound to the hub.
+pub async fn get_hub_bindings(
+    client: &Client,
+    group_id: i64,
+) -> Result<Vec<(String, String)>, ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "SELECT member_name::text, hub_account_id FROM groupironman.members \
+             WHERE group_id=$1 AND hub_account_id IS NOT NULL",
+        )
+        .await?;
+    let rows = client.query(&stmt, &[&group_id]).await?;
+    rows.iter()
+        .map(|row| Ok((row.try_get(0)?, row.try_get(1)?)))
+        .collect()
+}
+
+pub async fn get_user_id_by_discord_id(
+    client: &Client,
+    discord_id: &str,
+) -> Result<Option<i64>, ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "SELECT d.user_id FROM groupironman.discord_users d \
+             JOIN groupironman.users u ON u.user_id = d.user_id \
+             WHERE d.discord_id=$1 AND u.enabled = TRUE",
+        )
+        .await?;
+    let row = client.query_opt(&stmt, &[&discord_id]).await?;
+    Ok(row.map(|row| row.try_get(0)).transpose()?)
+}
+
+/// Links a user to a player, recording where the link came from
+/// (`device`, `hub` or `manual`). An existing link keeps its source.
+pub async fn upsert_user_player_link_with_source(
+    client: &Client,
+    user_id: i64,
+    member_name: &str,
+    group_id: i64,
+    source: &str,
+) -> Result<(), ApiError> {
+    let stmt = client
+        .prepare_cached(
+            r#"
+INSERT INTO groupironman.user_player_links (user_id, member_name, group_id, last_updated, source)
+VALUES($1, $2, $3, NOW(), $4)
+ON CONFLICT (user_id, member_name, group_id) DO UPDATE SET last_updated = NOW()
+"#,
+        )
+        .await?;
+    client
+        .execute(&stmt, &[&user_id, &member_name, &group_id, &source])
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_user_player_link(
+    client: &Client,
+    user_id: i64,
+    member_name: &str,
+    group_id: i64,
+) -> Result<u64, ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "DELETE FROM groupironman.user_player_links \
+             WHERE user_id=$1 AND member_name=$2 AND group_id=$3",
+        )
+        .await?;
+    Ok(client
+        .execute(&stmt, &[&user_id, &member_name, &group_id])
+        .await?)
 }

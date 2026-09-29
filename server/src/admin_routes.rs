@@ -337,3 +337,70 @@ pub async fn get_player_users(
     let users = db::get_users_for_player(&client, member_name, **group_id).await?;
     Ok(HttpResponse::Ok().json(users))
 }
+
+#[derive(serde::Deserialize)]
+pub struct PlayerUserLinkPath {
+    pub member_name: String,
+    pub user_id: i64,
+}
+
+/// Links a user to a player by hand, e.g. for players imported from the hub.
+#[post("/players/{member_name}/users/{user_id}")]
+pub async fn link_player_user(
+    admin: AdminAuthenticated,
+    path: web::Path<PlayerUserLinkPath>,
+    db_pool: web::Data<Pool>,
+    group_id: web::Data<i64>,
+) -> Result<HttpResponse, Error> {
+    let client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    if !db::is_member_in_group(&client, **group_id, &path.member_name).await? {
+        return Ok(HttpResponse::NotFound().body("Player not found"));
+    }
+    db::upsert_user_player_link_with_source(
+        &client,
+        path.user_id,
+        &path.member_name,
+        **group_id,
+        "manual",
+    )
+    .await?;
+    db::write_audit_log(
+        &client,
+        Some(admin.user.user_id),
+        "player_linked",
+        Some(path.user_id),
+        Some(&format!(
+            "Admin '{}' linked player '{}' to user {}",
+            admin.user.username, path.member_name, path.user_id
+        )),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true})))
+}
+
+#[delete("/players/{member_name}/users/{user_id}")]
+pub async fn unlink_player_user(
+    admin: AdminAuthenticated,
+    path: web::Path<PlayerUserLinkPath>,
+    db_pool: web::Data<Pool>,
+    group_id: web::Data<i64>,
+) -> Result<HttpResponse, Error> {
+    let client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    let removed =
+        db::delete_user_player_link(&client, path.user_id, &path.member_name, **group_id).await?;
+    if removed == 0 {
+        return Ok(HttpResponse::NotFound().body("Link not found"));
+    }
+    db::write_audit_log(
+        &client,
+        Some(admin.user.user_id),
+        "player_unlinked",
+        Some(path.user_id),
+        Some(&format!(
+            "Admin '{}' unlinked player '{}' from user {}",
+            admin.user.username, path.member_name, path.user_id
+        )),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true})))
+}
