@@ -10,17 +10,20 @@ export class InventoryItem extends BaseElement {
     const itemId = this.getAttribute("item-id");
     this.showIndividualItemPrices = this.hasAttribute("individual-prices");
     this.playerFilter = this.getAttribute("player-filter");
+    this.isPotionStorage = this.hasAttribute("potion-storage");
+
+    const updateTopic = this.isPotionStorage ? `potion-storage-item-update:${itemId}` : `item-update:${itemId}`;
 
     const top = this.offsetTop;
     const bottomOfPage = document.body.clientHeight;
     if (top < bottomOfPage) {
-      this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
+      this.subscribe(updateTopic, this.handleUpdatedItem.bind(this));
     } else {
       this.intersectionObserver = new IntersectionObserver((entries) => {
         for (const x of entries) {
           if (x.isIntersecting && x.target === this) {
             this.intersectionObserver.disconnect();
-            this.subscribe(`item-update:${itemId}`, this.handleUpdatedItem.bind(this));
+            this.subscribe(updateTopic, this.handleUpdatedItem.bind(this));
             return;
           }
         }
@@ -50,6 +53,9 @@ export class InventoryItem extends BaseElement {
         playerHtml += this.playerHtml(playerName);
       }
     }
+
+    const badge = this.isPotionStorage ? '<span class="inventory-item__badge">Potion storage</span>' : "";
+    const quantityLabel = this.isPotionStorage ? "Doses" : "Quantity";
 
     return `{{inventory-item.html}}`;
   }

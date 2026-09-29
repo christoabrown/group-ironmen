@@ -218,18 +218,9 @@ fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> Gro
         stats,
         coordinates,
         skills,
-        quests: None,
         inventory,
         equipment,
-        bank: None,
-        shared_bank: None,
-        rune_pouch: None,
-        interacting: None,
-        seed_vault: None,
-        deposited: None,
-        diary_vars: None,
-        collection_log_v2: None,
-        last_updated: None,
+        ..Default::default()
     }
 }
 

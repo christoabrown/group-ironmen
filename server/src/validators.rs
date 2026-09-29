@@ -1,6 +1,6 @@
 use crate::error::ApiError;
-use lazy_static::lazy_static;
 use regex::Regex;
+use std::sync::LazyLock;
 
 #[cfg(test)]
 mod valid_name_tests {
@@ -67,13 +67,16 @@ mod valid_name_tests {
     }
 }
 
-pub fn valid_name(name: &str) -> bool {
-    lazy_static! {
-        static ref NAME_RE: Regex = Regex::new("[^A-Za-z 0-9-_]").unwrap();
-    }
+static NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new("[^A-Za-z 0-9-_]").unwrap());
 
+pub fn valid_name(name: &str) -> bool {
     let len = name.len();
-    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && name.trim().len() > 0
+    (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && !name.trim().is_empty()
+}
+
+pub enum ArrayFormat {
+    Flat,
+    ItemPairs,
 }
 
 pub fn validate_member_prop_length<T>(
@@ -81,21 +84,23 @@ pub fn validate_member_prop_length<T>(
     value: &Option<Vec<T>>,
     min: usize,
     max: usize,
+    format: ArrayFormat,
 ) -> Result<(), ApiError> {
-    match value {
-        None => Ok(()),
-        Some(x) => {
-            if (min..=max).contains(&x.len()) {
-                Ok(())
-            } else {
-                Err(ApiError::GroupMemberValidationError(format!(
-                    "{} length violated range constraint {}..={} actual={}",
-                    prop_name,
-                    min,
-                    max,
-                    x.len()
-                )))
-            }
-        }
+    let Some(x) = value else {
+        return Ok(());
+    };
+    let len = x.len();
+    if !(min..=max).contains(&len) {
+        return Err(ApiError::GroupMemberValidationError(format!(
+            "{} length violated range constraint {}..={} actual={}",
+            prop_name, min, max, len
+        )));
     }
+    if matches!(format, ArrayFormat::ItemPairs) && len % 2 != 0 {
+        return Err(ApiError::GroupMemberValidationError(format!(
+            "{} must have an even number of elements (item-id/quantity pairs), got {}",
+            prop_name, len
+        )));
+    }
+    Ok(())
 }

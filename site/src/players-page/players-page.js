@@ -129,7 +129,9 @@ export class PlayersPage extends BaseElement {
               <player-icon player-name="${safeName}"></player-icon>
               <span class="players-page__player-name">${safeName}</span>
               <span class="players-page__badge players-page__badge--online">Online</span>
-              <span class="players-page__last-data" data-last-updated="${member.lastUpdated ? member.lastUpdated.toISOString() : ""}">Last data: ${relativeTime(member.lastUpdated)}</span>
+              <span class="players-page__last-data" data-last-updated="${
+                member.lastUpdated ? member.lastUpdated.toISOString() : ""
+              }">Last data: ${relativeTime(member.lastUpdated)}</span>
             </div>
             <player-panel class="rsborder rsbackground" player-name="${safeName}"></player-panel>
           </div>`;
@@ -145,7 +147,9 @@ export class PlayersPage extends BaseElement {
               <player-icon player-name="${safeName}"></player-icon>
               <span class="players-page__player-name">${safeName}</span>
               <span class="players-page__badge players-page__badge--offline">Offline</span>
-              <span class="players-page__last-data" data-last-updated="${member.lastUpdated ? member.lastUpdated.toISOString() : ""}">Last data: ${relativeTime(member.lastUpdated)}</span>
+              <span class="players-page__last-data" data-last-updated="${
+                member.lastUpdated ? member.lastUpdated.toISOString() : ""
+              }">Last data: ${relativeTime(member.lastUpdated)}</span>
             </div>
           </div>`;
       }
@@ -156,7 +160,9 @@ export class PlayersPage extends BaseElement {
     // Update count
     const shownOnline = showOnline ? online.length : 0;
     const shownOffline = showOffline ? offline.length : 0;
-    this.countEl.textContent = `${shownOnline + shownOffline} player${shownOnline + shownOffline !== 1 ? "s" : ""} (${shownOnline} online)`;
+    this.countEl.textContent = `${shownOnline + shownOffline} player${
+      shownOnline + shownOffline !== 1 ? "s" : ""
+    } (${shownOnline} online)`;
   }
 
   updateRelativeTimes() {

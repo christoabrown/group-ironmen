@@ -5,8 +5,8 @@ class TooltipManager {
     return this._globalTooltip;
   }
 
-  showTooltip(tooltipText) {
-    this.globalTooltip.showTooltip(tooltipText);
+  showTooltip(tooltipText, mouseEvent) {
+    this.globalTooltip.showTooltip(tooltipText, mouseEvent);
   }
 
   hideTooltip() {

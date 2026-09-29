@@ -23,6 +23,7 @@ export class MapPage extends BaseElement {
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.eventListener(this.playerButtons, "click", this.handleFocusPlayer.bind(this));
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));
+    this.eventListener(this.planeSelect, "wheel", this.handlePlaneWheel.bind(this), { passive: false });
     this.eventListener(this.worldMap, "plane-changed", this.handlePlaneChange.bind(this));
   }
 
@@ -46,6 +47,17 @@ export class MapPage extends BaseElement {
   handlePlaneSelect() {
     this.worldMap.stopFollowingPlayer();
     this.worldMap.showPlane(this.getSelectedPlane());
+  }
+
+  handlePlaneWheel(event) {
+    event.preventDefault();
+    const current = this.getSelectedPlane();
+    const direction = event.deltaY > 0 ? 1 : -1;
+    const next = Math.min(Math.max(current + direction, 1), 4);
+    if (next !== current) {
+      this.planeSelect.value = next;
+      this.handlePlaneSelect();
+    }
   }
 
   handleUpdatedMembers(members) {

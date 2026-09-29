@@ -8,6 +8,8 @@ use crate::models::{
 use actix_web::{cookie, get, post, web, Error, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
+use serde::de::DeserializeOwned;
+use tokio::task;
 
 const SESSION_DURATION_HOURS: i64 = 72;
 const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
@@ -51,46 +53,16 @@ pub async fn discord_callback(
     }
 
     // Exchange the authorization code for an access token
-    let http_client = reqwest::Client::new();
-    let token_response = http_client
-        .post(DISCORD_OAUTH_TOKEN)
-        .form(&[
-            ("client_id", config.discord.client_id.as_str()),
-            ("client_secret", config.discord.client_secret.as_str()),
-            ("grant_type", "authorization_code"),
-            ("code", &body.code),
-            ("redirect_uri", config.discord.redirect_uri.as_str()),
-        ])
-        .send()
-        .await
-        .map_err(ApiError::ReqwestError)?;
-
-    if !token_response.status().is_success() {
-        log::error!(
-            "Discord token exchange failed: {}",
-            token_response.status()
-        );
-        return Ok(HttpResponse::BadRequest().body("Failed to authenticate with Discord"));
-    }
-
-    let token_data: DiscordTokenResponse = token_response
-        .json()
-        .await
-        .map_err(ApiError::ReqwestError)?;
+    let token_data = match exchange_code(&config, &body.code).await? {
+        Some(token_data) => token_data,
+        None => {
+            return Ok(HttpResponse::BadRequest().body("Failed to authenticate with Discord"));
+        }
+    };
+    let authorization = format!("{} {}", token_data.token_type, token_data.access_token);
 
     // Fetch Discord user info
-    let discord_user: DiscordUser = http_client
-        .get(&format!("{}/users/@me", DISCORD_API_BASE))
-        .header(
-            "Authorization",
-            format!("{} {}", token_data.token_type, token_data.access_token),
-        )
-        .send()
-        .await
-        .map_err(ApiError::ReqwestError)?
-        .json()
-        .await
-        .map_err(ApiError::ReqwestError)?;
+    let discord_user: DiscordUser = discord_get("/users/@me", &authorization).await?;
 
     let db_client = db_pool.get().await.map_err(ApiError::PoolError)?;
 
@@ -103,19 +75,7 @@ pub async fn discord_callback(
         }
 
         // Check if existing user is still in an allowed Discord server
-        let http_client = reqwest::Client::new();
-        let guilds: Vec<DiscordGuild> = http_client
-            .get(&format!("{}/users/@me/guilds", DISCORD_API_BASE))
-            .header(
-                "Authorization",
-                format!("{} {}", token_data.token_type, token_data.access_token),
-            )
-            .send()
-            .await
-            .map_err(ApiError::ReqwestError)?
-            .json()
-            .await
-            .map_err(ApiError::ReqwestError)?;
+        let guilds: Vec<DiscordGuild> = discord_get("/users/@me/guilds", &authorization).await?;
 
         let user_guild_ids: Vec<&str> = guilds.iter().map(|g| g.id.as_str()).collect();
         let is_in_allowed_server = config
@@ -186,18 +146,7 @@ pub async fn discord_callback(
     }
 
     // Fetch user's guilds to check membership
-    let guilds: Vec<DiscordGuild> = http_client
-        .get(&format!("{}/users/@me/guilds", DISCORD_API_BASE))
-        .header(
-            "Authorization",
-            format!("{} {}", token_data.token_type, token_data.access_token),
-        )
-        .send()
-        .await
-        .map_err(ApiError::ReqwestError)?
-        .json()
-        .await
-        .map_err(ApiError::ReqwestError)?;
+    let guilds: Vec<DiscordGuild> = discord_get("/users/@me/guilds", &authorization).await?;
 
     // Check if user is in any allowed server
     let user_guild_ids: Vec<&str> = guilds.iter().map(|g| g.id.as_str()).collect();
@@ -295,4 +244,58 @@ pub async fn discord_callback(
         role: "member".to_string(),
         username,
     }))
+}
+
+/// Exchanges an OAuth authorization code for an access token.
+/// Returns `Ok(None)` when Discord rejects the code.
+async fn exchange_code(
+    config: &Config,
+    code: &str,
+) -> Result<Option<DiscordTokenResponse>, ApiError> {
+    let client_id = config.discord.client_id.clone();
+    let client_secret = config.discord.client_secret.clone();
+    let redirect_uri = config.discord.redirect_uri.clone();
+    let code = code.to_owned();
+
+    task::spawn_blocking(move || {
+        let response = ureq::post(DISCORD_OAUTH_TOKEN).send_form([
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("grant_type", "authorization_code"),
+            ("code", code.as_str()),
+            ("redirect_uri", redirect_uri.as_str()),
+        ]);
+        match response {
+            Ok(mut response) => response
+                .body_mut()
+                .read_json::<DiscordTokenResponse>()
+                .map(Some)
+                .map_err(ApiError::UreqError),
+            Err(ureq::Error::StatusCode(status)) => {
+                log::error!("Discord token exchange failed: {}", status);
+                Ok(None)
+            }
+            Err(err) => Err(ApiError::UreqError(err)),
+        }
+    })
+    .await
+    .map_err(|err| ApiError::BadRequest(format!("Discord request task failed: {}", err)))?
+}
+
+async fn discord_get<T: DeserializeOwned + Send + 'static>(
+    path: &'static str,
+    authorization: &str,
+) -> Result<T, ApiError> {
+    let authorization = authorization.to_owned();
+    task::spawn_blocking(move || {
+        ureq::get(format!("{}{}", DISCORD_API_BASE, path))
+            .header("Authorization", authorization.as_str())
+            .call()
+            .map_err(ApiError::UreqError)?
+            .body_mut()
+            .read_json::<T>()
+            .map_err(ApiError::UreqError)
+    })
+    .await
+    .map_err(|err| ApiError::BadRequest(format!("Discord request task failed: {}", err)))?
 }

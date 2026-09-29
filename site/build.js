@@ -25,10 +25,18 @@ const mapJsonPlugin = {
 
     const labels = JSON.parse(fs.readFileSync("public/data/map_labels.json", 'utf8'));
 
+    let links;
+    try {
+      links = JSON.parse(fs.readFileSync("public/data/map_links.json", 'utf8'));
+    } catch {
+      links = {};
+    }
+
     const result = {
       tiles,
       icons,
-      labels
+      labels,
+      links
     };
 
     fs.writeFileSync('public/data/map.json', JSON.stringify(result));
@@ -88,6 +96,8 @@ const htmlBuildPlugin = {
       "/ui/border-dark.png",
       "/ui/border-tiny.png",
       "/ui/border-tiny-dark.png",
+      "/ui/metal-border.png",
+      "/ui/173-0.png",
       "/ui/297-0.png",
       "/ui/297-0-dark.png"
     ];

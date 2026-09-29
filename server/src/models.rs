@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Coordinates {
     x: i32,
@@ -10,7 +10,7 @@ pub struct Coordinates {
     plane: i32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Interacting {
     name: String,
@@ -31,7 +31,7 @@ pub struct RenameGroupMember {
     pub new_name: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct GroupMember {
     #[serde(skip)]
     pub group_id: Option<i64>,
@@ -51,8 +51,6 @@ pub struct GroupMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bank: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub shared_bank: Option<Vec<i32>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub rune_pouch: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interacting: Option<Interacting>,
@@ -64,6 +62,8 @@ pub struct GroupMember {
     pub diary_vars: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collection_log_v2: Option<Vec<i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub potion_storage: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
 }

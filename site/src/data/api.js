@@ -46,10 +46,6 @@ class Api {
     return `${this.baseUrl}/captcha-enabled`;
   }
 
-  get collectionLogInfoUrl() {
-    return `${this.baseUrl}/collection-log-info`;
-  }
-
   get setupStatusUrl() {
     return `${this.baseUrl}/auth/setup-status`;
   }

@@ -23,10 +23,10 @@ export class BaseElement extends HTMLElement {
     this.eventListener(this, "mouseout", this.handleMouseOut.bind(this));
   }
 
-  updateTooltip(tooltipText) {
+  updateTooltip(tooltipText, mouseEvent) {
     this.tooltipText = tooltipText;
     if (this.showingTooltip) {
-      tooltipManager.showTooltip(tooltipText);
+      tooltipManager.showTooltip(tooltipText, mouseEvent);
     }
   }
 
@@ -34,7 +34,7 @@ export class BaseElement extends HTMLElement {
     const tooltipText = this.tooltipText || this.getAttribute("tooltip-text");
     if (tooltipText) {
       this.showingTooltip = true;
-      this.updateTooltip(tooltipText.trim());
+      this.updateTooltip(tooltipText.trim(), mouseEvent);
       mouseEvent.stopPropagation();
     }
   }

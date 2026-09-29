@@ -22,11 +22,6 @@ ${this.questSectionHtml(Quest.memberQuests)}
 ${this.questSectionHtml(Quest.miniQuests)}
 `;
 
-    const tutorialQuestsHtml = `
-<h4 class="player-quests__section-header">Tutorial</h4>
-${this.questSectionHtml(Quest.tutorial)}
-`;
-
     return `{{player-quests.html}}`;
   }
   /* eslint-enable no-unused-vars */

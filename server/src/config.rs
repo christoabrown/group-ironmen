@@ -1,4 +1,3 @@
-use config::{ConfigError, File};
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -42,6 +41,7 @@ pub struct DiscordConfig {
 }
 #[derive(Deserialize, Clone)]
 pub struct Config {
+    #[serde(default)]
     pub pg: deadpool_postgres::Config,
     #[serde(default = "default_logger_config")]
     pub logger: LoggerConfig,
@@ -72,44 +72,72 @@ fn default_discord_config() -> DiscordConfig {
         autoreg_servers: vec![],
     }
 }
+
+fn env_string(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn env_bool(name: &str) -> Option<bool> {
+    env_string(name).map(|value| matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+}
+
 impl Config {
-    pub fn from_env() -> Result<Self, ConfigError> {
+    /// Loads `config.toml` (optional) and then applies environment variable overrides.
+    pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
         let _ = dotenvy::dotenv();
 
-        let cfg = ::config::Config::builder()
-            .add_source(File::with_name("config"))
-            .build()?;
-        let mut parsed: Config = cfg.try_deserialize()?;
+        let config_str = match std::fs::read_to_string("config.toml") {
+            Ok(contents) => contents,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(err) => return Err(err.into()),
+        };
+        let mut parsed: Config = basic_toml::from_str(&config_str)?;
+        parsed.apply_env_overrides();
+        Ok(parsed)
+    }
 
-        if let Ok(client_id) = env::var("DISCORD_CLIENT_ID") {
-            let client_id = client_id.trim().to_string();
-            if !client_id.is_empty() {
-                parsed.discord.enabled = true;
-                parsed.discord.client_id = client_id;
-
-                if let Ok(client_secret) = env::var("DISCORD_CLIENT_SECRET") {
-                    parsed.discord.client_secret = client_secret.trim().to_string();
-                }
-
-                if let Ok(redirect_uri) = env::var("DISCORD_REDIRECT_URI") {
-                    parsed.discord.redirect_uri = redirect_uri.trim().to_string();
-                }
-
-                if let Ok(auto_registration) = env::var("DISCORD_AUTO_REGISTRATION") {
-                    let auto_registration = auto_registration.trim().to_lowercase();
-                    parsed.discord.auto_registration = matches!(auto_registration.as_str(), "1" | "true" | "yes" | "on");
-                }
-
-                if let Ok(autoreg_servers) = env::var("DISCORD_AUTOREG_SERVERS") {
-                    parsed.discord.autoreg_servers = autoreg_servers
-                        .split(',')
-                        .map(|server| server.trim().to_string())
-                        .filter(|server| !server.is_empty())
-                        .collect();
-                }
+    fn apply_env_overrides(&mut self) {
+        if let Some(user) = env_string("PG_USER") {
+            self.pg.user = Some(user);
+        }
+        if let Ok(password) = env::var("PG_PASSWORD") {
+            if !password.is_empty() {
+                self.pg.password = Some(password);
             }
         }
+        if let Some(host) = env_string("PG_HOST") {
+            self.pg.host = Some(host);
+        }
+        if let Some(port) = env_string("PG_PORT").and_then(|port| port.parse().ok()) {
+            self.pg.port = Some(port);
+        }
+        if let Some(dbname) = env_string("PG_DB") {
+            self.pg.dbname = Some(dbname);
+        }
 
-        Ok(parsed)
+        if let Some(client_id) = env_string("DISCORD_CLIENT_ID") {
+            self.discord.enabled = true;
+            self.discord.client_id = client_id;
+
+            if let Some(client_secret) = env_string("DISCORD_CLIENT_SECRET") {
+                self.discord.client_secret = client_secret;
+            }
+            if let Some(redirect_uri) = env_string("DISCORD_REDIRECT_URI") {
+                self.discord.redirect_uri = redirect_uri;
+            }
+            if let Some(auto_registration) = env_bool("DISCORD_AUTO_REGISTRATION") {
+                self.discord.auto_registration = auto_registration;
+            }
+            if let Some(autoreg_servers) = env_string("DISCORD_AUTOREG_SERVERS") {
+                self.discord.autoreg_servers = autoreg_servers
+                    .split(',')
+                    .map(|server| server.trim().to_string())
+                    .filter(|server| !server.is_empty())
+                    .collect();
+            }
+        }
     }
 }

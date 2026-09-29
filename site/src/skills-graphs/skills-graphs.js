@@ -24,13 +24,16 @@ export class SkillsGraphs extends BaseElement {
     super.connectedCallback();
     this.render();
     this.period = "Day";
+    this.chartGeneration = 0;
 
     this.chartContainer = this.querySelector(".skills-graphs__chart-container");
-    this.periodSelect = this.querySelector(".skills-graphs__period-select");
+    this.periodButtons = this.querySelectorAll(".skills-graphs__period-btn");
     this.refreshButton = this.querySelector(".skills-graphs__refresh");
     this.skillSelect = this.querySelector(".skills-graphs__skill-select");
     this.selectedSkill = this.skillSelect.value;
-    this.eventListener(this.periodSelect, "change", this.handlePeriodChange.bind(this));
+    this.periodButtons.forEach((btn) => {
+      this.eventListener(btn, "click", this.handlePeriodChange.bind(this));
+    });
     this.eventListener(this.refreshButton, "click", this.handleRefreshClicked.bind(this));
     this.eventListener(this.skillSelect, "change", this.handleSkillSelectChange.bind(this));
 
@@ -46,8 +49,11 @@ export class SkillsGraphs extends BaseElement {
     this.subscribeOnce("get-group-data", this.createChart.bind(this));
   }
 
-  handlePeriodChange() {
-    this.period = this.periodSelect.value;
+  handlePeriodChange(event) {
+    this.period = event.currentTarget.dataset.period;
+    this.periodButtons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.period === this.period);
+    });
     this.subscribeOnce("get-group-data", this.createChart.bind(this));
   }
 
@@ -56,13 +62,19 @@ export class SkillsGraphs extends BaseElement {
   }
 
   async createChart() {
+    const generation = ++this.chartGeneration;
+    this.querySelector(".skills-graphs__loader-overlay")?.remove();
+    const overlay = document.createElement("div");
+    overlay.classList.add("skills-graphs__loader-overlay");
     const loader = document.createElement("div");
-    loader.classList.add("skills-graphs__loader");
     loader.classList.add("loader");
-    this.chartContainer.appendChild(loader);
+    loader.innerHTML = "<div></div><div></div><div></div><div></div>";
+    overlay.appendChild(loader);
+    this.appendChild(overlay);
 
     try {
       const [skillDataForGroup] = await Promise.all([api.getSkillData(this.period), this.waitForChartjs()]);
+      if (generation !== this.chartGeneration) return;
       skillDataForGroup.sort((a, b) => a.name.localeCompare(b.name));
       skillDataForGroup.forEach((playerSkillData) => {
         playerSkillData.skill_data.forEach((x) => {
@@ -72,6 +84,7 @@ export class SkillsGraphs extends BaseElement {
         playerSkillData.skill_data.sort((a, b) => b.time - a.time);
       });
 
+      overlay.remove();
       this.chartContainer.innerHTML = "";
       Chart.defaults.scale.grid.borderColor = "rgba(255, 255, 255, 0)";
       const style = getComputedStyle(document.body);
@@ -84,6 +97,7 @@ export class SkillsGraphs extends BaseElement {
       skillGraph.setAttribute("skill-name", this.selectedSkill);
       this.chartContainer.appendChild(skillGraph);
     } catch (err) {
+      overlay.remove();
       console.error(err);
       this.chartContainer.innerHTML = `Failed to load ${err}`;
     }

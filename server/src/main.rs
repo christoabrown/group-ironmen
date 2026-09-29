@@ -1,26 +1,14 @@
-mod auth_middleware;
-mod auth_routes;
-mod admin_routes;
-mod authed;
-mod collection_log;
-mod config;
-mod crypto;
-mod db;
-mod discord_routes;
-mod error;
-mod models;
-mod unauthed;
-mod validators;
-mod device;
-mod update_batcher;
-mod token_lockout;
-use crate::auth_middleware::{AuthenticateMiddlewareFactory, SessionMiddlewareFactory};
-use crate::config::Config;
+use server::auth_middleware::{AuthenticateMiddlewareFactory, SessionMiddlewareFactory};
+use server::config::Config;
+use server::{
+    admin_routes, auth_routes, authed, db, device, discord_routes, models, token_lockout, unauthed,
+    update_batcher,
+};
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
-use tokio_postgres::NoTls;
 use tokio::sync::mpsc;
+use tokio_postgres::NoTls;
 
 use mimalloc::MiMalloc;
 
@@ -48,8 +36,9 @@ async fn main() -> std::io::Result<()> {
     let update_batcher_pool = config.pg.create_pool(None, NoTls).unwrap();
     let (tx, rx) = mpsc::channel::<models::GroupMember>(10000);
     tokio::spawn(async move {
-        update_batcher::background_worker(update_batcher_pool, rx).await;
+        update_batcher::background_worker(update_batcher_pool, rx, None).await;
     });
+    let auth_cache = std::sync::Arc::new(server::auth_middleware::AuthenticationCache::new());
 
     let token_lockout = web::Data::new(
         token_lockout::TokenLockout::new(std::time::Duration::from_secs(15 * 60)),
@@ -103,7 +92,7 @@ async fn main() -> std::io::Result<()> {
 
         // Legacy group token auth scope (backward compat)
         let legacy_authed_scope = web::scope("/api/group/{group_name}")
-            .wrap(AuthenticateMiddlewareFactory::new())
+            .wrap(AuthenticateMiddlewareFactory::new(auth_cache.clone()))
             .service(authed::update_group_member)
             .service(authed::get_group_data)
             .service(authed::add_group_member)
@@ -120,7 +109,6 @@ async fn main() -> std::io::Result<()> {
             .service(unauthed::create_group)
             .service(unauthed::get_ge_prices)
             .service(unauthed::captcha_enabled)
-            .service(unauthed::collection_log_info)
             .service(device::pair_device)
             .service(device::ingest);
 

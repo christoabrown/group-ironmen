@@ -10,3 +10,28 @@ rs-tooltip {
   left: 0;
   color: white;
 }
+
+.map-link-tooltip__container {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.map-link-tooltip__image {
+  max-width: 256px;
+  max-height: 256px;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.map-link-tooltip__marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #ff0000;
+  border-radius: 50%;
+  background: rgba(255, 0, 0, 0.3);
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+}

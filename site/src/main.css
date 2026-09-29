@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --primary-text: white;
   --elevated: rgba(255, 255, 255, 0.08);
   --light-border: rgba(255, 255, 255, 0.12);
@@ -254,7 +255,7 @@ select:focus-visible {
 }
 
 option {
-  color: initial;
+  color: var(--orange);
   text-shadow: none;
 }
 
@@ -341,6 +342,7 @@ ul {
 .rsborder {
   border-image: url(/ui/border.png) 32 32 / 32px / 3px 4px 4px 3px round;
   border-style: solid;
+  border-width: 4px 3px 3px 4px;
   border-radius: 4px;
 }
 
@@ -352,11 +354,13 @@ ul {
 
 .dark-mode .rsborder {
   border-image: url(/ui/border-dark.png) 32 32 / 32px / 4px round;
+  border-width: 3px;
 }
 
 .rsborder-tiny {
   border-image: url(/ui/border-tiny.png) 4 4 / 4px round;
   border-style: solid;
+  border-width: 4px;
   border-radius: 4px;
 }
 

@@ -1,5 +1,6 @@
 skills-graphs {
   display: block;
+  position: relative;
 }
 
 .skills-graphs__chart-container {
@@ -13,9 +14,24 @@ skills-graphs {
 
 .skills-graphs__control-container {
   display: flex;
+  align-items: center;
+  gap: 8px;
   overflow-x: auto;
 }
 
-.skills-graphs__loader {
+.skills-graphs__period-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.skills-graphs__period-btn.active {
+  background: rgb(66, 55, 38);
+  outline: 1px solid rgb(200, 200, 200);
+}
+
+.skills-graphs__loader-overlay {
   position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10;
 }
