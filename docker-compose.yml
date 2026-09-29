@@ -1,39 +1,26 @@
-version: "3.8"
 services:
   osrs_tracker_frontend:
-    image: your-repository/osrs_tracker_frontend:latest # replace with your actual image name and tag
+    image: ghcr.io/redfirebreak/ha-osrs-map-frontend:latest
     environment:
-      - HOST_URL=${HOST_URL}
-      - SITE_TITLE=${SITE_TITLE:-OSRS Group Tracker}
-      - SITE_NAME=${SITE_NAME:-GroupIron.men}
+      - HOST_URL=${HOST_URL:-http://osrs_tracker_backend:8080}
+      - SITE_TITLE=${SITE_TITLE:-OSRS Guild Map}
+      - SITE_NAME=${SITE_NAME:-OSRS Guild Map}
     restart: always
     depends_on:
-      - "osrs_tracker_backend"
+      - osrs_tracker_backend
     ports:
-      - 4000:4000 # replace this if using a docker-compatible reverse proxy like traefik
+      - 4000:4000 # change this if you use a reverse proxy such as traefik
   osrs_tracker_backend:
-    image: your-repository/osrs_tracker_backend:latest # replace with your actual image name and tag
-    environment:
-      - PG_USER=${PG_USER}
-      - PG_PASSWORD=${PG_PASSWORD}
-      - PG_HOST=${PG_HOST}
-      - PG_PORT=${PG_PORT}
-      - PG_DB=${PG_DB}
-      - BACKEND_SECRET=${BACKEND_SECRET}
-      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
-      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
-      - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-}
-      - DISCORD_AUTO_REGISTRATION=${DISCORD_AUTO_REGISTRATION:-false}
-      - DISCORD_AUTOREG_SERVERS=${DISCORD_AUTOREG_SERVERS:-}
+    image: ghcr.io/redfirebreak/ha-osrs-map-backend:latest
+    env_file: .env
     restart: always
     depends_on:
-      - "postgres"
+      - postgres
     ports:
-      - 5000:8080  # replace this if using a docker-compatible reverse proxy like traefik
+      - 5000:8080 # only needed if something other than the frontend talks to the API directly
   postgres:
-    image: postgres
+    image: postgres:17
     restart: always
-    container_name: group-ironmen-tracker-postgres
     environment:
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
@@ -43,4 +30,3 @@ services:
 
 volumes:
   pg_data:
-

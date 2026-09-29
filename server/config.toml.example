@@ -1,4 +1,8 @@
-# PostgreSQL Database Configuration
+# Optional. Every setting can also be given as an environment variable (shown
+# after each key), which takes precedence over this file. The Docker image only
+# uses environment variables.
+
+# PostgreSQL (PG_USER, PG_PASSWORD, PG_HOST, PG_PORT, PG_DB, PG_POOL_MAX_SIZE)
 [pg]
 user = "postgres"
 password = "postgres"
@@ -7,21 +11,23 @@ port = 5432
 dbname = "osrs_tracker"
 pool.max_size = 16
 
-# Logger Configuration (optional)
 [logger]
-level = "Info"  # Options: Info, Warn, Error
+level = "Info"  # Info, Warn or Error
 
-# HCaptcha Configuration (optional - set enabled = true to use)
-[hcaptcha]
-enabled = false
-sitekey = ""
-secret = ""
+[server]
+secure_cookies = true   # COOKIE_SECURE; set to false for plain-HTTP local development
 
-# Discord OAuth Configuration (optional - set enabled = true to use)
+# Discord OAuth (DISCORD_CLIENT_ID enables it; DISCORD_CLIENT_SECRET,
+# DISCORD_REDIRECT_URI, DISCORD_AUTO_REGISTRATION, DISCORD_AUTOREG_SERVERS)
 [discord]
 enabled = false
 client_id = ""
 client_secret = ""
-redirect_uri = "http://localhost:8000/api/auth/discord/callback"
+redirect_uri = "http://localhost:4000/login/discord"
 auto_registration = false
 autoreg_servers = []
+
+[hcaptcha]
+enabled = false
+sitekey = ""
+secret = ""

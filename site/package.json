@@ -1,31 +1,15 @@
 {
-  "name": "osrs-group-tracker",
+  "name": "ha-osrs-map",
   "version": "1.0.0",
-  "description": "",
-  "devDependencies": {
-    "@vitest/coverage-v8": "^1.6.1",
-    "axios": "^0.26.1",
-    "chokidar": "^3.5.3",
-    "clean-css": "^5.3.2",
-    "compression": "^1.7.4",
-    "concurrently": "^6.2.2",
-    "esbuild": "^0.17.10",
-    "eslint": "^7.32.0",
-    "express": "^4.17.1",
-    "express-winston": "^4.2.0",
-    "glob": "^7.2.0",
-    "husky": "^7.0.2",
-    "jsdom": "^17.0.0",
-    "prettier": "^2.4.1",
-    "terser": "^5.16.5",
-    "vitest": "^1.6.0",
-    "winston": "^3.3.3"
+  "description": "Guild live map and tracker for Old School RuneScape, fed by the RuneLite HomeAssistant Data Exporter and osrs-data-hub",
+  "license": "BSD-2-Clause",
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
     "bundle": "npm run clean && node build.js --prod",
     "clean": "node scripts/clean.js",
-    "start": "concurrently \"npm run watch\" \"npm run serve -- --backend http://osrs_tracker_backend:8080\"",
-    "start:local-api": "concurrently \"npm run watch\" \"npm run serve -- --backend http://127.0.0.1:8080\"",
+    "start": "concurrently \"npm run watch\" \"npm run serve -- --backend http://127.0.0.1:8080\"",
     "serve": "node scripts/server.js",
     "watch": "node build --watch",
     "test": "vitest run --config vitest.config.mjs",
@@ -37,7 +21,29 @@
     "fix": "npm run lint -- --fix",
     "generate-component": "node scripts/generate-component.js",
     "prepare": "cd .. && husky install site/.husky",
-    "precommit": "npm run format:check && npm run lint"
+    "precommit": "npm run format:check && npm run lint",
+    "start:docker-api": "concurrently \"npm run watch\" \"npm run serve -- --backend http://osrs_tracker_backend:8080\""
+  },
+  "dependencies": {
+    "axios": "^1.12.2",
+    "compression": "^1.8.1",
+    "express": "^4.21.2",
+    "express-winston": "^4.2.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.2",
+    "chokidar": "^3.6.0",
+    "clean-css": "^5.3.3",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^7.32.0",
+    "glob": "^7.2.0",
+    "husky": "^7.0.2",
+    "jsdom": "^27.4.0",
+    "prettier": "^2.4.1",
+    "terser": "^5.44.0",
+    "vitest": "^5.0.2"
   },
   "author": "Christopher Brown"
 }
