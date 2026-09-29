@@ -1,164 +1,187 @@
-# OSRS Group Tracker
+# OSRS Guild Map
 
 ![Rust](https://img.shields.io/badge/Rust-CE422B?style=for-the-badge&logo=rust&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-Real-time tracking and group coordination tool for Old School RuneScape players.
+A live map and tracker for an Old School RuneScape guild: where everyone is right now, what they carry and
+wear, their skills and XP history, and what the guild has been up to.
 
-Track your group members' activities in real-time: inventory, equipment, bank, skill XP, world position, HP/Prayer/Energy, quests, and more!
+It is a fork of [group-ironmen](https://github.com/christoabrown/group-ironmen), reworked for guilds instead
+of Group Ironman teams:
 
-## 📦 What This Tracks
+- Player data comes from the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter)
+  plugin, either directly or through [osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub).
+- Users log in with an account or with Discord (optionally limited to members of your Discord server), and
+  an admin portal manages users and players.
+- There is no member limit and no shared group bank.
 
-- 🎒 **Inventory, Equipment & Bank** — See what items your team has
-- 📊 **Skill Experience** — Monitor XP gains across all skills
-- 🗺️ **World Position** — Interactive map showing player locations
-- ❤️ **Stats** — HP, Prayer, Energy, and world indicators with inactivity detection
-- 📜 **Quest Progress** — Completed, finished, and in-progress quests
+## Features
 
-## ✨ Features
+- **Live map** of every online player, with world, HP and prayer, and an optional location trail
+  (24 hours, 7 or 30 days) when the hub is connected.
+- **Items**: combined inventory and equipment of everyone online, searchable.
+- **Players**: everyone who ever reported, with online status.
+- **Graphs**: XP per skill over a day, week, month or year. With the hub connected the history comes from
+  the hub, so it includes play from before a player joined the map.
+- **Activity** (hub only): top XP gainers and a feed of loot, level ups, collection log slots, deaths,
+  diaries and combat tasks.
+- **Admin portal**: users and roles, players and who they belong to, the audit log, and the hub connection.
 
-- **Device Pairing** — Simple 5-digit pairing codes to link RuneLite clients to your group
-- **Auto-add Members** — New players automatically appear on first data submission
-- **Secure Token Auth** — Paired devices use hashed tokens for secure communication
-- **Generic JSON Ingestion** — Works with standard RuneLite plugin payloads (not limited to Group Ironman)
-- **Interactive Dashboard** — Real-time web interface to view group activity
+## Where player data comes from
 
-## 🎮 Companion Plugin
+The backend's `DATA_SOURCE` setting picks one of three modes:
 
-You'll need the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter) plugin to send data to this tracker.
+| Mode | How players get on the map |
+|---|---|
+| `direct` (default) | Each player pairs the RuneLite plugin with this site using a 5-digit code from the Setup page. |
+| `hub` | The backend mirrors players from an osrs-data-hub. Players only pair with the hub; direct pairing is off. |
+| `both` | Both. When a player sends data directly, that data wins over the hub copy for the next two minutes. |
 
-## 🚀 Setup
-
-### Option 1: Docker (Recommended)
-
-**Prerequisites:**
-- Docker & Docker Compose
-
-**Steps:**
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/ha-osrs-map.git
-   cd ha-osrs-map
-   ```
-
-2. Create environment file:
-   ```bash
-   cp .env.example .env
-   # Edit .env if needed (defaults work for local development)
-   ```
-
-3. Start the full stack:
-   ```bash
-   docker-compose -f docker-compose-local.yml up -d
-   ```
-
-4. Access the application:
-   - **Website**: http://localhost:4000
-   - **API**: http://localhost:5000
-
-4. Create your group:
-   - Go to the website and create a new group
-   - You'll receive a group token and pairing code
-   - Use the pairing code in your RuneLite plugin
-
-### Option 2: Manual Setup (Development)
-
-**Prerequisites:**
-- Rust 1.70+ (for backend)
-- Node.js 18+ (for frontend)
-- PostgreSQL 14+
-
-**Backend Setup:**
-
-1. Install Rust:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-2. Set up PostgreSQL:
-   ```bash
-   # On Windows with PostgreSQL installed
-   createdb osrs_tracker
-   
-   # Or use Docker for just the database:
-   docker run -d \
-     -e POSTGRES_PASSWORD=postgres \
-     -e POSTGRES_DB=osrs_tracker \
-     -p 5432:5432 \
-     postgres:14
-   ```
-
-3. Configure the backend:
-   ```bash
-   cd server
-   
-   # Copy and edit the config file
-   cp config.toml.example config.toml
-   # Edit config.toml with your database credentials
-   
-   # Create a secret file for token hashing (use a random string)
-   # On Linux/Mac:
-   echo "your-super-secret-random-string-here" > secret
-   
-   # On Windows (PowerShell):
-   # "your-super-secret-random-string-here" | Out-File -FilePath secret -NoNewline
-   
-   # Run the server
-   cargo run --release
-   ```
-
-   The API will be available at `http://localhost:8000`
-
-   **Note**: The `secret` file should contain a random string used for cryptographic hashing. Keep it secure and never commit it to version control.
-
-**Frontend Setup:**
-
-1. Install dependencies:
-   ```bash
-   cd site
-   npm install
-   ```
-
-2. Start the development server:
-   ```bash
-   npm run start:local-api
-   ```
-
-   The website will be available at `http://localhost:4000`
-
-## 🔄 Usage Flow
-
-1. **Create a group** via the website (pick a group name, get a group token)
-2. **Generate a pairing code**: `POST /api/group/{group_name}/pair/code` (requires group token in `Authorization` header)
-3. **Install the RuneLite plugin** and pair using your 5-digit code
-4. **Pair a device**: `POST /api/osrs-data/pair` with `{ "code": "12345" }` — returns a device token
-5. **Start tracking**: Plugin automatically sends data using the device token
-6. Players are auto-added to the group on first successful data submission
-
-## 🏗️ Project Structure
+### How the hub integration works
 
 ```
-├── server/          # Rust backend (Actix-web + PostgreSQL)
-├── site/            # TypeScript/JavaScript frontend (Webpack)
-├── cache/           # Data processing utilities
-├── backup/          # Backup scripts
-└── docker-compose*.yml  # Docker orchestration
+RuneLite plugin ──pair/events──▶ osrs-data-hub ◀──GET /api/v1/snapshot (every 5 s)── map backend ──▶ site
+                                        ▲                                                   │
+                                        └──── /xp, /events, /locations, /leaderboards ◀─────┘ (cached)
 ```
 
-## 📝 License
+- The backend polls the hub's `/api/v1/snapshot` with an API key that never leaves the server. It uses
+  `ETag` and `since` for polling, and does a full refresh every two minutes.
+- Online players get fresh data. Offline players are imported once with the hub's `last_seen`, so they
+  show as offline instead of briefly appearing online.
+- Accounts are matched by hub account id, then by the plugin's account hash, then by name. Renames on
+  the hub are followed. Accounts that disappear from the hub are marked "not shared" and never deleted.
+- When the hub reports an account owner's Discord id, the player is linked to the map user who logged
+  in with that Discord account. Admins can also link players by hand.
+- XP graphs, trails, gains and the events feed are served by the backend from a short-lived cache, so
+  the hub sees the same number of requests however many people view the site.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+**What the hub shares is up to each player.** The hub only exposes what an account's owner shares with
+the guild, and the map shows exactly that. A player who keeps their location private stays off the map.
 
-## 🤝 Contributing
+#### Setting up the hub connection
 
-Contributions are welcome! Feel free to open issues and pull requests.
+1. Ask a hub admin for an **integration key** (a service key that belongs to the guild rather than a
+   person). A personal API key from the hub's API keys page also works, but it stops working when its
+   creator leaves the guild.
+2. Give the key at least these categories:
+   - `activity` and `location_live` for the map;
+   - `stats`, `equipment` and `inventory` for player panels, items and graphs;
+   - optionally `events` and `location_history` for the Activity page and trails.
+3. Set these for the backend:
+   ```env
+   DATA_SOURCE=hub                      # or both
+   HUB_BASE_URL=https://hub.example.com # without /api/v1
+   HUB_API_KEY=ohub_xxxxxxxxxx_xxxxxxxx
+   ```
+4. Open **Admin → All Players → Test connection** to check the key and see how many accounts it can read.
 
-## 🙏 Credits
+## Running it
 
-- Built for the OSRS community
-- The source code of this frontend/backend by [christoabrown](https://github.com/christoabrown/group-ironmen)
-- RuneLite companion plugin by [xXD4rkDragonXx](https://github.com/xXD4rkDragonXx)
+### Docker (recommended)
 
+```bash
+cp .env.example .env   # set BACKEND_SECRET, database credentials and the data source
+docker compose up -d
+```
+
+The site listens on http://localhost:4000. The first visit asks you to create the admin account. Images
+are published to `ghcr.io/redfirebreak/ha-osrs-map-{frontend,backend}` on every push to `master`.
+
+To build the images from source instead, run `docker compose -f docker-compose-local.yml up --build`. For
+plain `http://localhost` also set `COOKIE_SECURE=false`, or the browser will drop the login cookie.
+
+### Configuration
+
+Every backend setting is an environment variable. `server/config.toml.example` shows the same settings as
+a file for local development.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PG_USER`, `PG_PASSWORD`, `PG_HOST`, `PG_PORT`, `PG_DB` | | PostgreSQL connection. The schema is created on first start. |
+| `PG_POOL_MAX_SIZE` | `16` | Database connection pool size. |
+| `BACKEND_SECRET` | | Secret used to hash tokens. Changing it unpairs every device. |
+| `COOKIE_SECURE` | `true` | Mark session cookies `Secure`. Set to `false` only for plain HTTP. |
+| `DATA_SOURCE` | `direct` | `direct`, `hub` or `both`. |
+| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. |
+| `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
+| `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails and the Activity page from the hub. |
+| `HUB_REQUEST_BUDGET` | `100` | Hub requests per minute this server allows itself (the hub allows 120). |
+| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` | | Enables "Log in with Discord". The redirect URI is `https://<site>/login/discord`. |
+| `DISCORD_AUTO_REGISTRATION` | `false` | Let members of the servers below create an account by logging in. |
+| `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |
+| `HOST_URL`, `SITE_TITLE`, `SITE_NAME` | | Frontend: backend URL for its `/api` proxy, and branding. |
+
+### Pairing directly (`direct` or `both`)
+
+1. Install the RuneLite HomeAssistant Data Exporter from the Plugin Hub.
+2. Log in to the site and open **Setup**, then click **Generate Pairing Code**.
+3. Enter the code in the plugin. The player appears on the map with the next update.
+
+The plugin can pair with several endpoints at once, for example this site and the hub.
+
+## Development
+
+Prerequisites: Rust (stable), Node.js 22+ and PostgreSQL 16+.
+
+```bash
+# Backend (reads server/.env or environment variables; needs a secret)
+cd server
+echo "dev-secret" > secret
+PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false cargo run
+
+# Frontend (http://localhost:4000, proxies /api to 127.0.0.1:8080)
+cd site
+npm install
+npm start
+```
+
+To try the hub integration without a hub, run the mock and point the backend at it:
+
+```bash
+node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
+DATA_SOURCE=hub HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
+```
+
+Tests:
+
+```bash
+cd server && TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/group_ironmen_test cargo test
+cd site && npm test && npm run lint && npm run format:check
+```
+
+The server's integration tests (`server/tests/`) drop and recreate the schema in the test database, so
+point them at a database you don't mind wiping.
+
+### Keeping up with group-ironmen
+
+The upstream project keeps refreshing its game data (items, map tiles, quests). To bring that in:
+
+```bash
+git remote add upstream https://github.com/christoabrown/group-ironmen.git
+git fetch upstream
+git merge upstream/master
+```
+
+Generated data under `site/public/` merges without conflicts. Server changes may need porting, because
+this fork replaced group tokens with sessions, removed the shared bank, and relies on
+`*_last_update` timestamps being refreshed on every update.
+
+## Project structure
+
+```
+server/            Rust backend (actix-web, tokio-postgres)
+  src/hub/         osrs-data-hub sync, client and history proxy
+site/              Frontend (web components bundled with esbuild) and its Express server
+tools/mock-hub/    Stand-in for the osrs-data-hub API
+backup/            Database backup script
+docs/              Integration notes
+```
+
+## Credits and license
+
+- Original frontend and backend by [christoabrown](https://github.com/christoabrown/group-ironmen), BSD 2-Clause
+  License (see [LICENSE](LICENSE)).
+- RuneLite companion plugin by [xXD4rkDragonXx](https://github.com/xXD4rkDragonXx).
