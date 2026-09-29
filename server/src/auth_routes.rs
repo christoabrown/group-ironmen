@@ -1,4 +1,5 @@
 use crate::auth_middleware::SessionAuthenticated;
+use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::{
@@ -8,7 +9,23 @@ use actix_web::{cookie, get, post, web, Error, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
 
-const SESSION_DURATION_HOURS: i64 = 72;
+pub const SESSION_DURATION_HOURS: i64 = 72;
+
+/// Builds the `session` cookie. Every place that sets or clears the session
+/// cookie goes through here so the attributes stay consistent.
+pub fn session_cookie(
+    value: &str,
+    max_age: cookie::time::Duration,
+    config: &Config,
+) -> cookie::Cookie<'static> {
+    cookie::Cookie::build("session", value.to_owned())
+        .path("/")
+        .http_only(true)
+        .secure(config.server.secure_cookies)
+        .same_site(cookie::SameSite::Lax)
+        .max_age(max_age)
+        .finish()
+}
 
 fn hash_password(password: &str) -> Result<String, ApiError> {
     bcrypt::hash(password, 12).map_err(ApiError::BcryptError)
@@ -64,6 +81,7 @@ pub async fn setup_status(db_pool: web::Data<Pool>) -> Result<HttpResponse, Erro
 pub async fn setup(
     body: web::Json<SetupRequest>,
     db_pool: web::Data<Pool>,
+    config: web::Data<Config>,
 ) -> Result<HttpResponse, Error> {
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
 
@@ -93,12 +111,11 @@ pub async fn setup(
     let expires_at = Utc::now() + Duration::hours(SESSION_DURATION_HOURS);
     db::create_session(&client, &session_id, user_id, &expires_at).await?;
 
-    let cookie = cookie::Cookie::build("session", session_id.clone())
-        .path("/")
-        .http_only(true)
-        .same_site(cookie::SameSite::Lax)
-        .max_age(cookie::time::Duration::hours(SESSION_DURATION_HOURS))
-        .finish();
+    let cookie = session_cookie(
+        &session_id,
+        cookie::time::Duration::hours(SESSION_DURATION_HOURS),
+        &config,
+    );
 
     Ok(HttpResponse::Ok().cookie(cookie).json(LoginResponse {
         ok: true,
@@ -112,6 +129,7 @@ pub async fn setup(
 pub async fn login(
     body: web::Json<LoginRequest>,
     db_pool: web::Data<Pool>,
+    config: web::Data<Config>,
 ) -> Result<HttpResponse, Error> {
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
 
@@ -134,12 +152,11 @@ pub async fn login(
     let expires_at = Utc::now() + Duration::hours(SESSION_DURATION_HOURS);
     db::create_session(&client, &session_id, user_id, &expires_at).await?;
 
-    let cookie = cookie::Cookie::build("session", session_id.clone())
-        .path("/")
-        .http_only(true)
-        .same_site(cookie::SameSite::Lax)
-        .max_age(cookie::time::Duration::hours(SESSION_DURATION_HOURS))
-        .finish();
+    let cookie = session_cookie(
+        &session_id,
+        cookie::time::Duration::hours(SESSION_DURATION_HOURS),
+        &config,
+    );
 
     Ok(HttpResponse::Ok().cookie(cookie).json(LoginResponse {
         ok: true,
@@ -153,6 +170,7 @@ pub async fn login(
 pub async fn logout(
     session: SessionAuthenticated,
     db_pool: web::Data<Pool>,
+    config: web::Data<Config>,
     req: actix_web::HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
@@ -171,12 +189,7 @@ pub async fn logout(
     )
     .await?;
 
-    let cookie = cookie::Cookie::build("session", "")
-        .path("/")
-        .http_only(true)
-        .same_site(cookie::SameSite::Lax)
-        .max_age(cookie::time::Duration::ZERO)
-        .finish();
+    let cookie = session_cookie("", cookie::time::Duration::ZERO, &config);
 
     Ok(HttpResponse::Ok()
         .cookie(cookie)

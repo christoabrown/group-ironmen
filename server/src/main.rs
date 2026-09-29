@@ -1,4 +1,4 @@
-use server::auth_middleware::{AuthenticateMiddlewareFactory, SessionMiddlewareFactory};
+use server::auth_middleware::SessionMiddlewareFactory;
 use server::config::Config;
 use server::{
     admin_routes, auth_routes, authed, db, device, discord_routes, models, token_lockout, unauthed,
@@ -40,7 +40,6 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(async move {
         update_batcher::background_worker(update_batcher_pool, rx, None).await;
     });
-    let auth_cache = std::sync::Arc::new(server::auth_middleware::AuthenticationCache::new());
 
     let token_lockout = web::Data::new(token_lockout::TokenLockout::new(
         std::time::Duration::from_secs(15 * 60),
@@ -92,23 +91,8 @@ async fn main() -> std::io::Result<()> {
             .service(authed::get_collection_log)
             .service(device::create_pairing_code);
 
-        // Legacy group token auth scope (backward compat)
-        let legacy_authed_scope = web::scope("/api/group/{group_name}")
-            .wrap(AuthenticateMiddlewareFactory::new(auth_cache.clone()))
-            .service(authed::update_group_member)
-            .service(authed::get_group_data)
-            .service(authed::add_group_member)
-            .service(authed::delete_group_member)
-            .service(authed::rename_group_member)
-            .service(authed::am_i_logged_in)
-            .service(authed::am_i_in_group)
-            .service(authed::get_skill_data)
-            .service(authed::get_collection_log)
-            .service(device::create_pairing_code_legacy);
-
         // Public endpoints
         let unauthed_scope = web::scope("/api")
-            .service(unauthed::create_group)
             .service(unauthed::get_ge_prices)
             .service(unauthed::captcha_enabled)
             .service(device::pair_device)
@@ -148,7 +132,6 @@ async fn main() -> std::io::Result<()> {
             .service(session_auth_scope)
             .service(admin_scope)
             .service(session_group_scope)
-            .service(legacy_authed_scope)
             .service(unauthed_scope)
     })
     .bind(("0.0.0.0", 8080))?

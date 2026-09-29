@@ -1,3 +1,4 @@
+use crate::auth_routes::{session_cookie, SESSION_DURATION_HOURS};
 use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
@@ -5,13 +6,12 @@ use crate::models::{
     DiscordCallbackRequest, DiscordEnabledResponse, DiscordGuild, DiscordTokenResponse,
     DiscordUser, LoginResponse,
 };
-use actix_web::{cookie, get, post, web, Error, HttpResponse};
+use actix_web::{cookie, get, post, web, Error, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
 use serde::de::DeserializeOwned;
 use tokio::task;
 
-const SESSION_DURATION_HOURS: i64 = 72;
 const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
 const DISCORD_OAUTH_AUTHORIZE: &str = "https://discord.com/api/oauth2/authorize";
 const DISCORD_OAUTH_TOKEN: &str = "https://discord.com/api/oauth2/token";
@@ -19,6 +19,34 @@ const MAX_USERNAME_LEN: usize = 32;
 const MAX_USERNAME_CREATION_ATTEMPTS: usize = 10;
 // Reserve space for suffix like "_1234"
 const MAX_USERNAME_PREFIX_LEN: usize = MAX_USERNAME_LEN - 5;
+
+const OAUTH_STATE_COOKIE: &str = "discord_oauth_state";
+const OAUTH_STATE_MAX_AGE_MINUTES: i64 = 10;
+
+fn oauth_state_cookie(
+    value: &str,
+    max_age: cookie::time::Duration,
+    config: &Config,
+) -> cookie::Cookie<'static> {
+    cookie::Cookie::build(OAUTH_STATE_COOKIE, value.to_owned())
+        .path("/")
+        .http_only(true)
+        .secure(config.server.secure_cookies)
+        .same_site(cookie::SameSite::Lax)
+        .max_age(max_age)
+        .finish()
+}
+
+fn generate_oauth_state() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 32];
+    rand::rng().fill_bytes(&mut bytes);
+    data_encoding::HEXLOWER.encode(&bytes)
+}
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
 
 #[get("/discord/enabled")]
 pub async fn discord_enabled(config: web::Data<Config>) -> Result<HttpResponse, Error> {
@@ -29,21 +57,32 @@ pub async fn discord_enabled(config: web::Data<Config>) -> Result<HttpResponse, 
         }));
     }
 
+    // The state is bound to this browser through an HttpOnly cookie and checked
+    // on callback, so a login started elsewhere (CSRF) is rejected.
+    let state = generate_oauth_state();
     let auth_url = format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds",
+        "{}?client_id={}&redirect_uri={}&response_type=code&scope=identify%20guilds&state={}",
         DISCORD_OAUTH_AUTHORIZE,
         config.discord.client_id,
         urlencoding::encode(&config.discord.redirect_uri),
+        state,
     );
 
-    Ok(HttpResponse::Ok().json(DiscordEnabledResponse {
-        enabled: true,
-        auth_url: Some(auth_url),
-    }))
+    Ok(HttpResponse::Ok()
+        .cookie(oauth_state_cookie(
+            &state,
+            cookie::time::Duration::minutes(OAUTH_STATE_MAX_AGE_MINUTES),
+            &config,
+        ))
+        .json(DiscordEnabledResponse {
+            enabled: true,
+            auth_url: Some(auth_url),
+        }))
 }
 
 #[post("/discord/callback")]
 pub async fn discord_callback(
+    req: HttpRequest,
     body: web::Json<DiscordCallbackRequest>,
     db_pool: web::Data<Pool>,
     config: web::Data<Config>,
@@ -52,8 +91,28 @@ pub async fn discord_callback(
         return Ok(HttpResponse::BadRequest().body("Discord authentication is not enabled"));
     }
 
+    let expected_state = req.cookie(OAUTH_STATE_COOKIE).map(|c| c.value().to_owned());
+    let state_valid = match (&expected_state, &body.state) {
+        (Some(expected), Some(received)) => {
+            constant_time_eq(expected.as_bytes(), received.as_bytes())
+        }
+        _ => false,
+    };
+    let clear_state = oauth_state_cookie("", cookie::time::Duration::ZERO, &config);
+    if !state_valid {
+        return Ok(HttpResponse::BadRequest().cookie(clear_state).body(
+            "Discord login expired or was not started from this browser. Please try again.",
+        ));
+    }
+
+    let mut response = discord_login(&body.code, &db_pool, &config).await?;
+    response.add_cookie(&clear_state)?;
+    Ok(response)
+}
+
+async fn discord_login(code: &str, db_pool: &Pool, config: &Config) -> Result<HttpResponse, Error> {
     // Exchange the authorization code for an access token
-    let token_data = match exchange_code(&config, &body.code).await? {
+    let token_data = match exchange_code(config, code).await? {
         Some(token_data) => token_data,
         None => {
             return Ok(HttpResponse::BadRequest().body("Failed to authenticate with Discord"));
@@ -75,14 +134,20 @@ pub async fn discord_callback(
         }
 
         // Check if existing user is still in an allowed Discord server
-        let guilds: Vec<DiscordGuild> = discord_get("/users/@me/guilds", &authorization).await?;
-
-        let user_guild_ids: Vec<&str> = guilds.iter().map(|g| g.id.as_str()).collect();
-        let is_in_allowed_server = config
-            .discord
-            .autoreg_servers
-            .iter()
-            .any(|allowed| user_guild_ids.contains(&allowed.as_str()));
+        // Without a configured server list there is no membership requirement
+        // for accounts that are already linked.
+        let is_in_allowed_server = if config.discord.autoreg_servers.is_empty() {
+            true
+        } else {
+            let guilds: Vec<DiscordGuild> =
+                discord_get("/users/@me/guilds", &authorization).await?;
+            let user_guild_ids: Vec<&str> = guilds.iter().map(|g| g.id.as_str()).collect();
+            config
+                .discord
+                .autoreg_servers
+                .iter()
+                .any(|allowed| user_guild_ids.contains(&allowed.as_str()))
+        };
 
         if !is_in_allowed_server {
             // User is no longer in an allowed Discord server
@@ -124,12 +189,11 @@ pub async fn discord_callback(
         )
         .await?;
 
-        let cookie = cookie::Cookie::build("session", session_id.clone())
-            .path("/")
-            .http_only(true)
-            .same_site(cookie::SameSite::Lax)
-            .max_age(cookie::time::Duration::hours(SESSION_DURATION_HOURS))
-            .finish();
+        let cookie = session_cookie(
+            &session_id,
+            cookie::time::Duration::hours(SESSION_DURATION_HOURS),
+            &config,
+        );
 
         return Ok(HttpResponse::Ok().cookie(cookie).json(LoginResponse {
             ok: true,
@@ -240,12 +304,11 @@ pub async fn discord_callback(
     let expires_at = Utc::now() + Duration::hours(SESSION_DURATION_HOURS);
     db::create_session(&db_client, &session_id, user_id, &expires_at).await?;
 
-    let cookie = cookie::Cookie::build("session", session_id.clone())
-        .path("/")
-        .http_only(true)
-        .same_site(cookie::SameSite::Lax)
-        .max_age(cookie::time::Duration::hours(SESSION_DURATION_HOURS))
-        .finish();
+    let cookie = session_cookie(
+        &session_id,
+        cookie::time::Duration::hours(SESSION_DURATION_HOURS),
+        &config,
+    );
 
     Ok(HttpResponse::Ok().cookie(cookie).json(LoginResponse {
         ok: true,

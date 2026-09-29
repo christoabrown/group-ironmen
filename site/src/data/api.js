@@ -317,12 +317,12 @@ class Api {
     return `${this.baseUrl}/auth/discord/callback`;
   }
 
-  async discordCallback(code) {
+  async discordCallback(code, state) {
     const response = await fetch(this.discordCallbackUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, state }),
     });
     return response;
   }

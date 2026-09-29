@@ -40,6 +40,22 @@ pub struct DiscordConfig {
     pub autoreg_servers: Vec<String>,
 }
 #[derive(Deserialize, Clone)]
+pub struct ServerConfig {
+    /// Mark session cookies `Secure`. Disable only for plain-HTTP local development.
+    #[serde(default = "default_true")]
+    pub secure_cookies: bool,
+}
+impl Default for ServerConfig {
+    fn default() -> Self {
+        ServerConfig {
+            secure_cookies: true,
+        }
+    }
+}
+fn default_true() -> bool {
+    true
+}
+#[derive(Deserialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub pg: deadpool_postgres::Config,
@@ -49,6 +65,8 @@ pub struct Config {
     pub hcaptcha: CaptchaConfig,
     #[serde(default = "default_discord_config")]
     pub discord: DiscordConfig,
+    #[serde(default)]
+    pub server: ServerConfig,
 }
 fn default_logger_config() -> LoggerConfig {
     LoggerConfig {
@@ -72,6 +90,8 @@ fn default_discord_config() -> DiscordConfig {
         autoreg_servers: vec![],
     }
 }
+
+const DEFAULT_POOL_MAX_SIZE: usize = 16;
 
 fn env_string(name: &str) -> Option<String> {
     env::var(name)
@@ -117,6 +137,16 @@ impl Config {
         }
         if let Some(dbname) = env_string("PG_DB") {
             self.pg.dbname = Some(dbname);
+        }
+        let pool_max_size = env_string("PG_POOL_MAX_SIZE").and_then(|size| size.parse().ok());
+        if pool_max_size.is_some() || self.pg.pool.is_none() {
+            self.pg.pool = Some(deadpool_postgres::PoolConfig::new(
+                pool_max_size.unwrap_or(DEFAULT_POOL_MAX_SIZE),
+            ));
+        }
+
+        if let Some(secure_cookies) = env_bool("COOKIE_SECURE") {
+            self.server.secure_cookies = secure_cookies;
         }
 
         if let Some(client_id) = env_string("DISCORD_CLIENT_ID") {

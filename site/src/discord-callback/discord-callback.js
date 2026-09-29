@@ -27,6 +27,7 @@ export class DiscordCallback extends BaseElement {
 
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
+    const state = params.get("state");
 
     if (!code) {
       const errorMsg = params.get("error_description") || params.get("error") || "No authorization code received";
@@ -36,7 +37,7 @@ export class DiscordCallback extends BaseElement {
     }
 
     try {
-      const response = await api.discordCallback(code);
+      const response = await api.discordCallback(code, state);
       if (response.ok) {
         const data = await response.json();
         storage.storeSession(data.session_token, data.username, data.role);

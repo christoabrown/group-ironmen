@@ -542,8 +542,8 @@ pub async fn get_device_group(client: &Client, token_hash: &str) -> Result<i64, 
     let stmt = client
         .prepare_cached(
             "SELECT d.group_id FROM groupironman.devices d \
-             LEFT JOIN groupironman.users u ON d.user_id = u.user_id \
-             WHERE d.token_hash=$1 AND (d.user_id IS NULL OR u.enabled = TRUE)",
+             JOIN groupironman.users u ON d.user_id = u.user_id \
+             WHERE d.token_hash=$1 AND u.enabled = TRUE",
         )
         .await?;
     let row = client
@@ -641,6 +641,22 @@ END;$$;
 }
 
 pub async fn update_schema(client: &mut Client) -> Result<(), ApiError> {
+    // Bootstrap the objects every migration below depends on, so a fresh
+    // database needs no manual schema.sql step.
+    client
+        .batch_execute(
+            r#"
+CREATE SCHEMA IF NOT EXISTS groupironman;
+CREATE TABLE IF NOT EXISTS groupironman.groups(
+    group_id BIGSERIAL UNIQUE,
+    group_name TEXT NOT NULL,
+    group_token_hash CHAR(64) NOT NULL,
+    PRIMARY KEY (group_name, group_token_hash)
+);
+"#,
+        )
+        .await?;
+
     client
         .execute(
             r#"

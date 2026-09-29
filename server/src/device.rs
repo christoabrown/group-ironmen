@@ -1,4 +1,4 @@
-use crate::auth_middleware::{Authenticated, SessionAuthenticated};
+use crate::auth_middleware::SessionAuthenticated;
 use crate::crypto::token_hash;
 use crate::db;
 use crate::error::ApiError;
@@ -69,29 +69,6 @@ pub async fn create_pairing_code(
         &expires_at,
     )
     .await?;
-
-    Ok(HttpResponse::Ok().json(PairCodeResponse {
-        ok: true,
-        code,
-        expires_in: 300,
-    }))
-}
-
-// Legacy pairing code endpoint (for backward compatibility with group token auth)
-#[post("/legacy-pair/code")]
-pub async fn create_pairing_code_legacy(
-    auth: Authenticated,
-    db_pool: web::Data<Pool>,
-) -> Result<HttpResponse, Error> {
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-
-    // Clean up expired codes
-    let _ = db::cleanup_expired_pairing_codes(&client).await;
-
-    let code = generate_pairing_code();
-    let expires_at = Utc::now() + Duration::seconds(300);
-
-    db::store_pairing_code(&client, &code, auth.group_id, &expires_at).await?;
 
     Ok(HttpResponse::Ok().json(PairCodeResponse {
         ok: true,

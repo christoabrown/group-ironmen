@@ -112,9 +112,10 @@ export class AdminPortal extends BaseElement {
 
     container.innerHTML = users
       .map((user) => {
-        const roleBadge = user.role === "admin"
-          ? `<span class="admin-portal__badge admin-portal__badge--admin">admin</span>`
-          : `<span class="admin-portal__badge admin-portal__badge--member">member</span>`;
+        const roleBadge =
+          user.role === "admin"
+            ? `<span class="admin-portal__badge admin-portal__badge--admin">admin</span>`
+            : `<span class="admin-portal__badge admin-portal__badge--member">member</span>`;
         const disabledBadge = !user.enabled
           ? `<span class="admin-portal__badge admin-portal__badge--disabled">disabled</span>`
           : "";
@@ -141,7 +142,9 @@ export class AdminPortal extends BaseElement {
               <strong>${escapeHtml(user.username)}</strong>
               ${roleBadge}
               ${disabledBadge}
-              <span style="font-size:0.85rem;color:#999" title="${escapeHtml(lastSeen)}">Last seen: ${escapeHtml(lastSeenRelative)}</span>
+              <span style="font-size:0.85rem;color:#999" title="${escapeHtml(lastSeen)}">Last seen: ${escapeHtml(
+          lastSeenRelative
+        )}</span>
             </div>
             <div class="admin-portal__user-actions">${actions}</div>
           </div>
@@ -178,7 +181,9 @@ export class AdminPortal extends BaseElement {
           response = await api.adminChangeUserRole(userId, btn.dataset.role);
           break;
         case "kick":
-          if (!confirm("Are you sure you want to kick this user? This will delete their account and revoke all tokens.")) {
+          if (
+            !confirm("Are you sure you want to kick this user? This will delete their account and revoke all tokens.")
+          ) {
             return;
           }
           response = await api.adminKickUser(userId);
@@ -276,16 +281,12 @@ export class AdminPortal extends BaseElement {
 
     container.innerHTML = players
       .map((player) => {
-        const lastUpdated = player.last_updated
-          ? new Date(player.last_updated).toLocaleString()
-          : "";
+        const lastUpdated = player.last_updated ? new Date(player.last_updated).toLocaleString() : "";
         const lastUpdatedRelative = relativeTime(player.last_updated);
         const isStale = player.last_updated
-          ? (Date.now() - new Date(player.last_updated).getTime()) > STALE_THRESHOLD_MS
+          ? Date.now() - new Date(player.last_updated).getTime() > STALE_THRESHOLD_MS
           : true;
-        const staleBadge = isStale
-          ? `<span class="admin-portal__badge admin-portal__badge--stale">stale</span>`
-          : "";
+        const staleBadge = isStale ? `<span class="admin-portal__badge admin-portal__badge--stale">stale</span>` : "";
 
         return `
           <div class="admin-portal__player-row">
@@ -293,12 +294,20 @@ export class AdminPortal extends BaseElement {
             ${staleBadge}
             <span class="admin-portal__player-spacer"></span>
             <div class="admin-portal__player-actions">
-              <span class="admin-portal__badge admin-portal__badge--time" title="${escapeHtml(lastUpdated)}">${escapeHtml(lastUpdatedRelative)}</span>
-              <button class="men-button" data-player-action="show-users" data-player-name="${escapeHtml(player.member_name)}">Users</button>
-              <button class="men-button" data-player-action="delete" data-player-name="${escapeHtml(player.member_name)}">Remove</button>
+              <span class="admin-portal__badge admin-portal__badge--time" title="${escapeHtml(
+                lastUpdated
+              )}">${escapeHtml(lastUpdatedRelative)}</span>
+              <button class="men-button" data-player-action="show-users" data-player-name="${escapeHtml(
+                player.member_name
+              )}">Users</button>
+              <button class="men-button" data-player-action="delete" data-player-name="${escapeHtml(
+                player.member_name
+              )}">Remove</button>
             </div>
           </div>
-          <div class="admin-portal__linked-list" data-player-users-name="${escapeHtml(player.member_name)}" style="display:none"></div>
+          <div class="admin-portal__linked-list" data-player-users-name="${escapeHtml(
+            player.member_name
+          )}" style="display:none"></div>
         `;
       })
       .join("");
@@ -318,7 +327,9 @@ export class AdminPortal extends BaseElement {
     }
 
     if (action === "delete") {
-      if (!confirm(`Are you sure you want to remove player '${playerName}'? All player data will be permanently deleted.`)) {
+      if (
+        !confirm(`Are you sure you want to remove player '${playerName}'? All player data will be permanently deleted.`)
+      ) {
         return;
       }
       try {
