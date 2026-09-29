@@ -2,7 +2,7 @@ use crate::crypto::token_hash;
 use crate::error::ApiError;
 use crate::models::{
     AggregateSkillData, AuditLogEntry, CreateGroup, GroupMember, GroupSkillData, MemberSkillData,
-    PlayerInfo, SessionUser, UserInfo,
+    PlayerInfo, PlayerUserLink, SessionUser, UserInfo,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -584,7 +584,8 @@ SELECT member_id, member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
 rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update,
-collection_log_last_update) as last_updated
+collection_log_last_update, potion_storage_last_update) as last_updated,
+last_source, hub_account_id IS NOT NULL as hub_linked, hub_orphaned_at
 FROM groupironman.members WHERE group_id=$1
 ORDER BY member_name
 "#,
@@ -597,6 +598,9 @@ ORDER BY member_name
             member_id: row.try_get("member_id")?,
             member_name: row.try_get("member_name")?,
             last_updated: row.try_get("last_updated").ok(),
+            last_source: row.try_get("last_source")?,
+            hub_linked: row.try_get("hub_linked")?,
+            hub_orphaned_at: row.try_get("hub_orphaned_at")?,
         });
     }
     Ok(result)
@@ -1644,11 +1648,11 @@ pub async fn get_users_for_player(
     client: &Client,
     member_name: &str,
     group_id: i64,
-) -> Result<Vec<String>, ApiError> {
+) -> Result<Vec<PlayerUserLink>, ApiError> {
     let stmt = client
         .prepare_cached(
             r#"
-SELECT u.username FROM groupironman.user_player_links l
+SELECT u.user_id, u.username, l.source FROM groupironman.user_player_links l
 JOIN groupironman.users u ON l.user_id = u.user_id
 WHERE l.member_name=$1 AND l.group_id=$2
 ORDER BY u.username
@@ -1658,7 +1662,11 @@ ORDER BY u.username
     let rows = client.query(&stmt, &[&member_name, &group_id]).await?;
     let mut result = Vec::with_capacity(rows.len());
     for row in rows {
-        result.push(row.try_get(0)?);
+        result.push(PlayerUserLink {
+            user_id: row.try_get("user_id")?,
+            username: row.try_get("username")?,
+            source: row.try_get("source")?,
+        });
     }
     Ok(result)
 }

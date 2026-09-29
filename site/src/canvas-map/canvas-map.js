@@ -2,8 +2,13 @@ import { BaseElement } from "../base-element/base-element";
 import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 import { utility } from "../utility";
 import { Animation } from "./animation";
+import { GroupData } from "../data/group-data";
 
 export const ICON_SPRITE_SIZE = 15;
+
+// Consecutive trail points further apart than this (in tiles) are a teleport
+// and are not connected with a line.
+export const TRAIL_MAX_STEP_TILES = 40;
 
 export class CanvasMap extends BaseElement {
   html() {
@@ -30,6 +35,7 @@ export class CanvasMap extends BaseElement {
     this.eventListener(window, "resize", this.onResize.bind(this));
     this.playerMarkers = new Map();
     this.interactingMarkers = new Set();
+    this.trails = new Map();
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.subscribe("coordinates", this.handleUpdatedCoordinates.bind(this));
 
@@ -481,6 +487,7 @@ export class CanvasMap extends BaseElement {
       this.drawLocations();
       this.drawMapAreaLabels(!isPanningABigDistance);
       this.drawMapLinks();
+      this.drawTrails();
 
       this.drawTileMarkers(this.playerMarkers.values(), {
         fillColor: "#348feb",
@@ -506,6 +513,86 @@ export class CanvasMap extends BaseElement {
     }
 
     this.frameRequestId = window.requestAnimationFrame(this.update);
+  }
+
+  /**
+   * Shows a location trail. Points are `[x, y, plane, unixSeconds]` as served by
+   * /api/group/hub/locations, in storage coordinates (the same offset as member
+   * coordinates is applied here).
+   */
+  setTrail(name, points, color = "#f5d742") {
+    const trailPoints = [];
+    for (const [x, y, plane, time] of points || []) {
+      const coordinates = GroupData.transformCoordinatesFromStorage([x, y, plane]);
+      if (this.isValidCoordinates(coordinates)) {
+        trailPoints.push({ ...coordinates, time });
+      }
+    }
+    this.trails.set(name, { points: trailPoints, color });
+    this.requestUpdate();
+  }
+
+  clearTrail(name) {
+    if (this.trails.delete(name)) {
+      this.requestUpdate();
+    }
+  }
+
+  clearTrails() {
+    if (this.trails.size) {
+      this.trails.clear();
+      this.requestUpdate();
+    }
+  }
+
+  /** Splits a trail into the line segments to draw on one plane. */
+  static trailSegments(points, plane, maxStepTiles = TRAIL_MAX_STEP_TILES) {
+    const segments = [];
+    let current = [];
+    let previous = null;
+    for (const point of points) {
+      const connected =
+        previous &&
+        previous.plane === point.plane &&
+        Math.abs(previous.x - point.x) <= maxStepTiles &&
+        Math.abs(previous.y - point.y) <= maxStepTiles;
+      if (!connected || point.plane !== plane) {
+        if (current.length > 1) segments.push(current);
+        current = [];
+      }
+      if (point.plane === plane) {
+        current.push(point);
+      }
+      previous = point;
+    }
+    if (current.length > 1) segments.push(current);
+    return segments;
+  }
+
+  drawTrails() {
+    if (!this.trails?.size) return;
+    const plane = this.plane - 1;
+    const half = this.pixelsPerGameTile / 2;
+    this.ctx.lineJoin = "round";
+    this.ctx.lineCap = "round";
+    this.ctx.lineWidth = 3 / this.camera.zoom.current;
+    this.ctx.globalAlpha = 0.75;
+    for (const trail of this.trails.values()) {
+      this.ctx.strokeStyle = trail.color;
+      for (const segment of CanvasMap.trailSegments(trail.points, plane)) {
+        this.ctx.beginPath();
+        segment.forEach((point, index) => {
+          const [x, y] = this.gamePositionToCanvas(point.x, point.y);
+          if (index === 0) {
+            this.ctx.moveTo(x + half, y + half);
+          } else {
+            this.ctx.lineTo(x + half, y + half);
+          }
+        });
+        this.ctx.stroke();
+      }
+    }
+    this.ctx.globalAlpha = 1;
   }
 
   addInteractingMarker(x, y, label) {

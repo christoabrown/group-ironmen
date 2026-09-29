@@ -1,4 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
+import { api } from "../data/api";
+
+const TRAIL_REFRESH_MS = 60000;
 
 export class MapPage extends BaseElement {
   constructor() {
@@ -17,6 +20,10 @@ export class MapPage extends BaseElement {
     this.worldMap.classList.add("interactable");
     this.playerButtons = this.querySelector(".map-page__focus-player-buttons");
     this.planeSelect = this.querySelector(".map-page__plane-select");
+    this.trailControls = this.querySelector(".map-page__trail-controls");
+    this.trailPlayerSelect = this.querySelector(".map-page__trail-player");
+    this.trailDaysSelect = this.querySelector(".map-page__trail-days");
+    this.trailStatus = this.querySelector(".map-page__trail-status");
 
     this.planeSelect.value = this.worldMap.plane || 1;
 
@@ -25,10 +32,15 @@ export class MapPage extends BaseElement {
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));
     this.eventListener(this.planeSelect, "wheel", this.handlePlaneWheel.bind(this), { passive: false });
     this.eventListener(this.worldMap, "plane-changed", this.handlePlaneChange.bind(this));
+    this.eventListener(this.trailPlayerSelect, "change", this.loadTrail.bind(this));
+    this.eventListener(this.trailDaysSelect, "change", this.loadTrail.bind(this));
+    this.subscribe("features", this.handleFeatures.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.clearInterval(this.trailRefresh);
+    this.worldMap.clearTrails();
     this.worldMap.classList.remove("interactable");
     document.querySelector(".authed-section").classList.remove("no-pointer-events");
   }
@@ -60,7 +72,44 @@ export class MapPage extends BaseElement {
     }
   }
 
+  handleFeatures(features) {
+    this.trailControls.hidden = !features?.hub_history;
+  }
+
+  updateTrailPlayerOptions(members) {
+    const selected = this.trailPlayerSelect.value;
+    const options = [new Option("Trail: off", "")];
+    for (const member of members) {
+      options.push(new Option(member.name, member.name));
+    }
+    this.trailPlayerSelect.replaceChildren(...options);
+    this.trailPlayerSelect.value = members.some((member) => member.name === selected) ? selected : "";
+  }
+
+  async loadTrail() {
+    window.clearInterval(this.trailRefresh);
+    const playerName = this.trailPlayerSelect.value;
+    this.worldMap.clearTrails();
+    this.trailStatus.textContent = "";
+    if (!playerName) return;
+
+    const days = parseInt(this.trailDaysSelect.value, 10);
+    const requestId = (this.trailRequestId = (this.trailRequestId || 0) + 1);
+    this.trailStatus.textContent = "Loading...";
+    try {
+      const trail = await api.getHubLocations(playerName, days);
+      if (!this.isConnected || requestId !== this.trailRequestId) return;
+      this.worldMap.setTrail(playerName, trail.points);
+      this.trailStatus.textContent = trail.points.length ? "" : "No locations";
+      this.trailRefresh = window.setInterval(() => this.loadTrail(), TRAIL_REFRESH_MS);
+    } catch (error) {
+      if (!this.isConnected || requestId !== this.trailRequestId) return;
+      this.trailStatus.textContent = error.status === 404 ? "Not shared" : "Unavailable";
+    }
+  }
+
   handleUpdatedMembers(members) {
+    this.updateTrailPlayerOptions(members);
     let playerButtons = "";
     for (const member of members) {
       if (!member.inactive) {

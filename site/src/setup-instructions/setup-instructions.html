@@ -4,7 +4,22 @@
     <p>Your admin account has been created. You can manage users from the admin portal.</p>
   </div>
 
-  <div class="setup__block">
+  <div class="setup__block setup__hub" hidden>
+    <h3>Connect through osrs-data-hub</h3>
+    <p>
+      This map gets player data from the guild's osrs-data-hub. Players do not pair with the map: once your RuneLite
+      plugin is paired with the hub and your account's live location is shared with the guild, you appear here
+      automatically.
+    </p>
+    <ol>
+      <li>Install the RuneLite HomeAssistant Data Exporter plugin from the Plugin Hub.</li>
+      <li>Sign in to the hub and follow its onboarding to get a pairing code.</li>
+      <li>Enter the code in the plugin. You show up on the map within a few seconds of logging in.</li>
+      <li>Not showing up? In the hub's sharing settings, share your live location (and stats) with the guild.</li>
+    </ol>
+  </div>
+
+  <div class="setup__block setup__direct">
     <h3>Device Pairing</h3>
     <p>
       Generate a pairing code and enter it in the RuneLite plugin to link a player's client to the group.
@@ -18,7 +33,7 @@
     <div class="setup__pair-error"></div>
   </div>
 
-  <div class="setup__block">
+  <div class="setup__block setup__direct">
     <h3>Setup</h3>
     <p>
       This app requires each group member to install a RuneLite plugin from the Plugin Hub in order to track player

@@ -16,6 +16,18 @@ export class SetupInstructions extends BaseElement {
     super.connectedCallback();
     this.render();
     this.eventListener(this.querySelector(".setup__pair-btn"), "click", this.handleGenerateCode.bind(this));
+    this.showDataSource();
+  }
+
+  async showDataSource() {
+    const features = await api.loadFeatures();
+    if (!this.isConnected) return;
+    for (const block of this.querySelectorAll(".setup__direct")) {
+      block.hidden = !features.direct_pairing;
+    }
+    for (const block of this.querySelectorAll(".setup__hub")) {
+      block.hidden = features.data_source !== "hub" && features.data_source !== "both";
+    }
   }
 
   disconnectedCallback() {

@@ -214,6 +214,19 @@ pub struct PlayerInfo {
     pub member_id: i64,
     pub member_name: String,
     pub last_updated: Option<DateTime<Utc>>,
+    /// `direct` or `hub`: which data source last wrote this player.
+    pub last_source: Option<String>,
+    pub hub_linked: bool,
+    /// Set when the hub no longer shows this player's account.
+    pub hub_orphaned_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize)]
+pub struct PlayerUserLink {
+    pub user_id: i64,
+    pub username: String,
+    /// `device`, `hub` or `manual`.
+    pub source: String,
 }
 
 #[derive(Deserialize)]

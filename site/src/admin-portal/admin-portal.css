@@ -138,6 +138,7 @@
 
 .admin-portal__player-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   padding: 0.4rem 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -171,4 +172,56 @@
 
 .admin-portal__linked-list strong {
   color: #fff;
+}
+
+.admin-portal__hub-status {
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.admin-portal__hub-status[hidden] {
+  display: none;
+}
+
+.admin-portal__hub-status h4 {
+  margin: 0 0 0.35rem 0;
+}
+
+.admin-portal__hub-status dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.admin-portal__hub-status dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-portal__hub-error {
+  color: #ff8080;
+}
+
+.admin-portal__badge--hub {
+  background: #2d6a4f;
+}
+
+.admin-portal__badge--orphaned {
+  background: #7a5c00;
+}
+
+.admin-portal__link-user {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  align-items: center;
+}
+
+.admin-portal__linked-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.5rem;
 }

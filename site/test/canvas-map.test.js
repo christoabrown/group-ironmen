@@ -14,6 +14,7 @@ vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
 }));
 
 import { CanvasMap, ICON_SPRITE_SIZE } from "../src/canvas-map/canvas-map";
+import { GroupData } from "../src/data/group-data";
 
 function createMockCtx() {
   return {
@@ -78,6 +79,7 @@ function createMapInstance() {
   map.touch = {};
   map.playerMarkers = new Map();
   map.interactingMarkers = new Set();
+  map.trails = new Map();
   map.followingPlayer = {};
   map.tiles = [new Map(), new Map(), new Map(), new Map()];
   map.tilesInView = [];
@@ -749,7 +751,7 @@ describe("CanvasMap.getLinkAtClient", () => {
     const map = createMapWithLinks({ plane: 1 });
     map.camera.zoom.current = 1;
     const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
-    const halfSize = (ICON_SPRITE_SIZE / 1) * 1 / 2;
+    const halfSize = ((ICON_SPRITE_SIZE / 1) * 1) / 2;
     const link = map.getLinkAtClient(linkX + halfSize - 1, linkY + halfSize - 1);
     expect(link).not.toBeNull();
     const noLink = map.getLinkAtClient(linkX + halfSize + 1, linkY + halfSize + 1);
@@ -760,7 +762,7 @@ describe("CanvasMap.getLinkAtClient", () => {
     const map = createMapWithLinks({ plane: 1 });
     map.camera.zoom.current = 2;
     const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
-    const halfSize = (ICON_SPRITE_SIZE / 2) * 2 / 2;
+    const halfSize = ((ICON_SPRITE_SIZE / 2) * 2) / 2;
     const link = map.getLinkAtClient(linkX + halfSize - 0.5, linkY + halfSize - 0.5);
     expect(link).not.toBeNull();
     const noLink = map.getLinkAtClient(linkX + halfSize + 1, linkY + halfSize + 1);
@@ -771,7 +773,7 @@ describe("CanvasMap.getLinkAtClient", () => {
     const map = createMapWithLinks({ plane: 1 });
     map.camera.zoom.current = 5;
     const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
-    const halfSize = (ICON_SPRITE_SIZE / 3) * 5 / 2;
+    const halfSize = ((ICON_SPRITE_SIZE / 3) * 5) / 2;
     const link = map.getLinkAtClient(linkX + halfSize - 0.5, linkY + halfSize - 0.5);
     expect(link).not.toBeNull();
     const noLink = map.getLinkAtClient(linkX + halfSize + 1, linkY + halfSize + 1);
@@ -995,7 +997,12 @@ describe("CanvasMap map link touch interactions", () => {
     const [linkX, linkY] = map.mapLinkScreenCenter(100, 201);
     map.onTouchStart({ touches: [{ clientX: linkX, clientY: linkY }], preventDefault: () => {} });
     expect(map.pendingMapLink).not.toBeNull();
-    map.onTouchStart({ touches: [{ clientX: 0, clientY: 0 }, { clientX: 100, clientY: 100 }] });
+    map.onTouchStart({
+      touches: [
+        { clientX: 0, clientY: 0 },
+        { clientX: 100, clientY: 100 },
+      ],
+    });
     expect(map.pendingMapLink).toBeNull();
     expect(map.touch.startDistance).toBeGreaterThan(0);
   });
@@ -1327,9 +1334,7 @@ describe("CanvasMap.drawMapLinks with icon overrides", () => {
     map.drawMapLinks();
     const arcCalls = map.ctx.arc.mock.calls;
     const [linkCanvasX, linkCanvasY] = map.gamePositionToCanvas(100, 201);
-    const hasOverriddenArc = arcCalls.some(
-      ([x, y]) => x === linkCanvasX && y === linkCanvasY
-    );
+    const hasOverriddenArc = arcCalls.some(([x, y]) => x === linkCanvasX && y === linkCanvasY);
     expect(hasOverriddenArc).toBe(false);
   });
 
@@ -1338,9 +1343,7 @@ describe("CanvasMap.drawMapLinks with icon overrides", () => {
     map.drawMapLinks();
     const arcCalls = map.ctx.arc.mock.calls;
     const [canvasX, canvasY] = map.gamePositionToCanvas(102, 203);
-    const hasNormalArc = arcCalls.some(
-      ([x, y]) => x === canvasX && y === canvasY
-    );
+    const hasNormalArc = arcCalls.some(([x, y]) => x === canvasX && y === canvasY);
     expect(hasNormalArc).toBe(true);
   });
 
@@ -1438,9 +1441,7 @@ describe("CanvasMap.drawLocations with linked icon highlights", () => {
     map.drawLocations();
     const arcCalls = map.ctx.arc.mock.calls;
     const [canvasX, canvasY] = map.gamePositionToCanvas(500, 600);
-    const hasHighlight = arcCalls.some(
-      ([x, y]) => x === canvasX && y === canvasY
-    );
+    const hasHighlight = arcCalls.some(([x, y]) => x === canvasX && y === canvasY);
     expect(hasHighlight).toBe(false);
   });
 
@@ -1455,5 +1456,43 @@ describe("CanvasMap.drawLocations with linked icon highlights", () => {
     map.linkedIconPositions = undefined;
     map.drawLocations();
     expect(map.ctx.beginPath).not.toHaveBeenCalled();
+  });
+});
+
+describe("CanvasMap trails", () => {
+  it("applies the member coordinate offset and skips invalid points", () => {
+    const map = createMapInstance();
+    map.setTrail("Alice", [
+      [3200, 3200, 0, 1],
+      [3201, 3200, 0, 2],
+      [NaN, 3200, 0, 3],
+    ]);
+    const trail = map.trails.get("Alice");
+    expect(trail.points).toHaveLength(2);
+    const expected = GroupData.transformCoordinatesFromStorage([3200, 3200, 0]);
+    expect(trail.points[0]).toMatchObject({ x: expected.x, y: expected.y, plane: 0, time: 1 });
+    expect(map.updateRequested).toBeGreaterThan(0);
+
+    map.clearTrail("Alice");
+    expect(map.trails.size).toBe(0);
+  });
+
+  it("splits segments at plane changes and teleports", () => {
+    const points = [
+      { x: 0, y: 0, plane: 0 },
+      { x: 1, y: 0, plane: 0 },
+      { x: 2, y: 0, plane: 1 },
+      { x: 3, y: 0, plane: 0 },
+      { x: 4, y: 0, plane: 0 },
+      { x: 500, y: 0, plane: 0 },
+      { x: 501, y: 0, plane: 0 },
+    ];
+    const segments = CanvasMap.trailSegments(points, 0);
+    expect(segments.map((segment) => segment.map((p) => p.x))).toEqual([
+      [0, 1],
+      [3, 4],
+      [500, 501],
+    ]);
+    expect(CanvasMap.trailSegments(points, 1)).toEqual([]);
   });
 });

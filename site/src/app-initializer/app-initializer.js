@@ -65,11 +65,13 @@ export class AppInitializer extends BaseElement {
   async loadExampleData() {
     exampleData.enable();
     api.exampleDataEnabled = true;
+    api.loadFeatures();
     await api.enable();
   }
 
   async loadWithSession(session) {
     api.setSession(session.sessionToken, session.username, session.role);
+    api.loadFeatures();
     const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
     await api.enable();
     await firstDataEvent;
