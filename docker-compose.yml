@@ -5,6 +5,7 @@ services:
       - HOST_URL=${HOST_URL:-http://osrs_tracker_backend:8080}
       - SITE_TITLE=${SITE_TITLE:-OSRS Guild Map}
       - SITE_NAME=${SITE_NAME:-OSRS Guild Map}
+      - ICONS_BASE_URL # unset uses the default CDN; empty turns icons off
     restart: always
     depends_on:
       - osrs_tracker_backend

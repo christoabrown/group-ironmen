@@ -1,6 +1,7 @@
 import { utility } from "../utility";
 import { pubsub } from "./pubsub";
 import { api } from "./api";
+import { itemIconUrl } from "./icons";
 
 export class Item {
   constructor(id, quantity) {
@@ -14,16 +15,16 @@ export class Item {
   }
 
   static imageUrl(itemId, quantity) {
-    const itemDetails = Item.itemDetails[itemId];
-    let imageId = itemDetails.id;
-    if (itemDetails.stacks) {
+    const itemDetails = Item.itemDetails?.[itemId];
+    let imageId = itemDetails?.id ?? itemId;
+    if (itemDetails?.stacks) {
       for (const stack of itemDetails.stacks) {
         if (quantity >= stack.count) {
           imageId = stack.id;
         }
       }
     }
-    return `/icons/items/${imageId}.webp`;
+    return itemIconUrl(imageId);
   }
 
   static itemName(itemId) {

@@ -48,12 +48,19 @@ const DEFAULT_NAME = "OSRS Guild Map";
 const escapeHtml = (value) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// Item, skill and slot icons are loaded from the osrs-icons CDN. Set ICONS_BASE_URL to a mirror, or to
+// an empty value to turn icons off. Unset, it is left out of siteConfig and the page uses its default
+// (DEFAULT_ICONS_BASE_URL in src/data/icons.js).
+const iconsBaseUrl = process.env.ICONS_BASE_URL?.trim().replace(/\/+$/, "");
+if (iconsBaseUrl === undefined) console.log("Icons from the default CDN");
+else console.log(iconsBaseUrl ? `Icons from ${iconsBaseUrl}` : "Icons disabled (ICONS_BASE_URL is empty)");
+
 const injectConfig = (html) => {
   const siteTitle = process.env.SITE_TITLE || DEFAULT_NAME;
   const siteName = process.env.SITE_NAME || DEFAULT_NAME;
   // JSON.stringify keeps quotes in the names from breaking out of the script; "<" is
   // escaped so a name can't close the script tag.
-  const config = JSON.stringify({ title: siteName, pageTitle: siteTitle }).replace(/</g, "\\u003c");
+  const config = JSON.stringify({ title: siteName, pageTitle: siteTitle, iconsBaseUrl }).replace(/</g, "\\u003c");
   return html
     .replace("</head>", `<script>window.siteConfig = ${config};</script></head>`)
     .replace(`<title>${DEFAULT_NAME}</title>`, `<title>${escapeHtml(siteTitle)}</title>`);
@@ -120,7 +127,12 @@ if (backend) {
 }
 
 app.get("*", function (request, response) {
-  if (request.path.includes("/map") && request.path.includes(".png")) {
+  // Icons moved to the icon CDN; old /icons/ and /ui/ sprite URLs get a 404, not the page.
+  if (
+    (request.path.includes("/map") && request.path.includes(".png")) ||
+    request.path.startsWith("/icons/") ||
+    request.path.startsWith("/ui/")
+  ) {
     response.sendStatus(404);
   } else {
     sendIndex(response);

@@ -267,10 +267,9 @@ export class ClanPage extends BaseElement {
     const icon = el("img", "clan-page__drop-icon");
     icon.alt = "";
     icon.loading = "lazy";
-    if (event.item_id) {
-      icon.src = Item.itemDetails?.[event.item_id]
-        ? Item.imageUrl(event.item_id, 1)
-        : `/icons/items/${event.item_id}.webp`;
+    const iconUrl = event.item_id ? Item.imageUrl(event.item_id, 1) : "";
+    if (iconUrl) {
+      icon.src = iconUrl;
     } else {
       icon.style.visibility = "hidden";
     }

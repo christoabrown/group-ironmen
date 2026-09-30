@@ -29,7 +29,8 @@ The full list of settings is [`.env.example`](../.env.example); it is not repeat
 | Port | `4000` |
 | Health | `GET /healthz` → `200 ok`. Answered by the Node process itself; it never calls the backend, so a backend restart doesn't take the frontend out of rotation. Not in the request log. |
 | API | Proxies `/api/*` to `HOST_URL`. In the cluster that is the backend Service, for example `http://<backend-service>:8080`. |
-| Settings | `HOST_URL`, `SITE_TITLE`, `SITE_NAME` |
+| Settings | `HOST_URL`, `SITE_TITLE`, `SITE_NAME`, `ICONS_BASE_URL` |
+| Icons | Item, skill and slot icons are not in the image. Browsers load them from `ICONS_BASE_URL` (default `https://icons.scapekeeper.com`); the server only passes the URL to the page. |
 | Shutdown | Exits on `SIGTERM`/`SIGINT` once open connections close, at most 10 s later. |
 | Filesystem | Writes nothing; runs with a read-only root filesystem and all capabilities dropped. |
 

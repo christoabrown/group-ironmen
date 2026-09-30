@@ -33,8 +33,18 @@ describe("item", () => {
   });
 
   it("derives image id from stack thresholds", () => {
-    expect(Item.imageUrl(4151, 1)).toBe("/icons/items/4151.webp");
-    expect(Item.imageUrl(4151, 10)).toBe("/icons/items/4152.webp");
+    expect(Item.imageUrl(4151, 1)).toBe("https://icons.scapekeeper.com/items/4151.webp");
+    expect(Item.imageUrl(4151, 10)).toBe("https://icons.scapekeeper.com/items/4152.webp");
+  });
+
+  it("uses the configured icon base url, and the raw id for unknown items", () => {
+    window.siteConfig = { iconsBaseUrl: "http://localhost:8767" };
+    try {
+      expect(Item.imageUrl(4151, 25)).toBe("http://localhost:8767/items/4152.webp");
+      expect(Item.imageUrl(12345, 1)).toBe("http://localhost:8767/items/12345.webp");
+    } finally {
+      delete window.siteConfig;
+    }
   });
 
   it("parses item payloads replacing unknown ids with placeholders", () => {
@@ -60,7 +70,7 @@ describe("item", () => {
     const item = new Item("4151", 25);
 
     expect(item.id).toBe(4151);
-    expect(item.imageUrl).toBe("/icons/items/4152.webp");
+    expect(item.imageUrl).toBe("https://icons.scapekeeper.com/items/4152.webp");
     expect(item.name).toBe("Abyssal whip");
     expect(item.highAlch).toBe(72000);
     expect(item.gePrice).toBe(2100000);
@@ -77,7 +87,13 @@ describe("item", () => {
   it("loads item metadata and publishes load event", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       json: async () => ({
-        4151: { name: "Abyssal whip", stacks: [[1, 4151], [10, 4152]] },
+        4151: {
+          name: "Abyssal whip",
+          stacks: [
+            [1, 4151],
+            [10, 4152],
+          ],
+        },
       }),
     });
 
@@ -107,10 +123,7 @@ describe("item", () => {
       2: { id: 2, name: "B" },
     };
 
-    vi.spyOn(Math, "random")
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0.5);
+    vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValueOnce(0.5);
 
     expect(Item.randomItem(50)).toEqual([1, 50]);
     expect(Item.randomItem()).toEqual([1, 50001]);

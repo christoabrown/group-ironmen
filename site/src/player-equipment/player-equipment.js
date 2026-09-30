@@ -1,4 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
+import { slotIconUrl } from "../data/icons";
 
 const EquipmentSlot = {
   Head: 0,
@@ -17,18 +18,19 @@ const EquipmentSlot = {
 export class PlayerEquipment extends BaseElement {
   constructor() {
     super();
-    this.emptySlotImages = {
-      [EquipmentSlot.Head]: "156-0.png",
-      [EquipmentSlot.Back]: "157-0.png",
-      [EquipmentSlot.Neck]: "158-0.png",
-      [EquipmentSlot.Weapon]: "159-0.png",
-      [EquipmentSlot.Torso]: "161-0.png",
-      [EquipmentSlot.Shield]: "162-0.png",
-      [EquipmentSlot.Legs]: "163-0.png",
-      [EquipmentSlot.Gloves]: "164-0.png",
-      [EquipmentSlot.Boots]: "165-0.png",
-      [EquipmentSlot.Ring]: "160-0.png",
-      [EquipmentSlot.Ammo]: "166-0.png",
+    // Empty-slot silhouettes, by the icon CDN's slot names.
+    this.emptySlotNames = {
+      [EquipmentSlot.Head]: "head",
+      [EquipmentSlot.Back]: "cape",
+      [EquipmentSlot.Neck]: "amulet",
+      [EquipmentSlot.Weapon]: "weapon",
+      [EquipmentSlot.Torso]: "body",
+      [EquipmentSlot.Shield]: "shield",
+      [EquipmentSlot.Legs]: "legs",
+      [EquipmentSlot.Gloves]: "gloves",
+      [EquipmentSlot.Boots]: "boots",
+      [EquipmentSlot.Ring]: "ring",
+      [EquipmentSlot.Ammo]: "ammo",
     };
   }
 
@@ -75,7 +77,8 @@ export class PlayerEquipment extends BaseElement {
         el.innerHTML = "";
         el.appendChild(itemEl);
       } else {
-        el.innerHTML = `<img loading="lazy" src="/ui/${this.emptySlotImages[position]}" />`;
+        const src = slotIconUrl(this.emptySlotNames[position]);
+        el.innerHTML = src ? `<img loading="lazy" src="${src}" />` : "";
       }
     }
   }
