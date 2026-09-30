@@ -36,6 +36,11 @@ function createMockCtx() {
     fillText: vi.fn(),
     strokeText: vi.fn(),
     arc: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    strokeRect: vi.fn(),
+    fillRect: vi.fn(),
+    measureText: vi.fn((text) => ({ width: text.length * 7 })),
     imageSmoothingEnabled: true,
   };
 }

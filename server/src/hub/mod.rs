@@ -5,8 +5,10 @@
 pub mod cache;
 pub mod client;
 pub mod convert;
+pub mod directory;
 pub mod events;
 pub mod models;
+pub mod profile;
 pub mod proxy;
 pub mod routes;
 pub mod sync;
@@ -85,6 +87,8 @@ pub struct HubContext {
     pub cache: Arc<cache::TtlCache>,
     pub events: events::EventBuffer,
     pub capabilities: SharedKeyCapabilities,
+    pub directory: directory::HubDirectory,
+    pub sync_control: sync::SyncControl,
 }
 
 /// The request budget to use for a key the hub allows `hub_limit` requests per minute.

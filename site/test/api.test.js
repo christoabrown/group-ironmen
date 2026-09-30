@@ -35,7 +35,7 @@ describe("api", () => {
     await api.enable();
 
     expect(waitForAllEventsSpy).toHaveBeenCalledWith("item-data-loaded");
-    expect(callOnIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    expect(callOnIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
     expect(api.enabled).toBe(true);
     expect(api.nextCheck).toBe(new Date(0).toISOString());
   });

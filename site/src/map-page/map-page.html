@@ -1,22 +1,26 @@
 <div class="map-page__container">
-  <div class="map-page__focus-player-buttons"></div>
-  <div class="map-page__trail-controls men-control-container rsborder-tiny rsbackground" hidden>
-    <select class="map-page__trail-player" aria-label="Show a player's trail">
-      <option value="">Trail: off</option>
-    </select>
-    <select class="map-page__trail-days" aria-label="Trail length">
-      <option value="1">24 hours</option>
-      <option value="7">7 days</option>
-      <option value="30">30 days</option>
-    </select>
-    <span class="map-page__trail-status"></span>
-  </div>
+  <button type="button" class="men-button map-page__roster-toggle">Players</button>
   <div class="men-control-container rsborder-tiny rsbackground rsbackground-hover">
-    <select class="map-page__plane-select">
+    <select class="map-page__plane-select" aria-label="Plane">
       <option value="1">Plane: 1</option>
       <option value="2">Plane: 2</option>
       <option value="3">Plane: 3</option>
       <option value="4">Plane: 4</option>
     </select>
+  </div>
+  <div class="map-page__events men-control-container rsborder-tiny rsbackground" hidden>
+    <span class="map-page__label">On the map:</span>
+    <span class="map-page__event-kinds"></span>
+    <select class="map-page__event-min-loot" aria-label="Smallest drop to show"></select>
+  </div>
+  <div class="map-page__trails men-control-container rsborder-tiny rsbackground" hidden>
+    <span class="map-page__label">Trails:</span>
+    <span class="map-page__trail-chips"></span>
+    <select class="map-page__trail-days" aria-label="Trail length">
+      <option value="1">24 hours</option>
+      <option value="7">7 days</option>
+      <option value="30">30 days</option>
+    </select>
+    <button type="button" class="men-button small map-page__trails-clear">Clear</button>
   </div>
 </div>

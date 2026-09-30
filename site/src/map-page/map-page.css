@@ -4,32 +4,87 @@ map-page {
 
 .map-page__container {
   display: flex;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 6px;
   padding: 0 4px;
 }
 
-.map-page__focus-player-buttons {
-  display: flex;
+.map-page__container .men-control-container {
+  margin-left: 0;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.map-page__focus-player-buttons > button + button {
-  margin-left: 6px;
-}
-
-.map-page__trail-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 6px;
-  flex-shrink: 0;
-}
-
-.map-page__trail-controls[hidden] {
+.map-page__container [hidden] {
   display: none;
 }
 
-.map-page__trail-status {
+.map-page__label {
   color: #ddd;
   font-size: 0.85rem;
   white-space: nowrap;
+}
+
+.map-page__event-kinds {
+  display: flex;
+  gap: 8px;
+}
+
+.map-page__event-kind {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.map-page__event-kind input {
+  margin: 0;
+}
+
+.map-page__trail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.map-page__trail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 4px;
+  border-radius: 10px;
+  color: white;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--player-color);
+}
+
+.map-page__trail-chip::after {
+  content: "×";
+  color: #ccc;
+}
+
+.map-page__trail-chip--off {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.map-page__trail-error {
+  color: #ff8f8f;
+  font-size: 0.85rem;
+}
+
+/* The roster is in the side panel on wide screens; this opens it on narrow ones. */
+map-page .map-page__roster-toggle {
+  display: none;
+}
+
+@media only screen and (max-width: 1000px) {
+  map-page .map-page__roster-toggle {
+    display: inline-block;
+  }
 }

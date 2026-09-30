@@ -8,45 +8,81 @@ export class GroupData {
     this.members = new Map();
   }
 
-  update(groupData) {
-    this.transformFromStorage(groupData);
-    groupData.sort((a, b) => a.name.localeCompare(b.name));
-    const removedMembers = new Set(this.members.keys());
+  /**
+   * Applies one poll of `/api/group/get-group-data`:
+   * `{cursor, roster: [{name, online, last_seen, orphaned}], members: [changed data]}`.
+   * Publishes "members-updated" (all members) when the set of names or anyone's
+   * online state changes, and "roster-changed" (a Set of names) whenever any
+   * member changed at all. Returns the `from_time` for the next poll, or epoch
+   * when a full reload is needed (a name appeared whose data we don't have).
+   */
+  update({ cursor, roster = [], members = [] }) {
+    this.transformFromStorage(members);
+    const changed = new Set();
+    let onlineChanged = false;
+    let needsFullReload = false;
 
-    let lastUpdated = new Date(0);
-    let inactiveStatusChanged = false;
-    for (const memberData of groupData) {
-      const memberName = memberData.name;
-      removedMembers.delete(memberName);
-      if (!this.members.has(memberName)) {
-        this.members.set(memberName, new MemberData(memberName));
+    const onRoster = new Set();
+    for (const entry of roster) {
+      onRoster.add(entry.name);
+      let member = this.members.get(entry.name);
+      if (!member) {
+        member = new MemberData(entry.name);
+        this.members.set(entry.name, member);
+        changed.add(entry.name);
+        onlineChanged = true;
+        needsFullReload = true;
       }
+      const wasOnline = member.online;
+      if (member.updatePresence(entry)) changed.add(entry.name);
+      if (wasOnline !== member.online) onlineChanged = true;
+    }
 
-      const member = this.members.get(memberName);
-      const wasInactive = member.inactive;
-      member.update(memberData);
-      if (wasInactive !== member.inactive) {
-        inactiveStatusChanged = true;
-      }
-
-      if (member.lastUpdated && member.lastUpdated > lastUpdated) {
-        lastUpdated = member.lastUpdated;
+    for (const memberData of members) {
+      const member = this.members.get(memberData.name);
+      if (!member) continue;
+      if (member.update(memberData).size > 0) changed.add(member.name);
+      member.hasData = true;
+    }
+    // Everyone new gets their data with the members of this same poll, unless
+    // it arrived in an earlier one (a rename or re-import is caught here). A
+    // member without any data would ask for a reload on every poll, so each
+    // member asks once.
+    if (needsFullReload) {
+      needsFullReload = false;
+      for (const member of this.members.values()) {
+        if (!member.hasData && !member.reloadRequested) {
+          member.reloadRequested = true;
+          needsFullReload = true;
+        }
       }
     }
 
-    for (const removedMember of removedMembers.values()) {
-      this.members.delete(removedMember);
+    for (const name of [...this.members.keys()]) {
+      if (!onRoster.has(name)) {
+        this.members.delete(name);
+        changed.add(name);
+        onlineChanged = true;
+      }
     }
 
     const [lastMemberListPublished] = pubsub.getMostRecent("members-updated") || [];
     const previousNames = lastMemberListPublished?.map((x) => x.name);
-    const currentNames = [...this.members.values()].map((x) => x.name);
-    const membersUpdated = !utility.setsEqual(new Set(currentNames), new Set(previousNames)) || inactiveStatusChanged;
+    const currentNames = [...this.members.keys()];
+    const membersUpdated =
+      !lastMemberListPublished || !utility.setsEqual(new Set(currentNames), new Set(previousNames)) || onlineChanged;
     if (membersUpdated) {
-      pubsub.publish("members-updated", [...this.members.values()]);
+      pubsub.publish("members-updated", this.sortedMembers());
+    }
+    if (changed.size > 0) {
+      pubsub.publish("roster-changed", changed);
     }
 
-    return new Date(lastUpdated.getTime() + 1);
+    return needsFullReload ? new Date(0) : new Date(cursor || 0);
+  }
+
+  sortedMembers() {
+    return [...this.members.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
   static transformItemsFromStorage(items) {
@@ -109,8 +145,8 @@ export class GroupData {
     };
   }
 
-  transformFromStorage(groupData) {
-    for (const memberData of groupData) {
+  transformFromStorage(members) {
+    for (const memberData of members) {
       for (const [fieldName, transform] of storageFieldTransformers) {
         memberData[fieldName] = transform(memberData[fieldName]);
       }

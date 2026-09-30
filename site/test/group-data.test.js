@@ -4,6 +4,14 @@ import { SkillName } from "../src/data/skill";
 import { Item } from "../src/data/item";
 import { pubsub } from "../src/data/pubsub";
 
+const roster = (...entries) =>
+  entries.map(([name, online = true, lastSeen = "2026-09-30T10:00:00.000Z"]) => ({
+    name,
+    online,
+    last_seen: lastSeen,
+    orphaned: false,
+  }));
+
 describe("group-data", () => {
   beforeEach(() => {
     Item.itemDetails = { 4151: { id: 4151, name: "Abyssal whip", highalch: 100 } };
@@ -41,29 +49,78 @@ describe("group-data", () => {
     });
   });
 
-  it("adds and removes members and publishes the member list when it changes", () => {
+  it("follows the roster: adds, updates and removes members", () => {
     const data = new GroupData();
     const published = [];
     pubsub.subscribe("members-updated", (members) => published.push(members.map((m) => m.name)));
 
-    data.update([
-      { name: "Bob", inventory: [4151, 1] },
-      { name: "Alice", coordinates: [3200, 3200, 0] },
-    ]);
-    expect([...data.members.keys()]).toEqual(["Alice", "Bob"]);
+    data.update({
+      cursor: "2026-09-30T10:00:00.000Z",
+      roster: roster(["Bob"], ["Alice", false]),
+      members: [
+        { name: "Bob", inventory: [4151, 1], meta: { total_level: 1500 } },
+        { name: "Alice", coordinates: [3200, 3200, 0] },
+      ],
+    });
+    expect([...data.members.keys()].sort()).toEqual(["Alice", "Bob"]);
     expect(data.members.get("Bob").inventory[0].id).toBe(4151);
+    expect(data.members.get("Bob").meta.total_level).toBe(1500);
+    expect(data.members.get("Bob").online).toBe(true);
+    expect(data.members.get("Alice").online).toBe(false);
+    expect(data.members.get("Alice").lastSeen).toEqual(new Date("2026-09-30T10:00:00.000Z"));
 
-    data.update([{ name: "Alice" }]);
+    data.update({ cursor: "2026-09-30T10:00:02.000Z", roster: roster(["Alice", false]), members: [] });
     expect([...data.members.keys()]).toEqual(["Alice"]);
     expect(published).toEqual([["Alice", "Bob"], ["Alice"]]);
   });
 
-  it("returns a cursor just after the newest update", () => {
+  it("returns the server's cursor", () => {
     const data = new GroupData();
-    const cursor = data.update([
-      { name: "Alice", last_updated: "2026-09-30T10:00:00.000Z" },
-      { name: "Bob", last_updated: "2026-09-30T11:00:00.000Z" },
-    ]);
-    expect(cursor.toISOString()).toBe("2026-09-30T11:00:00.001Z");
+    const next = data.update({
+      cursor: "2026-09-30T11:00:00.000Z",
+      roster: roster(["Alice"]),
+      members: [{ name: "Alice", stats: [1, 1, 1, 1, 0, 0, 301] }],
+    });
+    expect(next.toISOString()).toBe("2026-09-30T11:00:00.000Z");
+  });
+
+  it("asks for a full reload once when a new name arrives without data", () => {
+    const data = new GroupData();
+    data.update({
+      cursor: "2026-09-30T11:00:00.000Z",
+      roster: roster(["Alice"]),
+      members: [{ name: "Alice", stats: [1, 1, 1, 1, 0, 0, 301] }],
+    });
+
+    // Renamed on the hub: the new name's data is older than the cursor.
+    const next = data.update({ cursor: "2026-09-30T11:00:02.000Z", roster: roster(["Alice Two"]), members: [] });
+    expect(next.getTime()).toBe(0);
+    const after = data.update({ cursor: "2026-09-30T11:00:04.000Z", roster: roster(["Alice Two"]), members: [] });
+    expect(after.toISOString()).toBe("2026-09-30T11:00:04.000Z");
+  });
+
+  it("publishes the names that changed and online flips in members-updated", () => {
+    const data = new GroupData();
+    const changed = [];
+    let memberLists = 0;
+    pubsub.subscribe("roster-changed", (names) => changed.push([...names].sort()));
+    pubsub.subscribe("members-updated", () => memberLists++);
+
+    data.update({
+      cursor: "2026-09-30T11:00:00.000Z",
+      roster: roster(["Alice"], ["Bob"]),
+      members: [{ name: "Alice" }, { name: "Bob" }],
+    });
+    data.update({
+      cursor: "2026-09-30T11:00:02.000Z",
+      roster: roster(["Alice"], ["Bob"]),
+      members: [{ name: "Bob", stats: [5, 10, 1, 1, 0, 0, 301] }],
+    });
+    expect(changed[1]).toEqual(["Bob"]);
+    expect(memberLists).toBe(1);
+
+    data.update({ cursor: "2026-09-30T11:00:04.000Z", roster: roster(["Alice", false], ["Bob"]), members: [] });
+    expect(changed[2]).toEqual(["Alice"]);
+    expect(memberLists).toBe(2);
   });
 });

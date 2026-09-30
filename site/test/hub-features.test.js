@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
 import { pubsub } from "../src/data/pubsub";
-import { describeEvent, relativeTime } from "../src/activity-page/activity-page";
+import { describeEvent, relativeTime } from "../src/data/hub-format";
 
 describe("hub features", () => {
   beforeEach(() => {
@@ -33,14 +33,28 @@ describe("hub features", () => {
     globalThis.fetch.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) });
 
     await api.getHubEvents({ types: ["loot", "pk_loot"], member: "Alice", limit: 50 });
-    await api.getHubLocations("Iron Man", 7);
+    await api.getHubEvents({ after: 12, minValue: 1000000 });
+    await api.getTrails(["Iron Man", "Zezima"], 7);
     await api.getHubGains("week");
+    await api.getLootLeaderboard("week", 5);
+    await api.getPlayerGains("Iron Man", "month");
+    await api.getPlayerSessions("Iron Man");
+    await api.getPlayerWealth("Iron Man");
+    await api.getPlayerGearHistory("Iron Man");
+    await api.getPlayerEvents("Iron Man", 20);
 
     const urls = globalThis.fetch.mock.calls.map(([url]) => url);
     expect(urls).toEqual([
       "/api/group/hub/events?limit=50&types=loot%2Cpk_loot&member=Alice",
-      "/api/group/hub/locations/Iron%20Man?days=7",
+      "/api/group/hub/events?limit=100&after=12&min_value=1000000",
+      "/api/group/hub/trails?members=Iron+Man%2CZezima&days=7",
       "/api/group/hub/gains?period=week",
+      "/api/group/hub/leaderboards/loot?period=week&limit=5",
+      "/api/group/hub/players/Iron%20Man/gains?period=month",
+      "/api/group/hub/players/Iron%20Man/sessions?days=7",
+      "/api/group/hub/players/Iron%20Man/wealth?days=30",
+      "/api/group/hub/players/Iron%20Man/equipment-history?days=30",
+      "/api/group/hub/players/Iron%20Man/events?limit=20",
     ]);
   });
 

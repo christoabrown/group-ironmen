@@ -3,6 +3,9 @@ import { utility } from "../utility";
 import { groupData } from "./group-data";
 import { storage } from "./storage";
 
+// The hub sync writes every 5 s; polling faster only costs requests.
+export const POLL_INTERVAL_MS = 2000;
+
 class Api {
   constructor() {
     this.baseUrl = "/api";
@@ -84,7 +87,7 @@ class Api {
     if (!this.enabled) {
       this.enabled = true;
       this.getGroupInterval = pubsub.waitForAllEvents("item-data-loaded").then(() => {
-        return utility.callOnInterval(this.getGroupData.bind(this), 1000);
+        return utility.callOnInterval(this.getGroupData.bind(this), POLL_INTERVAL_MS);
       });
     }
 
@@ -133,8 +136,10 @@ class Api {
     return response;
   }
 
-  async getSkillData(period) {
-    const response = await fetch(`${this.skillDataUrl}?period=${period}`, {
+  async getSkillData(period, members) {
+    const params = new URLSearchParams({ period });
+    if (members?.length) params.set("members", members.join(","));
+    const response = await fetch(`${this.skillDataUrl}?${params}`, {
       headers: this.authHeaders(),
       credentials: "same-origin",
     });
@@ -317,6 +322,19 @@ class Api {
     return response;
   }
 
+  async adminSetPlayerHidden(memberName, hidden) {
+    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/hidden`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...this.authHeaders(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ hidden }),
+    });
+    return response;
+  }
+
   async adminGetUserPlayers(userId) {
     const response = await fetch(`${this.baseUrl}/admin/users/${userId}/players`, {
       headers: this.authHeaders(),
@@ -405,20 +423,76 @@ class Api {
     return response.json();
   }
 
-  /** The member's location trail as [x, y, plane, unixSeconds] points. */
-  async getHubLocations(memberName, days) {
-    return this.getHubJson(`locations/${encodeURIComponent(memberName)}?days=${days}`);
+  /**
+   * Location trails of several players: `{days, trails: [{member, shared,
+   * points: [[x, y, plane, unixSeconds]]}]}`.
+   */
+  async getTrails(memberNames, days) {
+    const params = new URLSearchParams({ members: memberNames.join(","), days: String(days) });
+    return this.getHubJson(`trails?${params}`);
   }
 
-  async getHubEvents({ types = [], member, limit = 100 } = {}) {
+  /**
+   * Like getHubEvents, plus the newest `seq` the server has buffered (it
+   * restarts from 1 when the backend restarts).
+   */
+  async getHubEventsPage(options = {}) {
+    const params = new URLSearchParams({ limit: String(options.limit || 100) });
+    if (options.after !== undefined && options.after !== null) params.set("after", String(options.after));
+    const response = await fetch(`${this.baseUrl}/group/hub/events?${params}`, {
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const error = new Error(`Hub request failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    const latest = parseInt(response.headers.get("X-Events-Latest"), 10);
+    return { events: await response.json(), latest: isNaN(latest) ? null : latest };
+  }
+
+  /** Buffered events, newest first. `after` is a `seq` from an earlier response. */
+  async getHubEvents({ types = [], member, limit = 100, after, minValue } = {}) {
     const params = new URLSearchParams({ limit: String(limit) });
     if (types.length) params.set("types", types.join(","));
     if (member) params.set("member", member);
+    if (after !== undefined && after !== null) params.set("after", String(after));
+    if (minValue) params.set("min_value", String(minValue));
     return this.getHubJson(`events?${params}`);
   }
 
   async getHubGains(period) {
     return this.getHubJson(`gains?period=${encodeURIComponent(period)}`);
+  }
+
+  /** The period's most valuable drops: `{period, partial, entries: [{rank, event}]}`. */
+  async getLootLeaderboard(period, limit = 10) {
+    return this.getHubJson(`leaderboards/loot?period=${encodeURIComponent(period)}&limit=${limit}`);
+  }
+
+  playerPath(memberName, what) {
+    return `players/${encodeURIComponent(memberName)}/${what}`;
+  }
+
+  async getPlayerGains(memberName, period) {
+    return this.getHubJson(`${this.playerPath(memberName, "gains")}?period=${encodeURIComponent(period)}`);
+  }
+
+  async getPlayerSessions(memberName, days = 7) {
+    return this.getHubJson(`${this.playerPath(memberName, "sessions")}?days=${days}`);
+  }
+
+  async getPlayerWealth(memberName, days = 30) {
+    return this.getHubJson(`${this.playerPath(memberName, "wealth")}?days=${days}`);
+  }
+
+  async getPlayerGearHistory(memberName, days = 30) {
+    return this.getHubJson(`${this.playerPath(memberName, "equipment-history")}?days=${days}`);
+  }
+
+  async getPlayerEvents(memberName, limit = 50) {
+    return this.getHubJson(`${this.playerPath(memberName, "events")}?limit=${limit}`);
   }
 }
 

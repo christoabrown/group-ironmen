@@ -4,19 +4,21 @@
 use crate::auth_middleware::Authenticated;
 use crate::authed::SkillDataPeriod;
 use crate::config::Config;
-use crate::db;
-use crate::error::ApiError;
 use crate::hub::client::{HubClient, HubError, Priority};
-use crate::hub::models::{HubLeaderboards, HubLocations, HubXpLine, HubXpMulti};
+use crate::hub::directory::HubDirectory;
+use crate::hub::events::{event_details, EventFilter};
+use crate::hub::models::{
+    HubEvent, HubLeaderboards, HubLocationPoint, HubLocationsMulti, HubLootLeaderboard, HubXpLine,
+    HubXpMulti,
+};
 use crate::hub::HubContext;
 use crate::models::{AggregateSkillData, GroupSkillData, MemberSkillData};
 use crate::osrs::{skill_index, SKILL_ORDER};
 use actix_web::{get, web, Error, HttpResponse};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use deadpool_postgres::{Client, Pool};
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,9 +29,12 @@ const MAX_UNKNOWN_SKILL_RETRIES: usize = 5;
 const XP_TTL: Duration = Duration::from_secs(300);
 const GAINS_TTL: Duration = Duration::from_secs(300);
 const LOCATIONS_TTL: Duration = Duration::from_secs(60);
+const LOOT_TTL: Duration = Duration::from_secs(60);
 const MAX_TRAIL_POINTS: usize = 3000;
+/// Trails requested at once; more lines than this are unreadable anyway.
+pub const MAX_TRAILS: usize = 8;
 
-fn hub_error_response(err: HubError) -> HttpResponse {
+pub(crate) fn hub_error_response(err: HubError) -> HttpResponse {
     match err {
         HubError::NotFound => HttpResponse::NotFound().json(serde_json::json!({
             "error": "not_available",
@@ -65,7 +70,7 @@ fn hub_error_response(err: HubError) -> HttpResponse {
     }
 }
 
-fn history_enabled(config: &Config) -> Result<(), HttpResponse> {
+pub(crate) fn history_enabled(config: &Config) -> Result<(), HttpResponse> {
     if config.hub_history_enabled() {
         Ok(())
     } else {
@@ -76,7 +81,9 @@ fn history_enabled(config: &Config) -> Result<(), HttpResponse> {
     }
 }
 
-async fn fetch_value<T: serde::de::DeserializeOwned + serde::Serialize + Send + 'static>(
+pub(crate) async fn fetch_value<
+    T: serde::de::DeserializeOwned + serde::Serialize + Send + 'static,
+>(
     client: &Arc<HubClient>,
     path: &str,
     query: &[(&str, String)],
@@ -85,6 +92,32 @@ async fn fetch_value<T: serde::de::DeserializeOwned + serde::Serialize + Send + 
         .get_data::<T>(path, query, Priority::Interactive)
         .await?;
     serde_json::to_value(data).map_err(|err| HubError::Other(err.to_string()))
+}
+
+/// Parses a cached hub response into its type.
+pub(crate) fn parse<T: serde::de::DeserializeOwned>(value: &Value) -> Result<T, HubError> {
+    serde_json::from_value(value.clone()).map_err(|err| HubError::Other(err.to_string()))
+}
+
+/// The hub accounts to request at once, per the key's kind.
+fn bulk_accounts(context: &HubContext) -> usize {
+    context
+        .capabilities
+        .read()
+        .map(|capabilities| capabilities.bulk_accounts)
+        .unwrap_or(crate::hub::USER_KEY_BULK_ACCOUNTS)
+        .max(1)
+}
+
+/// A comma-separated list parameter.
+fn list_param(value: Option<&str>) -> Vec<String> {
+    value
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 // ----------------------------------------------------------------------------
@@ -223,14 +256,8 @@ async fn hub_skill_data(
     let mut ids: Vec<String> = bindings.iter().map(|(_, id)| id.clone()).collect();
     ids.sort();
 
-    let batch = context
-        .capabilities
-        .read()
-        .map(|capabilities| capabilities.bulk_accounts)
-        .unwrap_or(crate::hub::USER_KEY_BULK_ACCOUNTS)
-        .max(1);
     let mut result = HashMap::new();
-    for chunk in ids.chunks(batch) {
+    for chunk in ids.chunks(bulk_accounts(context)) {
         let values = match fetch_xp_chunk(context, chunk, period).await {
             Ok(value) => vec![value],
             // One unreadable account fails the whole request; retry one by one.
@@ -251,7 +278,7 @@ async fn hub_skill_data(
             }
         };
         for value in values {
-            let Ok(multi) = serde_json::from_value::<HubXpMulti>((*value).clone()) else {
+            let Ok(multi) = parse::<HubXpMulti>(&value) else {
                 log::warn!("Unexpected /xp response from the hub");
                 continue;
             };
@@ -265,17 +292,27 @@ async fn hub_skill_data(
     result
 }
 
-/// Local skill history with every hub-bound member replaced by the hub's history.
+/// Local skill history with every hub-bound member replaced by the hub's
+/// history. With `members`, only those members (case-insensitive).
 pub async fn merge_skill_data(
     context: &HubContext,
-    client: &Client,
-    group_id: i64,
     period: &SkillDataPeriod,
     local: GroupSkillData,
-) -> Result<GroupSkillData, ApiError> {
-    let bindings = db::get_hub_bindings(client, group_id).await?;
+    members: Option<&HashSet<String>>,
+) -> GroupSkillData {
+    let wanted = |name: &str| members.is_none_or(|members| members.contains(&name.to_lowercase()));
+    let local: GroupSkillData = local
+        .into_iter()
+        .filter(|member| wanted(&member.name))
+        .collect();
+    let bindings: Vec<(String, String)> = context
+        .directory
+        .bindings()
+        .into_iter()
+        .filter(|(name, _)| wanted(name))
+        .collect();
     if bindings.is_empty() {
-        return Ok(local);
+        return local;
     }
     let mut hub = hub_skill_data(context, &bindings, period).await;
     let mut merged: GroupSkillData = local
@@ -293,7 +330,7 @@ pub async fn merge_skill_data(
             .filter(|(_, skill_data)| !skill_data.is_empty())
             .map(|(name, skill_data)| MemberSkillData { name, skill_data }),
     );
-    Ok(merged)
+    merged
 }
 
 // ----------------------------------------------------------------------------
@@ -308,11 +345,10 @@ pub struct GainsQuery {
 
 #[get("/hub/gains")]
 pub async fn get_gains(
-    auth: Authenticated,
+    _auth: Authenticated,
     query: web::Query<GainsQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-    db_pool: web::Data<Pool>,
 ) -> Result<HttpResponse, Error> {
     if let Err(response) = history_enabled(&config) {
         return Ok(response);
@@ -333,34 +369,29 @@ pub async fn get_gains(
             .await
         })
         .await;
-    let value = match value {
-        Ok(value) => value,
+    let leaderboards = match value.and_then(|value| parse::<HubLeaderboards>(&value)) {
+        Ok(leaderboards) => leaderboards,
         Err(err) => return Ok(hub_error_response(err)),
     };
-    let leaderboards: HubLeaderboards = match serde_json::from_value((*value).clone()) {
-        Ok(leaderboards) => leaderboards,
-        Err(err) => return Ok(hub_error_response(HubError::Other(err.to_string()))),
-    };
 
-    let db_client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let names: HashMap<String, String> = db::get_hub_bindings(&db_client, auth.group_id)
-        .await?
-        .into_iter()
-        .map(|(name, id)| (id, name))
-        .collect();
-
+    let directory = &context.directory;
     let boards: Vec<Value> = leaderboards
         .leaderboards
         .into_iter()
         .map(|board| {
-            serde_json::json!({
-                "skill": board.skill,
-                "entries": board.entries.into_iter().map(|entry| serde_json::json!({
-                    "rank": entry.rank,
-                    "name": names.get(&entry.account.id).cloned().unwrap_or(entry.account.name),
-                    "gain": entry.gain,
-                })).collect::<Vec<_>>(),
-            })
+            let entries: Vec<Value> = board
+                .entries
+                .into_iter()
+                .filter(|entry| !directory.is_hidden(&entry.account.id))
+                .map(|entry| {
+                    serde_json::json!({
+                        "rank": entry.rank,
+                        "name": directory.member_name(&entry.account.id).unwrap_or(entry.account.name),
+                        "gain": entry.gain,
+                    })
+                })
+                .collect();
+            serde_json::json!({ "skill": board.skill, "entries": entries })
         })
         .collect();
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -373,17 +404,11 @@ pub async fn get_gains(
 // Location trails
 // ----------------------------------------------------------------------------
 
-#[derive(Deserialize)]
-pub struct LocationsQuery {
-    #[serde(default)]
-    days: Option<i64>,
-}
-
 /// Drops consecutive points on the same tile and evenly thins long trails,
 /// always keeping the newest point. Output: `[x, y, plane, unix seconds]`.
-pub fn thin_trail(points: &HubLocations, max_points: usize) -> Vec<[i64; 4]> {
-    let mut trail: Vec<[i64; 4]> = Vec::with_capacity(points.points.len());
-    for point in &points.points {
+pub fn thin_trail(points: &[HubLocationPoint], max_points: usize) -> Vec<[i64; 4]> {
+    let mut trail: Vec<[i64; 4]> = Vec::with_capacity(points.len());
+    for point in points {
         let entry = [
             point.x as i64,
             point.y as i64,
@@ -407,60 +432,142 @@ pub fn thin_trail(points: &HubLocations, max_points: usize) -> Vec<[i64; 4]> {
     trail
 }
 
-#[get("/hub/locations/{member}")]
-pub async fn get_locations(
-    auth: Authenticated,
-    path: web::Path<String>,
-    query: web::Query<LocationsQuery>,
+#[derive(Deserialize)]
+pub struct TrailsQuery {
+    #[serde(default)]
+    members: Option<String>,
+    #[serde(default)]
+    days: Option<i64>,
+}
+
+/// Trails of several accounts from the hub's bulk `/locations`. One unreadable
+/// account fails a bulk request, so a 404 is retried account by account.
+/// Returns the points per hub id; an account missing from the map isn't shared.
+async fn fetch_trails(
+    context: &HubContext,
+    ids: &[String],
+    days: i64,
+) -> Result<HashMap<String, Vec<HubLocationPoint>>, HubError> {
+    let from = (Utc::now() - ChronoDuration::days(days)).to_rfc3339();
+    let fetch = |chunk: Vec<String>| {
+        let from = from.clone();
+        let client = Arc::clone(&context.client);
+        async move {
+            let key = format!("locations:{}:{}", days, chunk.join(","));
+            context
+                .cache
+                .get_or_fetch(&key, LOCATIONS_TTL, || async {
+                    fetch_value::<Value>(
+                        &client,
+                        "/locations",
+                        &[("accounts", chunk.join(",")), ("from", from.clone())],
+                    )
+                    .await
+                })
+                .await
+        }
+    };
+
+    let mut result = HashMap::new();
+    for chunk in ids.chunks(bulk_accounts(context)) {
+        let values = match fetch(chunk.to_vec()).await {
+            Ok(value) => vec![value],
+            Err(HubError::NotFound) => {
+                let mut values = Vec::new();
+                for id in chunk {
+                    match fetch(vec![id.clone()]).await {
+                        Ok(value) => values.push(value),
+                        Err(HubError::NotFound) => {}
+                        Err(err) => return Err(err),
+                    }
+                }
+                values
+            }
+            Err(err) => return Err(err),
+        };
+        for value in values {
+            for account in parse::<HubLocationsMulti>(&value)?.accounts {
+                result.insert(account.account.id, account.points);
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[get("/hub/trails")]
+pub async fn get_trails(
+    _auth: Authenticated,
+    query: web::Query<TrailsQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-    db_pool: web::Data<Pool>,
 ) -> Result<HttpResponse, Error> {
     if let Err(response) = history_enabled(&config) {
         return Ok(response);
     }
     let days = query.days.unwrap_or(1).clamp(1, 30);
-    let member = path.into_inner();
-
-    let db_client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let hub_id = db::get_hub_bindings(&db_client, auth.group_id)
-        .await?
+    let members = list_param(query.members.as_deref());
+    if members.is_empty() || members.len() > MAX_TRAILS {
+        return Ok(HttpResponse::BadRequest().body(format!("give 1 to {} members", MAX_TRAILS)));
+    }
+    let ids: Vec<(String, Option<String>)> = members
         .into_iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case(&member))
-        .map(|(_, id)| id);
-    let Some(hub_id) = hub_id else {
-        return Ok(hub_error_response(HubError::NotFound));
+        .map(|member| {
+            let id = context.directory.hub_id(&member);
+            (member, id)
+        })
+        .collect();
+    let known: Vec<String> = ids.iter().filter_map(|(_, id)| id.clone()).collect();
+    let mut points = if known.is_empty() {
+        HashMap::new()
+    } else {
+        match fetch_trails(&context, &known, days).await {
+            Ok(points) => points,
+            Err(err) => return Ok(hub_error_response(err)),
+        }
     };
-    let client = Arc::clone(&context.client);
-
-    let from = (Utc::now() - ChronoDuration::days(days)).to_rfc3339();
-    let path = format!("/accounts/{}/locations", urlencoding::encode(&hub_id));
-    let value = context
-        .cache
-        .get_or_fetch(
-            &format!("locations:{}:{}", hub_id, days),
-            LOCATIONS_TTL,
-            || async { fetch_value::<Value>(&client, &path, &[("from", from.clone())]).await },
-        )
-        .await;
-    let value = match value {
-        Ok(value) => value,
-        Err(err) => return Ok(hub_error_response(err)),
-    };
-    let locations: HubLocations = match serde_json::from_value((*value).clone()) {
-        Ok(locations) => locations,
-        Err(err) => return Ok(hub_error_response(HubError::Other(err.to_string()))),
-    };
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "member": member,
-        "days": days,
-        "points": thin_trail(&locations, MAX_TRAIL_POINTS),
-    })))
+    let trails: Vec<Value> = ids
+        .into_iter()
+        .map(|(member, id)| match id.and_then(|id| points.remove(&id)) {
+            Some(trail) => serde_json::json!({
+                "member": member,
+                "shared": true,
+                "points": thin_trail(&trail, MAX_TRAIL_POINTS),
+            }),
+            None => serde_json::json!({ "member": member, "shared": false }),
+        })
+        .collect();
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "days": days, "trails": trails })))
 }
 
 // ----------------------------------------------------------------------------
 // Events feed
 // ----------------------------------------------------------------------------
+
+/// An event as the site gets it: the member's name on the map, and only the
+/// parts of the plugin's event object the site shows.
+pub(crate) fn event_json(seq: Option<u64>, event: &HubEvent, directory: &HubDirectory) -> Value {
+    let (location, items, source) = event_details(event);
+    serde_json::json!({
+        "seq": seq,
+        "id": event.id,
+        "type": event.event_type,
+        "member": directory.member_name(&event.account.id).unwrap_or_else(|| event.account.name.clone()),
+        "occurred_at": event.occurred_at,
+        "value_gp": event.value_gp,
+        "item_id": event.item_id,
+        "npc_id": event.npc_id,
+        "skill": event.skill,
+        "level": event.level,
+        "tier": event.tier,
+        "points": event.points,
+        "special_world": event.special_world.unwrap_or(false),
+        "title": event.title,
+        "line": event.line,
+        "location": location,
+        "items": items,
+        "source": source,
+    })
+}
 
 #[derive(Deserialize)]
 pub struct EventsQuery {
@@ -470,8 +577,15 @@ pub struct EventsQuery {
     member: Option<String>,
     #[serde(default)]
     limit: Option<usize>,
+    /// Only events after this `seq` (from an earlier response).
+    #[serde(default)]
+    after: Option<u64>,
+    #[serde(default)]
+    min_value: Option<i64>,
 }
 
+/// Newest first. `latest` is the newest `seq` the server has, so a client can
+/// start following from "now" without receiving old events.
 #[get("/hub/events")]
 pub async fn get_events(
     _auth: Authenticated,
@@ -482,35 +596,127 @@ pub async fn get_events(
     if let Err(response) = history_enabled(&config) {
         return Ok(response);
     }
-    let types: Vec<String> = query
-        .types
-        .as_deref()
-        .unwrap_or("")
-        .split(',')
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .map(str::to_owned)
-        .collect();
+    let types = list_param(query.types.as_deref());
+    let account_id = match query.member.as_deref() {
+        Some(member) => match context.directory.hub_id(member) {
+            Some(id) => Some(id),
+            None => return Ok(HttpResponse::Ok().json(Vec::<Value>::new())),
+        },
+        None => None,
+    };
     let limit = query.limit.unwrap_or(100).clamp(1, 500);
-    let events = context.events.query(&types, query.member.as_deref(), limit);
-    let events: Vec<Value> = events
-        .into_iter()
-        .map(|event| {
-            serde_json::json!({
-                "id": event.id,
-                "type": event.event_type,
-                "member": event.account.name,
-                "occurred_at": event.occurred_at,
-                "value_gp": event.value_gp,
-                "item_id": event.item_id,
-                "skill": event.skill,
-                "level": event.level,
-                "title": event.title,
-                "line": event.line,
-            })
+    let filter = EventFilter {
+        types: &types,
+        account_id: account_id.as_deref(),
+        after: query.after,
+        min_value: query.min_value,
+    };
+    let directory = &context.directory;
+    let events: Vec<Value> = context
+        .events
+        .query(&filter, limit)
+        .iter()
+        .filter(|buffered| !directory.is_hidden(&buffered.event.account.id))
+        .map(|buffered| event_json(Some(buffered.seq), &buffered.event, directory))
+        .collect();
+    Ok(HttpResponse::Ok()
+        .insert_header(("X-Events-Latest", context.events.latest_seq().to_string()))
+        .json(events))
+}
+
+// ----------------------------------------------------------------------------
+// Loot leaderboard
+// ----------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct LootQuery {
+    #[serde(default)]
+    period: Option<String>,
+    #[serde(default)]
+    limit: Option<usize>,
+}
+
+/// The period's most valuable drops. Falls back to the buffered events (marked
+/// `partial`) when the hub predates `/leaderboards/loot`.
+#[get("/hub/leaderboards/loot")]
+pub async fn get_loot_leaderboard(
+    _auth: Authenticated,
+    query: web::Query<LootQuery>,
+    config: web::Data<Config>,
+    context: web::Data<HubContext>,
+) -> Result<HttpResponse, Error> {
+    if let Err(response) = history_enabled(&config) {
+        return Ok(response);
+    }
+    let period = match query.period.as_deref().unwrap_or("week") {
+        period @ ("day" | "week" | "month") => period.to_owned(),
+        _ => return Ok(HttpResponse::BadRequest().body("period must be day, week or month")),
+    };
+    let limit = query.limit.unwrap_or(10).clamp(1, 50);
+    let client = Arc::clone(&context.client);
+    let value = context
+        .cache
+        .get_or_fetch(&format!("loot:{}", period), LOOT_TTL, || async {
+            fetch_value::<Value>(
+                &client,
+                "/leaderboards/loot",
+                &[("period", period.clone()), ("limit", "50".to_string())],
+            )
+            .await
+        })
+        .await;
+    let directory = &context.directory;
+    let (events, partial): (Vec<HubEvent>, bool) =
+        match value.and_then(|value| parse::<HubLootLeaderboard>(&value)) {
+            Ok(board) => (
+                board.entries.into_iter().map(|entry| entry.event).collect(),
+                false,
+            ),
+            Err(HubError::NotFound) => (loot_from_buffer(&context, &period), true),
+            Err(err) => return Ok(hub_error_response(err)),
+        };
+    let entries: Vec<Value> = events
+        .iter()
+        .filter(|event| !directory.is_hidden(&event.account.id))
+        .take(limit)
+        .enumerate()
+        .map(|(index, event)| {
+            serde_json::json!({ "rank": index + 1, "event": event_json(None, event, directory) })
         })
         .collect();
-    Ok(HttpResponse::Ok().json(events))
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "period": period,
+        "partial": partial,
+        "entries": entries,
+    })))
+}
+
+/// The most valuable buffered drops of the period, for hubs without the loot leaderboard.
+fn loot_from_buffer(context: &HubContext, period: &str) -> Vec<HubEvent> {
+    let since = Utc::now()
+        - match period {
+            "day" => ChronoDuration::days(1),
+            "week" => ChronoDuration::days(7),
+            _ => ChronoDuration::days(30),
+        };
+    let types = ["loot".to_string(), "pk_loot".to_string()];
+    let filter = EventFilter {
+        types: &types,
+        ..Default::default()
+    };
+    let mut events: Vec<HubEvent> = context
+        .events
+        .query(&filter, usize::MAX)
+        .into_iter()
+        .map(|buffered| buffered.event)
+        .filter(|event| {
+            event.occurred_at >= since
+                && event.value_gp.is_some()
+                && !event.special_world.unwrap_or(false)
+        })
+        .collect();
+    events.sort_by_key(|event| std::cmp::Reverse((event.value_gp, event.occurred_at)));
+    events
 }
 
 #[cfg(test)]
@@ -564,17 +770,39 @@ mod tests {
 
     #[test]
     fn trail_drops_repeats_and_is_capped() {
-        let points: HubLocations = serde_json::from_value(serde_json::json!({
-            "points": (0..100).map(|i| serde_json::json!({
+        let points: Vec<HubLocationPoint> = serde_json::from_value(serde_json::json!((0..100)
+            .map(|i| serde_json::json!({
                 "at": format!("2026-09-29T00:{:02}:00Z", i % 60),
                 "x": 3200 + i / 2, "y": 3200, "plane": 0, "world": 302, "is_on_boat": false
-            })).collect::<Vec<_>>()
-        }))
+            }))
+            .collect::<Vec<_>>()))
         .unwrap();
         let trail = thin_trail(&points, 1000);
         assert_eq!(trail.len(), 50);
         let capped = thin_trail(&points, 10);
         assert_eq!(capped.len(), 10);
         assert_eq!(capped.last().unwrap()[0], 3249);
+    }
+
+    #[test]
+    fn events_use_the_member_name_on_the_map() {
+        let directory = HubDirectory::default();
+        directory.bind("acc-1", "Map Name");
+        let event: HubEvent = serde_json::from_value(serde_json::json!({
+            "id": "e1", "type": "loot", "account": {"id": "acc-1", "name": "Hub Name"},
+            "occurred_at": "2026-09-29T14:13:40.046Z", "value_gp": 10
+        }))
+        .unwrap();
+        let json = event_json(Some(4), &event, &directory);
+        assert_eq!(json["member"], "Map Name");
+        assert_eq!(json["seq"], 4);
+        let unbound = HubDirectory::default();
+        assert_eq!(event_json(None, &event, &unbound)["member"], "Hub Name");
+    }
+
+    #[test]
+    fn list_params_are_trimmed() {
+        assert_eq!(list_param(Some(" a, b ,,c")), vec!["a", "b", "c"]);
+        assert!(list_param(None).is_empty());
     }
 }

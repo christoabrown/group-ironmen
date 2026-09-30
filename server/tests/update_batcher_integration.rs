@@ -91,7 +91,8 @@ async fn get_member_from_db(client: &Object, group_id: i64, name: &str) -> Group
     let epoch = chrono::DateTime::from_timestamp(0, 0).unwrap();
     let members = db::get_group_data(client, group_id, &epoch)
         .await
-        .expect("failed to get group data");
+        .expect("failed to get group data")
+        .members;
     members
         .into_iter()
         .find(|m| m.name == name)
@@ -370,7 +371,8 @@ async fn test_non_member_update_is_silent_noop() {
     let epoch = chrono::DateTime::from_timestamp(0, 0).unwrap();
     let members = db::get_group_data(&client, group_id, &epoch)
         .await
-        .expect("failed to get group data");
+        .expect("failed to get group data")
+        .roster;
     assert!(
         !members.iter().any(|m| m.name == "ghost"),
         "non-member 'ghost' should not appear in group data"
@@ -380,7 +382,7 @@ async fn test_non_member_update_is_silent_noop() {
 }
 
 #[tokio::test]
-async fn test_resending_unchanged_value_refreshes_timestamp() {
+async fn test_resending_unchanged_value_keeps_timestamp() {
     let _guard = TEST_MUTEX.lock().await;
     let pool = create_test_pool().await;
     let group_id = setup_test_group(&pool).await;
@@ -412,11 +414,11 @@ async fn test_resending_unchanged_value_refreshes_timestamp() {
     let alice_after_2 = get_member_from_db(&client, group_id, "alice").await;
     let ts2 = alice_after_2.last_updated.unwrap();
 
-    // Data sources resend unchanged state as a heartbeat; the site uses the
-    // timestamps to decide whether a member is online, so they must advance.
-    assert!(
-        ts2 > ts1,
-        "timestamp should advance when an identical value is resent ({ts1} -> {ts2})"
+    // The site polls for changes since a time; resent unchanged data must
+    // not look like a change.
+    assert_eq!(
+        ts2, ts1,
+        "timestamp should stay when an identical value is resent"
     );
     assert_eq!(alice_after_2.stats, Some(vec![10, 10, 5, 5, 0, 0, 301]));
 

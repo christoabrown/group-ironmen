@@ -9,16 +9,25 @@ use tokio::time::{self, Duration, Instant};
 static BATCH_SIZE: usize = 5000;
 static CHUNK_SIZE: usize = 50;
 
-/// Every `<column>_last_update` is set explicitly whenever a value is supplied,
-/// even if the value itself did not change. The hub sync resends unchanged
-/// state as a heartbeat and the site relies on these timestamps to decide
-/// whether a member is online. The timestamp is the update's `source_time`
-/// when given, NOW() otherwise.
+/// A `<column>_last_update` means "when the map stored a new value": it is set
+/// to NOW() only when a supplied value differs from the stored one. The site
+/// polls for changes since a time, so resending unchanged data costs nothing.
+/// Whether a player is online is tracked separately (`hub_online`).
 ///
 /// Number of columns per member update row. With 8 columns, the PostgreSQL
 /// parameter-count limit (65,535) allows a maximum chunk size of 65535 / 8 =
 /// 8191 rows when using the VALUES approach.
 const COLUMNS_PER_ROW: usize = 8;
+
+/// The member columns the batcher writes; each has a `<column>_last_update`.
+const COLUMNS: [(&str, &str); 6] = [
+    ("stats", "int4[]"),
+    ("coordinates", "int4[]"),
+    ("skills", "int4[]"),
+    ("inventory", "int4[]"),
+    ("equipment", "int4[]"),
+    ("hub_meta", "jsonb"),
+];
 
 pub async fn background_worker(
     pool: Pool,
@@ -148,16 +157,13 @@ fn merge_group_member(older: &mut GroupMember, newer: &GroupMember) {
     if newer.equipment.is_some() {
         older.equipment = newer.equipment.clone();
     }
+    if newer.meta.is_some() {
+        older.meta = newer.meta.clone();
+    }
 
     if newer.last_updated.is_some() {
         older.last_updated = newer.last_updated;
     }
-
-    // A live update (no source_time, stored as NOW()) is always the newest.
-    older.source_time = match (older.source_time, newer.source_time) {
-        (_, None) | (None, _) => None,
-        (Some(a), Some(b)) => Some(a.max(b)),
-    };
 
     older.name = newer.name.clone();
     older.group_id = newer.group_id;
@@ -169,37 +175,44 @@ fn build_values_statement(size: usize) -> String {
     let values = (0..size)
         .map(|row| {
             let offset = row * COLUMNS_PER_ROW;
+            let columns: Vec<String> = COLUMNS
+                .iter()
+                .enumerate()
+                .map(|(i, (_, sql_type))| format!("${}::{}", offset + 3 + i, sql_type))
+                .collect();
             format!(
-                "(${}::int8,${}::text,${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::int4[],${}::timestamptz)",
+                "(${}::int8,${}::text,{})",
                 offset + 1,
                 offset + 2,
-                offset + 3,
-                offset + 4,
-                offset + 5,
-                offset + 6,
-                offset + 7,
-                offset + 8,
+                columns.join(",")
             )
         })
         .collect::<Vec<_>>()
         .join(",");
 
+    let assignments = COLUMNS
+        .iter()
+        .map(|(column, _)| {
+            format!(
+                "  {column} = COALESCE(b.{column}, a.{column}),\n  \
+                 {column}_last_update = CASE WHEN b.{column} IS NOT NULL \
+                 AND b.{column} IS DISTINCT FROM a.{column} THEN NOW() \
+                 ELSE a.{column}_last_update END"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    let column_names = COLUMNS
+        .iter()
+        .map(|(column, _)| *column)
+        .collect::<Vec<_>>()
+        .join(", ");
+
     format!(
         r#"
 UPDATE groupironman.members AS a SET
-  stats = COALESCE(b.stats, a.stats),
-  stats_last_update = CASE WHEN b.stats IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.stats_last_update END,
-  coordinates = COALESCE(b.coordinates, a.coordinates),
-  coordinates_last_update = CASE WHEN b.coordinates IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.coordinates_last_update END,
-  skills = COALESCE(b.skills, a.skills),
-  skills_last_update = CASE WHEN b.skills IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.skills_last_update END,
-  inventory = COALESCE(b.inventory, a.inventory),
-  inventory_last_update = CASE WHEN b.inventory IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.inventory_last_update END,
-  equipment = COALESCE(b.equipment, a.equipment),
-  equipment_last_update = CASE WHEN b.equipment IS NOT NULL THEN COALESCE(b.source_time, NOW()) ELSE a.equipment_last_update END
-FROM (VALUES {values}) AS b(
-  group_id, member_name, stats, coordinates, skills, inventory, equipment, source_time
-)
+{assignments}
+FROM (VALUES {values}) AS b(group_id, member_name, {column_names})
 WHERE a.group_id = b.group_id AND a.member_name = b.member_name::citext
 "#
     )
@@ -252,7 +265,7 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
         params.push(&member_data.skills);
         params.push(&member_data.inventory);
         params.push(&member_data.equipment);
-        params.push(&member_data.source_time);
+        params.push(&member_data.meta);
     }
 
     if let Err(e) = client.execute(&update_stmt, &params).await {

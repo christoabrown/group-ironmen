@@ -97,7 +97,7 @@ fn default_full_refresh_secs() -> u64 {
     120
 }
 fn default_events_poll_secs() -> u64 {
-    15
+    5
 }
 fn default_timeout_secs() -> u64 {
     10

@@ -1,6 +1,8 @@
 /* global Chart */
 import { BaseElement } from "../base-element/base-element";
 import { Skill, SkillName } from "../data/skill";
+import { groupData as liveGroupData } from "../data/group-data";
+import { colorForName } from "../data/player-colors";
 
 function hslToHsla(color, alpha) {
   if (color.startsWith("hsl(")) {
@@ -45,7 +47,8 @@ export class SkillGraph extends BaseElement {
 
   create(groupData) {
     if (!this.isConnected) return;
-    this.currentGroupData = groupData;
+    // A failed poll publishes without data; fall back to what we have.
+    this.currentGroupData = groupData || liveGroupData;
     this.dates = SkillGraph.datesForPeriod(this.period);
     const dataSets = this.dataSets(this.skillName);
 
@@ -210,7 +213,7 @@ export class SkillGraph extends BaseElement {
     let groupTotalLevel = 0;
     if (this.skillName === SkillName.Overall) {
       for (const name of playerNames) {
-        const member = this.currentGroupData.members.get(name);
+        const member = this.currentGroupData?.members?.get(name);
         if (member?.skills?.[SkillName.Overall]?.level) {
           groupTotalLevel += member.skills[SkillName.Overall].level;
         }
@@ -337,9 +340,11 @@ export class SkillGraph extends BaseElement {
 
   dataSets(skillName) {
     const result = [];
-    for (const playerSkillData of this.skillDataForGroup) {
+    for (const playerSkillData of this.skillDataForGroup || []) {
+      if (!playerSkillData?.skill_data?.length) continue;
       const [totalXpData, changeData, cumulativeChangeData] = this.dataForPlayer(playerSkillData, skillName);
-      const color = this.currentGroupData.members.get(playerSkillData.name).color;
+      const member = this.currentGroupData?.members?.get(playerSkillData.name);
+      const color = member?.color ?? colorForName(playerSkillData.name).color;
 
       result.push({
         type: "line",
@@ -364,7 +369,7 @@ export class SkillGraph extends BaseElement {
   }
 
   dataForPlayer(playerSkillData, skillName) {
-    const latestSkillData = this.currentGroupData.members.get(playerSkillData.name).skills;
+    const latestSkillData = this.currentGroupData?.members?.get(playerSkillData.name)?.skills;
     const completeTimeSeries = this.generateCompleteTimeSeries(playerSkillData.skill_data, latestSkillData, skillName);
     const changeData = [0];
     const cumulativeChangeData = [0];
@@ -415,7 +420,8 @@ export class SkillGraph extends BaseElement {
       }
     }
 
-    result[result.length - 1] = currentSkillData[skillName].xp;
+    const currentXp = currentSkillData?.[skillName]?.xp;
+    if (currentXp !== undefined) result[result.length - 1] = currentXp;
     return result;
   }
 

@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Default)]
+/// A member's player data. As an update (to the batcher) a `None` field is
+/// left alone; in the poll response it means "unchanged since `from_time`".
+#[derive(Deserialize, Serialize, Default, Debug)]
 pub struct GroupMember {
     #[serde(skip)]
     pub group_id: Option<i64>,
@@ -16,13 +18,33 @@ pub struct GroupMember {
     pub inventory: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub equipment: Option<Vec<i32>>,
+    /// Display details from the hub (see `hub::convert::HubMeta`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_updated: Option<DateTime<Utc>>,
-    /// When the data was observed at its source. The batcher stores it as the
-    /// `*_last_update` timestamp of each supplied field instead of NOW(), so
-    /// data imported for a player who is offline is not shown as online.
+    pub meta: Option<serde_json::Value>,
+    /// When any of the fields last changed.
     #[serde(skip)]
-    pub source_time: Option<DateTime<Utc>>,
+    pub last_updated: Option<DateTime<Utc>>,
+}
+
+/// Who is on the roster, sent in full on every poll: it is small, and it is
+/// how the site learns about renames, removals and presence.
+#[derive(Serialize, Debug, Clone)]
+pub struct RosterEntry {
+    pub name: String,
+    pub online: bool,
+    pub last_seen: Option<DateTime<Utc>>,
+    /// The hub no longer shares this account.
+    pub orphaned: bool,
+}
+
+/// `GET /api/group/get-group-data`.
+#[derive(Serialize, Debug)]
+pub struct GroupDataResponse {
+    /// Pass as `from_time` next time.
+    pub cursor: DateTime<Utc>,
+    pub roster: Vec<RosterEntry>,
+    /// Only members with data that changed at or after `from_time`.
+    pub members: Vec<GroupMember>,
 }
 #[derive(Serialize)]
 pub struct AggregateSkillData {
@@ -124,6 +146,10 @@ pub struct PlayerInfo {
     pub hub_linked: bool,
     /// Set when the hub no longer shows this player's account.
     pub hub_orphaned_at: Option<DateTime<Utc>>,
+    pub online: bool,
+    pub last_seen: Option<DateTime<Utc>>,
+    /// Hidden by an admin: left out of the map and not synced.
+    pub hidden: bool,
 }
 
 #[derive(Serialize)]

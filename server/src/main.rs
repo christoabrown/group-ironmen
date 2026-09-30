@@ -55,6 +55,10 @@ async fn main() -> std::io::Result<()> {
     }));
     let hub_client = hub::client::HubClient::new(&config.hub);
     let hub_events = hub::events::EventBuffer::default();
+    let hub_directory = hub::directory::HubDirectory::load(&client, group_id)
+        .await
+        .unwrap();
+    let sync_control = hub::sync::SyncControl::default();
     let hub_capabilities = hub::SharedKeyCapabilities::default();
     if let Some(status) = hub_status.write().ok().as_mut() {
         status.request_budget_per_min = hub_client.budget_per_min();
@@ -73,6 +77,8 @@ async fn main() -> std::io::Result<()> {
         group_id,
         config: config.hub.clone(),
         status: Arc::clone(&hub_status),
+        directory: hub_directory.clone(),
+        control: sync_control.clone(),
     });
     if config.hub_history_enabled() {
         hub::events::start(
@@ -88,6 +94,8 @@ async fn main() -> std::io::Result<()> {
         cache: Arc::new(hub::cache::TtlCache::new()),
         events: hub_events,
         capabilities: hub_capabilities,
+        directory: hub_directory,
+        sync_control,
     });
 
     let last_seen = LastSeenThrottle::default();
@@ -121,6 +129,7 @@ async fn main() -> std::io::Result<()> {
             .service(admin_routes::get_audit_log)
             .service(admin_routes::list_players)
             .service(admin_routes::delete_player)
+            .service(admin_routes::set_player_hidden)
             .service(admin_routes::get_user_players)
             .service(admin_routes::get_player_users)
             .service(admin_routes::link_player_user)
@@ -135,8 +144,14 @@ async fn main() -> std::io::Result<()> {
             .service(authed::get_skill_data)
             .service(hub::routes::get_features)
             .service(hub::proxy::get_gains)
-            .service(hub::proxy::get_locations)
-            .service(hub::proxy::get_events);
+            .service(hub::proxy::get_trails)
+            .service(hub::proxy::get_events)
+            .service(hub::proxy::get_loot_leaderboard)
+            .service(hub::profile::get_player_gains)
+            .service(hub::profile::get_player_sessions)
+            .service(hub::profile::get_player_wealth)
+            .service(hub::profile::get_player_equipment_history)
+            .service(hub::profile::get_player_events);
 
         // Public endpoints
         let unauthed_scope = web::scope("/api").service(unauthed::get_ge_prices);
@@ -158,9 +173,11 @@ async fn main() -> std::io::Result<()> {
             .supports_credentials()
             .max_age(3600);
         App::new()
-            .wrap(middleware::Logger::new(
-                "\"%r\" %s %b \"%{User-Agent}i\" %D",
-            ))
+            .wrap(
+                middleware::Logger::new("\"%r\" %s %b \"%{User-Agent}i\" %D")
+                    // Every open page polls this every couple of seconds.
+                    .exclude("/api/group/get-group-data"),
+            )
             .wrap(middleware::Compress::default())
             .wrap(cors)
             .app_data(web::PayloadConfig::new(100000))

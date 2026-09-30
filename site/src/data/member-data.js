@@ -1,28 +1,9 @@
 import { Item } from "./item";
 import { Skill, SkillName } from "./skill";
 import { pubsub } from "./pubsub";
-import { utility } from "../utility";
-
-const playerColors = [
-  "hsl(41, 100%, 40%)", // yellow
-  "hsl(151, 69%, 26%)", // green
-  "hsl(210, 50%, 40%)", // blue
-  "hsl(355, 76%, 36%)", // red
-  "hsl(288, 65%, 45%)", // purple
-];
-let currentColor = 0;
+import { colorForName } from "./player-colors";
 
 export const memberInventoryFields = ["inventory", "equipment"];
-
-const parsedFieldMappings = [
-  {
-    sourceKey: "stats",
-    targetKey: "stats",
-    parser: (value) => value,
-    publishKey: "stats",
-    updatedAttribute: "stats",
-  },
-];
 
 const itemFieldMappings = [
   {
@@ -48,33 +29,53 @@ export class MemberData {
     for (const inventoryField of memberInventoryFields) {
       this.itemQuantities[inventoryField] = new Map();
     }
-    this.inactive = false;
+    this.online = false;
+    this.lastSeen = null;
+    this.orphaned = false;
+    this.meta = null;
 
-    this.color = playerColors[currentColor];
-    currentColor = (currentColor + 1) % playerColors.length;
-    // Store the hue for player-icon
-    this.hue = this.color.substring(this.color.indexOf("(") + 1, this.color.indexOf(","));
+    const { hue, color, light } = colorForName(name);
+    this.hue = hue;
+    this.color = color;
+    this.lightColor = light;
+  }
+
+  /** Offline, for components written before presence came from the hub. */
+  get inactive() {
+    return !this.online;
+  }
+
+  /** Applies a roster entry. Returns whether anything changed. */
+  updatePresence({ online, last_seen, orphaned }) {
+    const lastSeen = last_seen ? new Date(last_seen) : null;
+    const changed =
+      this.online !== online ||
+      this.orphaned !== Boolean(orphaned) ||
+      (this.lastSeen?.getTime() ?? null) !== (lastSeen?.getTime() ?? null);
+    const wentOnline = online && !this.online;
+    const wentOffline = !online && this.online;
+    this.online = online;
+    this.lastSeen = lastSeen;
+    this.orphaned = Boolean(orphaned);
+    if (changed) this.publishUpdate("presence", "online");
+    if (wentOnline) this.publishUpdate("active");
+    if (wentOffline) this.publishUpdate("inactive");
+    return changed;
   }
 
   update(memberData) {
     let updatedAttributes = new Set();
 
-    for (const field of parsedFieldMappings) {
-      this.applyParsedFieldUpdate(memberData, field, updatedAttributes);
+    if (memberData.stats) {
+      this.stats = memberData.stats;
+      this.publishUpdate("stats");
+      updatedAttributes.add("stats");
     }
 
-    if (memberData.last_updated) {
-      this.lastUpdated = new Date(memberData.last_updated);
-      const timeSinceLastUpdated = utility.timeSinceLastUpdate(memberData.last_updated);
-      let wasInactive = this.inactive;
-
-      this.inactive = !isNaN(timeSinceLastUpdated) && timeSinceLastUpdated > 300 * 1000;
-
-      if (!wasInactive && this.inactive) {
-        this.publishUpdate("inactive");
-      } else if (wasInactive && !this.inactive) {
-        this.publishUpdate("active");
-      }
+    if (memberData.meta) {
+      this.meta = memberData.meta;
+      this.publishUpdate("meta");
+      updatedAttributes.add("meta");
     }
 
     if (memberData.coordinates) {
@@ -98,13 +99,6 @@ export class MemberData {
     }
 
     return updatedAttributes;
-  }
-
-  applyParsedFieldUpdate(memberData, field, updatedAttributes) {
-    if (!memberData[field.sourceKey]) return;
-    this[field.targetKey] = field.parser(memberData[field.sourceKey]);
-    this.publishUpdate(field.publishKey, field.publishValueKey);
-    updatedAttributes.add(field.updatedAttribute);
   }
 
   applyItemFieldUpdate(memberData, field, updatedAttributes) {
@@ -132,16 +126,6 @@ export class MemberData {
     for (const item of this.itemsIn(inventoryName)) {
       const x = this.itemQuantities[inventoryName];
       x.set(item.id, (x.get(item.id) || 0) + item.quantity);
-    }
-  }
-
-  *allItems() {
-    const yieldedIds = new Set();
-    for (const item of this.itemsIn(...memberInventoryFields)) {
-      if (!yieldedIds.has(item.id)) {
-        yieldedIds.add(item.id);
-        yield item;
-      }
     }
   }
 

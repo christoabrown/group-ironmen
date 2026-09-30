@@ -4,6 +4,8 @@ import { api } from "../data/api";
 import { storage } from "../data/storage";
 import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
+import { liveEvents } from "../data/live-events";
+import { selection } from "../data/selection";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -26,6 +28,8 @@ export class AppInitializer extends BaseElement {
 
   cleanup() {
     api.disable();
+    liveEvents.stop();
+    selection.reset();
     // Unpublish everything to prevent any data leaking over into another session
     pubsub.unpublishAll();
     loadingScreenManager.hideLoadingScreen();
@@ -52,7 +56,9 @@ export class AppInitializer extends BaseElement {
 
   async loadWithSession(session) {
     api.setSession(session.sessionToken, session.username, session.role);
-    api.loadFeatures();
+    api.loadFeatures().then((features) => {
+      if (features.hub_history && this.isConnected) liveEvents.start();
+    });
     const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
     await api.enable();
     await firstDataEvent;

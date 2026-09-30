@@ -1,7 +1,7 @@
 use crate::error::ApiError;
 use crate::models::{
-    AggregateSkillData, AuditLogEntry, GroupMember, GroupSkillData, MemberSkillData, PlayerInfo,
-    PlayerUserLink, SessionUser, UserInfo,
+    AggregateSkillData, AuditLogEntry, GroupDataResponse, GroupMember, GroupSkillData,
+    MemberSkillData, PlayerInfo, PlayerUserLink, RosterEntry, SessionUser, UserInfo,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -97,50 +97,84 @@ pub async fn is_member_in_group(
         .try_get(0)?)
 }
 
+/// A player counts as online while the hub says so and the sync has confirmed
+/// it recently; if the sync stops (hub down), everyone goes offline.
+pub const ONLINE_CONFIRMATION: &str = "interval '5 minutes'";
+
+/// How far the returned cursor lags behind the database clock, so that updates
+/// committed by a transaction that started just before the poll are not missed.
+/// Re-sending them is harmless: the site merges by name.
+const CURSOR_OVERLAP_MS: i64 = 2000;
+
+/// The roster (every visible member with its presence) and the data of the
+/// members that changed at or after `timestamp`.
 pub async fn get_group_data(
     client: &Client,
     group_id: i64,
     timestamp: &DateTime<Utc>,
-) -> Result<Vec<GroupMember>, ApiError> {
+) -> Result<GroupDataResponse, ApiError> {
     let stmt = client
-        .prepare_cached(
+        .prepare_cached(&format!(
             r#"
-SELECT member_name,
+SELECT member_name::text AS member_name, now() AS db_now,
+(hub_online AND hub_last_seen > now() - {ONLINE_CONFIRMATION}) AS online,
+hub_last_seen, hub_orphaned_at IS NOT NULL AS orphaned,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
-inventory_last_update, equipment_last_update) as last_updated,
-CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
-CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
-CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,
-CASE WHEN inventory_last_update >= $1::TIMESTAMPTZ THEN inventory ELSE NULL END as inventory,
-CASE WHEN equipment_last_update >= $1::TIMESTAMPTZ THEN equipment ELSE NULL END as equipment
-FROM groupironman.members WHERE group_id=$2
-"#,
-        )
+inventory_last_update, equipment_last_update, hub_meta_last_update) AS last_updated,
+CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END AS stats,
+CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END AS coordinates,
+CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END AS skills,
+CASE WHEN inventory_last_update >= $1::TIMESTAMPTZ THEN inventory ELSE NULL END AS inventory,
+CASE WHEN equipment_last_update >= $1::TIMESTAMPTZ THEN equipment ELSE NULL END AS equipment,
+CASE WHEN hub_meta_last_update >= $1::TIMESTAMPTZ THEN hub_meta ELSE NULL END AS meta
+FROM groupironman.members WHERE group_id=$2 AND NOT hidden
+ORDER BY member_name
+"#
+        ))
         .await?;
 
     let rows = client
         .query(&stmt, &[&timestamp, &group_id])
         .await
         .map_err(ApiError::GetGroupDataError)?;
-    let mut result = Vec::with_capacity(rows.len());
+    let mut roster = Vec::with_capacity(rows.len());
+    let mut members = Vec::new();
+    let mut db_now: Option<DateTime<Utc>> = None;
     for row in rows {
-        let member_name = row.try_get("member_name")?;
-        let last_updated: Option<DateTime<Utc>> = row.try_get("last_updated").ok();
-        let group_member = GroupMember {
+        db_now = Some(row.try_get("db_now")?);
+        let name: String = row.try_get("member_name")?;
+        roster.push(RosterEntry {
+            name: name.clone(),
+            online: row.try_get("online")?,
+            last_seen: row.try_get("hub_last_seen")?,
+            orphaned: row.try_get("orphaned")?,
+        });
+        let last_updated: Option<DateTime<Utc>> = row.try_get("last_updated")?;
+        if last_updated.is_none_or(|at| at < *timestamp) {
+            continue;
+        }
+        members.push(GroupMember {
             group_id: Some(group_id),
-            name: member_name,
+            name,
             last_updated,
-            stats: row.try_get("stats").ok(),
-            coordinates: row.try_get("coordinates").ok(),
-            skills: row.try_get("skills").ok(),
-            inventory: row.try_get("inventory").ok(),
-            equipment: row.try_get("equipment").ok(),
-            source_time: None,
-        };
-        result.push(group_member);
+            stats: row.try_get("stats")?,
+            coordinates: row.try_get("coordinates")?,
+            skills: row.try_get("skills")?,
+            inventory: row.try_get("inventory")?,
+            equipment: row.try_get("equipment")?,
+            meta: row.try_get("meta")?,
+        });
     }
 
-    Ok(result)
+    let now = match db_now {
+        Some(now) => now,
+        None => client.query_one("SELECT now()", &[]).await?.try_get(0)?,
+    };
+    Ok(GroupDataResponse {
+        cursor: now - chrono::Duration::milliseconds(CURSOR_OVERLAP_MS),
+        roster,
+        members,
+    })
 }
 
 pub enum AggregatePeriod {
@@ -273,7 +307,7 @@ pub async fn get_skills_for_period(
 SELECT member_name, time, s.skills
 FROM groupironman.skills_{} s
 INNER JOIN groupironman.members m ON m.member_id=s.member_id
-WHERE m.group_id=$1
+WHERE m.group_id=$1 AND NOT m.hidden
 "#,
         match period {
             AggregatePeriod::Day => "day",
@@ -355,7 +389,9 @@ pub async fn list_players(client: &Client, group_id: i64) -> Result<Vec<PlayerIn
 SELECT member_id, member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 inventory_last_update, equipment_last_update) as last_updated,
-hub_account_id IS NOT NULL as hub_linked, hub_orphaned_at
+hub_account_id IS NOT NULL as hub_linked, hub_orphaned_at,
+(hub_online AND hub_last_seen > now() - interval '5 minutes') AS online,
+hub_last_seen, hidden
 FROM groupironman.members WHERE group_id=$1
 ORDER BY member_name
 "#,
@@ -370,6 +406,9 @@ ORDER BY member_name
             last_updated: row.try_get("last_updated").ok(),
             hub_linked: row.try_get("hub_linked")?,
             hub_orphaned_at: row.try_get("hub_orphaned_at")?,
+            online: row.try_get("online")?,
+            last_seen: row.try_get("hub_last_seen")?,
+            hidden: row.try_get("hidden")?,
         });
     }
     Ok(result)
@@ -966,6 +1005,23 @@ ALTER TABLE groupironman.user_player_links ALTER COLUMN source SET DEFAULT 'manu
         transaction.commit().await?;
     }
 
+    if !has_migration_run(client, "add_presence_and_hub_meta").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+ALTER TABLE groupironman.members
+ADD COLUMN IF NOT EXISTS hub_online BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS hub_meta JSONB,
+ADD COLUMN IF NOT EXISTS hub_meta_last_update TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "add_presence_and_hub_meta").await?;
+        transaction.commit().await?;
+    }
+
     Ok(())
 }
 
@@ -1376,17 +1432,15 @@ pub async fn create_user_no_password(
 pub struct HubMemberRow {
     pub member_name: String,
     pub hub_account_id: Option<String>,
-    pub hub_last_seen: Option<DateTime<Utc>>,
-    /// Whether the member already has player data from any source.
-    pub has_data: bool,
+    /// Hidden by an admin; the sync leaves it alone.
+    pub hidden: bool,
 }
 
 fn hub_member_row(row: &tokio_postgres::Row) -> Result<HubMemberRow, ApiError> {
     Ok(HubMemberRow {
         member_name: row.try_get("member_name")?,
         hub_account_id: row.try_get("hub_account_id")?,
-        hub_last_seen: row.try_get("hub_last_seen")?,
-        has_data: row.try_get("has_data")?,
+        hidden: row.try_get("hidden")?,
     })
 }
 
@@ -1397,9 +1451,7 @@ pub async fn get_member_by_hub_id(
 ) -> Result<Option<HubMemberRow>, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT member_name::text, hub_account_id, hub_last_seen, (GREATEST(stats_last_update, \
-             coordinates_last_update, skills_last_update) IS NOT NULL) AS has_data \
-             FROM groupironman.members \
+            "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
              WHERE group_id=$1 AND hub_account_id=$2",
         )
         .await?;
@@ -1420,9 +1472,7 @@ pub async fn find_member_for_hub_account(
     if let Some(account_hash) = account_hash {
         let stmt = client
             .prepare_cached(
-                "SELECT member_name::text, hub_account_id, hub_last_seen, (GREATEST(stats_last_update, \
-             coordinates_last_update, skills_last_update) IS NOT NULL) AS has_data \
-             FROM groupironman.members \
+                "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
                  WHERE group_id=$1 AND account_hash=$2 ORDER BY member_id LIMIT 1",
             )
             .await?;
@@ -1432,9 +1482,7 @@ pub async fn find_member_for_hub_account(
     }
     let stmt = client
         .prepare_cached(
-            "SELECT member_name::text, hub_account_id, hub_last_seen, (GREATEST(stats_last_update, \
-             coordinates_last_update, skills_last_update) IS NOT NULL) AS has_data \
-             FROM groupironman.members \
+            "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
              WHERE group_id=$1 AND member_name=$2",
         )
         .await?;
@@ -1470,22 +1518,44 @@ pub async fn bind_hub_account(
     Ok(())
 }
 
-pub async fn set_hub_seen(
+/// Records whether the hub reports the member online, and when it was last seen.
+pub async fn set_hub_presence(
     client: &Client,
     group_id: i64,
     member_name: &str,
-    hub_last_seen: Option<DateTime<Utc>>,
+    online: bool,
+    last_seen: Option<DateTime<Utc>>,
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "UPDATE groupironman.members SET hub_last_seen=COALESCE($3, hub_last_seen, NOW()) \
+            "UPDATE groupironman.members SET hub_online=$3, \
+             hub_last_seen=COALESCE($4, hub_last_seen, NOW()) \
              WHERE group_id=$1 AND member_name=$2",
         )
         .await?;
     client
-        .execute(&stmt, &[&group_id, &member_name, &hub_last_seen])
+        .execute(&stmt, &[&group_id, &member_name, &online, &last_seen])
         .await?;
     Ok(())
+}
+
+/// Hides a member from the map (and from the sync), or shows it again.
+/// Returns whether the member exists.
+pub async fn set_member_hidden(
+    client: &Client,
+    group_id: i64,
+    member_name: &str,
+    hidden: bool,
+) -> Result<bool, ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "UPDATE groupironman.members SET hidden=$3 WHERE group_id=$1 AND member_name=$2",
+        )
+        .await?;
+    Ok(client
+        .execute(&stmt, &[&group_id, &member_name, &hidden])
+        .await?
+        > 0)
 }
 
 /// Renames a member that is bound to a hub account, keeping user links in step.
@@ -1529,7 +1599,7 @@ pub async fn mark_hub_orphans(
         .await?;
     client
         .execute(
-            "UPDATE groupironman.members SET hub_orphaned_at=NOW() \
+            "UPDATE groupironman.members SET hub_orphaned_at=NOW(), hub_online=FALSE \
              WHERE group_id=$1 AND hub_account_id IS NOT NULL \
              AND NOT (hub_account_id = ANY($2)) AND hub_orphaned_at IS NULL",
             &[&group_id, &visible_ids],
@@ -1546,20 +1616,20 @@ pub async fn mark_hub_orphans(
     Ok(count)
 }
 
-/// Member name and hub account id of every member bound to the hub.
+/// Member name, hub account id and hidden flag of every member bound to the hub.
 pub async fn get_hub_bindings(
     client: &Client,
     group_id: i64,
-) -> Result<Vec<(String, String)>, ApiError> {
+) -> Result<Vec<(String, String, bool)>, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT member_name::text, hub_account_id FROM groupironman.members \
+            "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
              WHERE group_id=$1 AND hub_account_id IS NOT NULL",
         )
         .await?;
     let rows = client.query(&stmt, &[&group_id]).await?;
     rows.iter()
-        .map(|row| Ok((row.try_get(0)?, row.try_get(1)?)))
+        .map(|row| Ok((row.try_get(0)?, row.try_get(1)?, row.try_get(2)?)))
         .collect()
 }
 

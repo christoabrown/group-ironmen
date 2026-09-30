@@ -1,0 +1,213 @@
+player-roster {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  color: white;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+
+.player-roster__header {
+  padding: 8px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.player-roster__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.player-roster__title h4 {
+  margin: 0;
+  font-family: "rsbold", ui-sans-serif, Arial, sans-serif;
+}
+
+.player-roster__count {
+  color: #bbb;
+  font-size: 0.85rem;
+}
+
+.player-roster__search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.player-roster__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.player-roster__chips {
+  display: flex;
+  gap: 4px;
+}
+
+.player-roster__chips .men-button.active {
+  filter: brightness(1.5);
+}
+
+.player-roster__sort {
+  max-width: 110px;
+}
+
+.player-roster__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.player-roster__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 8px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.player-roster__row:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.player-roster__row--selected {
+  background: rgba(255, 152, 31, 0.18);
+  border-left-color: var(--orange);
+}
+
+.player-roster__row--offline {
+  opacity: 0.6;
+}
+
+.player-roster__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--player-color);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+
+.player-roster__row--offline .player-roster__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--player-color);
+}
+
+.player-roster__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-roster__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.player-roster__name {
+  color: var(--player-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-roster__badge {
+  font-size: 0.7rem;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ddd;
+}
+
+.player-roster__badge:empty {
+  display: none;
+}
+
+.player-roster__badge[data-type="3"],
+.player-roster__badge[data-type="5"] {
+  background: rgba(200, 30, 30, 0.6);
+}
+
+.player-roster__badge[data-type="4"],
+.player-roster__badge[data-type="6"] {
+  background: rgba(30, 140, 60, 0.6);
+}
+
+.player-roster__world {
+  margin-left: auto;
+  color: #9fd2ff;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.player-roster__line--sub {
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #bbb;
+}
+
+.player-roster__place {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-roster__level {
+  color: #ddd;
+}
+
+.player-roster__hp {
+  height: 3px;
+  margin-top: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.player-roster__hp-fill {
+  height: 100%;
+  background: #1f9d55;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.4s;
+}
+
+.player-roster__trail {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  opacity: 0.45;
+  background: no-repeat center / 16px 16px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 13c3-1 2-5 5-5s2 4 5 3 2-6 2-6' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-dasharray='2 2'/%3E%3C/svg%3E");
+}
+
+.player-roster__row:hover .player-roster__trail {
+  opacity: 0.8;
+}
+
+.player-roster__trail.active {
+  opacity: 1;
+  background-color: var(--player-color);
+}
+
+.player-roster__empty {
+  padding: 12px;
+  color: #aaa;
+  font-style: italic;
+}

@@ -3,30 +3,33 @@
 //! - Polls with `since` and `If-None-Match`, and fetches the full snapshot at
 //!   start-up and every `full_refresh_secs` to notice accounts that left the
 //!   key's reach (they are marked orphaned, never deleted).
-//! - Online accounts: changed sections are sent, plus `stats` on every poll as a
-//!   heartbeat, stamped NOW() so the site shows the player as online.
-//! - Offline accounts seen for the first time: every section is sent once,
-//!   stamped with the hub's `last_seen`, so the player shows up as offline.
-//! - Offline accounts already imported: nothing is sent, and the site's
-//!   inactivity rule takes the player offline.
+//! - Sections that changed since they were last sent go to the batcher, whether
+//!   the account is online or not; the batcher stamps what really changed.
+//! - Presence (online, last seen) is written separately: when it flips, and
+//!   otherwise at most once a minute per account.
+//! - Members an admin hid are left alone.
 use crate::config::HubConfig;
 use crate::db;
 use crate::error::ApiError;
 use crate::hub::client::{Fetched, HubClient, HubError, Priority};
-use crate::hub::convert::{section_changed, MemberSections, Section};
+use crate::hub::convert::{section_changed, MemberSections, SECTIONS};
+use crate::hub::directory::HubDirectory;
 use crate::hub::models::HubAccount;
 use crate::hub::{record_error, SharedHubStatus};
 use crate::models::GroupMember;
 use crate::validators::valid_name;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use deadpool_postgres::{Client, Pool};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 const UNAUTHORIZED_RETRY: Duration = Duration::from_secs(300);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// How often an unchanged presence is written again, which keeps `hub_last_seen`
+/// fresh enough for the site's five-minute online check.
+const PRESENCE_REFRESH: Duration = Duration::from_secs(60);
 
 pub struct SyncContext {
     pub pool: Pool,
@@ -35,15 +38,37 @@ pub struct SyncContext {
     pub group_id: i64,
     pub config: HubConfig,
     pub status: SharedHubStatus,
+    pub directory: HubDirectory,
+    pub control: SyncControl,
+}
+
+/// Lets admin actions tell the running sync to forget what it knows about a
+/// member, so that the next poll resolves it again from the database.
+#[derive(Clone, Default)]
+pub struct SyncControl(Arc<Mutex<Vec<String>>>);
+
+impl SyncControl {
+    /// Called after a member was deleted, hidden or shown again.
+    pub fn forget_member(&self, member_name: &str) {
+        self.0
+            .lock()
+            .expect("sync control lock poisoned")
+            .push(member_name.to_lowercase());
+    }
+
+    fn take(&self) -> Vec<String> {
+        std::mem::take(&mut *self.0.lock().expect("sync control lock poisoned"))
+    }
 }
 
 /// What the sync remembers about a hub account between polls.
 struct KnownAccount {
     member_name: String,
-    /// Whether the member already has data, so an offline account is not re-imported.
-    imported: bool,
+    hidden: bool,
     /// The sections last sent to the batcher.
     sent: Option<MemberSections>,
+    /// The presence last written, and when.
+    presence: Option<(bool, Instant)>,
     /// The owner's Discord id last linked to a user, if any.
     linked_owner: Option<String>,
 }
@@ -107,8 +132,21 @@ impl HubSync {
         }
     }
 
+    /// Drops what the sync knows about members an admin changed; a full
+    /// snapshot then sends their accounts again.
+    fn apply_control(&mut self) {
+        let forgotten = self.context.control.take();
+        if forgotten.is_empty() {
+            return;
+        }
+        self.known
+            .retain(|_, known| !forgotten.contains(&known.member_name.to_lowercase()));
+        self.last_full = None;
+    }
+
     /// One poll of the snapshot. Public for the integration tests.
     pub async fn poll_once(&mut self) -> Result<(), HubError> {
+        self.apply_control();
         let full = self.last_full.is_none_or(|at| {
             at.elapsed() >= Duration::from_secs(self.context.config.full_refresh_secs)
         });
@@ -194,48 +232,62 @@ impl HubSync {
         }
 
         let group_id = self.context.group_id;
+        let directory = &self.context.directory;
         if !self.known.contains_key(&account.id) {
             let known = resolve_member(client, group_id, account).await?;
+            directory.set_hidden(&account.id, known.hidden);
+            if known.hidden {
+                directory.remove_member(&known.member_name);
+            } else {
+                directory.bind(&account.id, &known.member_name);
+            }
             self.known.insert(account.id.clone(), known);
         }
         let known = self.known.get_mut(&account.id).expect("inserted above");
+        if known.hidden {
+            return Ok(());
+        }
 
         if known.member_name != account.name {
             known.member_name =
                 follow_rename(client, group_id, account, &known.member_name).await?;
+            directory.bind(&account.id, &known.member_name);
+            // A new name has no data on the site yet; send everything again.
+            known.sent = None;
         }
 
-        let sections = MemberSections::from_account(account);
+        let sections = MemberSections::from_account(account, known.sent.as_ref());
+        let changed: Vec<_> = SECTIONS
+            .into_iter()
+            .filter(|section| section_changed(known.sent.as_ref(), &sections, *section))
+            .collect();
+        if !changed.is_empty() {
+            let member = sections.to_member(group_id, &known.member_name, |section| {
+                changed.contains(&section)
+            });
+            if self.context.sender.send(member).await.is_err() {
+                return Err(ApiError::HubError("update channel closed".to_string()));
+            }
+            known.sent = Some(sections);
+        }
+
         let online = account
             .online
             .unwrap_or_else(|| account.location.as_ref().is_some_and(|l| !l.stale));
-
-        let update = if online {
-            let heartbeat = if sections.stats.is_some() {
-                Section::Stats
-            } else {
-                Section::Coordinates
-            };
-            let mut member = sections.to_member(group_id, &known.member_name, |section| {
-                section == heartbeat || section_changed(known.sent.as_ref(), &sections, section)
-            });
-            member.source_time = None;
-            Some(member)
-        } else if !known.imported {
-            let mut member = sections.to_member(group_id, &known.member_name, |_| true);
-            member.source_time = Some(account.last_seen.unwrap_or(DateTime::UNIX_EPOCH));
-            Some(member)
-        } else {
-            None
+        let write_presence = match known.presence {
+            None => true,
+            Some((was_online, at)) => was_online != online || at.elapsed() >= PRESENCE_REFRESH,
         };
-
-        if let Some(member) = update {
-            if !sections.is_empty() && self.context.sender.send(member).await.is_err() {
-                return Err(ApiError::HubError("update channel closed".to_string()));
-            }
-            db::set_hub_seen(client, group_id, &known.member_name, account.last_seen).await?;
-            known.imported = true;
-            known.sent = Some(sections);
+        if write_presence {
+            db::set_hub_presence(
+                client,
+                group_id,
+                &known.member_name,
+                online,
+                account.last_seen,
+            )
+            .await?;
+            known.presence = Some((online, Instant::now()));
         }
 
         let owner_discord_id = account
@@ -267,13 +319,15 @@ async fn resolve_member(
     group_id: i64,
     account: &HubAccount,
 ) -> Result<KnownAccount, ApiError> {
+    let known = |member_name: String, hidden: bool| KnownAccount {
+        member_name,
+        hidden,
+        sent: None,
+        presence: None,
+        linked_owner: None,
+    };
     if let Some(row) = db::get_member_by_hub_id(client, group_id, &account.id).await? {
-        return Ok(KnownAccount {
-            member_name: row.member_name,
-            imported: row.hub_last_seen.is_some() || row.has_data,
-            sent: None,
-            linked_owner: None,
-        });
+        return Ok(known(row.member_name, row.hidden));
     }
 
     let existing = db::find_member_for_hub_account(
@@ -283,7 +337,7 @@ async fn resolve_member(
         &account.name,
     )
     .await?;
-    let (member_name, imported) = match existing {
+    let (member_name, hidden) = match existing {
         Some(row) => {
             if let Some(other) = &row.hub_account_id {
                 log::warn!(
@@ -293,7 +347,7 @@ async fn resolve_member(
                     account.id
                 );
             }
-            (row.member_name, row.hub_last_seen.is_some() || row.has_data)
+            (row.member_name, row.hidden)
         }
         None => {
             db::ensure_member_exists(client, group_id, &account.name).await?;
@@ -308,12 +362,7 @@ async fn resolve_member(
         account.account_hash.as_deref(),
     )
     .await?;
-    Ok(KnownAccount {
-        member_name,
-        imported,
-        sent: None,
-        linked_owner: None,
-    })
+    Ok(known(member_name, hidden))
 }
 
 /// Follows a rename on the hub. Returns the member name to use from now on.
@@ -372,5 +421,13 @@ mod tests {
         assert!(backoff(1) < Duration::from_secs(4));
         assert!(backoff(3) >= Duration::from_secs(8));
         assert!(backoff(20) <= MAX_BACKOFF + Duration::from_secs(1));
+    }
+
+    #[test]
+    fn control_hands_over_forgotten_members_once() {
+        let control = SyncControl::default();
+        control.forget_member("Alpha");
+        assert_eq!(control.take(), vec!["alpha".to_string()]);
+        assert!(control.take().is_empty());
     }
 }
