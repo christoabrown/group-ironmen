@@ -117,6 +117,11 @@ are published to `ghcr.io/redfirebreak/ha-osrs-map-{frontend,backend}` on every 
 To build the images from source instead, run `docker compose -f docker-compose-local.yml up --build`. For
 plain `http://localhost` also set `COOKIE_SECURE=false`, or the browser will drop the login cookie.
 
+### Kubernetes
+
+Supported too. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) lists what a deployment relies on: image tags,
+users, ports, health endpoints, and why the backend must run as a single replica.
+
 ### Configuration
 
 Every backend setting is an environment variable. `server/config.toml.example` shows the same settings as
@@ -127,6 +132,7 @@ a file for local development.
 | `PG_USER`, `PG_PASSWORD`, `PG_HOST`, `PG_PORT`, `PG_DB` | | PostgreSQL connection. The schema is created on first start. |
 | `PG_POOL_MAX_SIZE` | `16` | Database connection pool size. |
 | `COOKIE_SECURE` | `true` | Mark session cookies `Secure`. Set to `false` only for plain HTTP. |
+| `SETUP_TOKEN` | | When set, creating the first admin asks for this token. Set it on any site that is public before the admin exists. |
 | `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. Required. |
 | `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
 | `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails and the Activity page from the hub. |
@@ -191,7 +197,7 @@ server/            Rust backend (actix-web, tokio-postgres)
 site/              Frontend (web components bundled with esbuild) and its Express server
 tools/mock-hub/    Stand-in for the osrs-data-hub API
 backup/            Database backup script
-docs/              Integration notes (docs/hub-integration: what the map uses from the hub)
+docs/              Deployment contract (DEPLOYMENT.md) and integration notes (hub-integration: what the map uses from the hub)
 ```
 
 ## Credits and license
