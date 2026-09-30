@@ -47,6 +47,10 @@ export class ClanPage extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
+    // The route keeps this element and connects it again on every visit.
+    this.historyLoaded = false;
+    this.leaderboards = [];
+    this.topDrop = null;
     this.render();
     document.body.classList.add("clan-page");
     this.querySelector(".clan-page__title").textContent = window.siteConfig?.title || "Clan";
@@ -100,6 +104,7 @@ export class ClanPage extends BaseElement {
     document.body.classList.remove("clan-page");
     window.clearInterval(this.refreshInterval);
     window.cancelAnimationFrame(this.presenceFrame);
+    this.presenceFrame = null;
   }
 
   /** Presence changes arrive every poll; redraw at most once a frame. */

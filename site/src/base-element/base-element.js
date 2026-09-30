@@ -71,9 +71,10 @@ export class BaseElement extends HTMLElement {
     }
   }
 
-  subscribe(dataName, handler) {
+  /** `receiveMostRecent: false` skips the replay of the topic's last value. */
+  subscribe(dataName, handler, receiveMostRecent = true) {
     if (!this.isConnected) return;
-    pubsub.subscribe(dataName, handler);
+    pubsub.subscribe(dataName, handler, receiveMostRecent);
     this.eventUnbinders.add(() => pubsub.unsubscribe(dataName, handler));
   }
 

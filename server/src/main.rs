@@ -1,9 +1,7 @@
 use server::auth_middleware::{LastSeenThrottle, SessionMiddlewareFactory};
 use server::config::Config;
 use server::hub::{self, HubContext, HubStatus};
-use server::{
-    admin_routes, auth_routes, authed, db, discord_routes, models, unauthed, update_batcher,
-};
+use server::{admin_routes, auth_routes, authed, db, models, unauthed, update_batcher};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -102,20 +100,6 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         // Public auth endpoints (no session required)
-        let auth_scope = web::scope("/api/auth")
-            .service(auth_routes::setup_status)
-            .service(auth_routes::setup)
-            .service(auth_routes::login)
-            .service(discord_routes::discord_enabled)
-            .service(discord_routes::discord_callback);
-
-        // Session-protected auth endpoints
-        let session_auth_scope = web::scope("/api/auth")
-            .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
-            .service(auth_routes::logout)
-            .service(auth_routes::me)
-            .service(auth_routes::change_password);
-
         // Admin routes (session + admin role required)
         let admin_scope = web::scope("/api/admin")
             .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
@@ -187,8 +171,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tx.clone()))
             .app_data(web::Data::new(group_id))
             .app_data(hub_context.clone())
-            .service(auth_scope)
-            .service(session_auth_scope)
+            .configure(|cfg| auth_routes::configure(cfg, last_seen.clone()))
             .service(admin_scope)
             .service(session_group_scope)
             .service(unauthed_scope)

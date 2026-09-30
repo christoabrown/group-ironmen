@@ -329,6 +329,11 @@ pub async fn set_player_hidden(
     if !db::set_member_hidden(&client, **group_id, member_name, body.hidden).await? {
         return Ok(HttpResponse::NotFound().body("No such player"));
     }
+    // Hide the player's events and leaderboard entries at once, not only
+    // after the sync has resolved the member again.
+    if let Some(hub_id) = hub.directory.hub_id(member_name) {
+        hub.directory.set_hidden(&hub_id, body.hidden);
+    }
     hub.directory.remove_member(member_name);
     hub.sync_control.forget_member(member_name);
 

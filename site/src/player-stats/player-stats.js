@@ -35,11 +35,14 @@ export class PlayerStats extends BaseElement {
     this.updateWorld(stats.world, member.inactive, member.lastSeen);
   }
 
+  // Subscribing replays both topics' last values, so check the current state.
   handleWentInactive(inactive, member) {
+    if (member.online) return;
     this.updateWorld(undefined, true, member.lastSeen);
   }
 
   handleWentActive(_, member) {
+    if (!member.online) return;
     this.world = undefined;
     this.updateWorld(member.stats?.world, false);
   }

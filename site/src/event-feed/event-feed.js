@@ -46,6 +46,7 @@ export class EventFeed extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.playerName = this.getAttribute("player-name");
+    this.receivedLive = false;
     this.limit = parseInt(this.getAttribute("limit") || "100", 10);
     this.render();
     this.list = this.querySelector(".event-feed__list");
@@ -114,7 +115,9 @@ export class EventFeed extends BaseElement {
 
   handleLiveEvents({ events, added }) {
     this.events = events;
-    this.newIds = new Set(added.map((event) => event.id));
+    // The first call replays the last poll; its events aren't new to this feed.
+    this.newIds = this.receivedLive ? new Set(added.map((event) => event.id)) : new Set();
+    this.receivedLive = true;
     this.renderEvents();
   }
 

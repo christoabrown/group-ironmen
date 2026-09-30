@@ -106,7 +106,8 @@ export class MapPage extends BaseElement {
     this.eventListener(this.eventControls, "change", this.handleEventFilterChange.bind(this));
     this.subscribe("features", this.handleFeatures.bind(this));
     this.subscribe("trails-changed", () => this.loadTrails());
-    this.subscribe("live-events", this.handleLiveEvents.bind(this));
+    // Only events that arrive while the map is open ping; not the last batch again.
+    this.subscribe("live-events", this.handleLiveEvents.bind(this), false);
     this.subscribe("player-selected", () => document.body.classList.remove("roster-open"));
   }
 
