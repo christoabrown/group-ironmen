@@ -17,6 +17,12 @@ function getArgValue(arg) {
 
 const backend = getArgValue("--backend") === undefined ? process.env.HOST_URL : getArgValue("--backend");
 
+// Kubernetes probes. Answered by this process alone, ahead of the request log, the static files and
+// the /api proxy, so a backend restart doesn't take the frontend out of rotation.
+app.get("/healthz", (req, res) => {
+  res.type("text/plain").send("ok");
+});
+
 app.use(
   expressWinston.logger({
     transports: [new winston.transports.Console()],
@@ -32,8 +38,11 @@ app.use(
 );
 app.use(compression());
 
+// Only public/ is served; the rest of the image (package.json, node_modules, this script) is not.
+const publicDir = path.join(__dirname, "../public");
+
 // Inject the site name and title into index.html
-const indexHtmlPath = path.join(__dirname, "../public/index.html");
+const indexHtmlPath = path.join(publicDir, "index.html");
 const DEFAULT_NAME = "OSRS Guild Map";
 
 const escapeHtml = (value) =>
@@ -69,8 +78,7 @@ app.use((req, res, next) => {
   }
 });
 
-app.use(express.static("public"));
-app.use(express.static("."));
+app.use(express.static(publicDir));
 
 if (backend) {
   console.log(`Backend for api calls: ${backend}`);
@@ -119,6 +127,17 @@ app.get("*", function (request, response) {
   }
 });
 
-app.listen(port, "0.0.0.0", () => {
+const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Listening on http://0.0.0.0:${port}`);
 });
+
+// In a container node is PID 1, which gets no default SIGTERM handling: without this a rollout
+// waits out the whole termination grace period and then kills the process.
+const shutdown = (signal) => {
+  console.log(`${signal} received, closing the server`);
+  server.close(() => process.exit(0));
+  // A proxied API response can stay open; don't wait on it for long.
+  setTimeout(() => process.exit(0), 10000).unref();
+};
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);

@@ -15,12 +15,14 @@ export class SetupPage extends BaseElement {
     super.connectedCallback();
 
     // Check if setup is actually needed
+    this.tokenRequired = false;
     try {
       const status = await api.getSetupStatus();
       if (!status.needs_setup) {
         window.history.pushState("", "", "/login");
         return;
       }
+      this.tokenRequired = status.token_required === true;
     } catch (e) {
       // Continue to render setup page
     }
@@ -52,6 +54,10 @@ export class SetupPage extends BaseElement {
     this.passwordConfirmInput = this.querySelector(".setup-page__password-confirm");
     this.passwordConfirmInput.validators = [fieldRequiredValidator];
 
+    this.tokenInput = this.querySelector(".setup-page__token");
+    this.tokenInput.validators = [fieldRequiredValidator];
+    this.querySelector(".setup-page__token-field").hidden = !this.tokenRequired;
+
     this.submitButton = this.querySelector(".setup-page__submit");
     this.error = this.querySelector(".setup-page__error");
     this.eventListener(this.submitButton, "click", this.handleSubmit.bind(this));
@@ -62,7 +68,12 @@ export class SetupPage extends BaseElement {
   }
 
   async handleSubmit() {
-    if (!this.usernameInput.valid || !this.passwordInput.valid || !this.passwordConfirmInput.valid) {
+    if (
+      !this.usernameInput.valid ||
+      !this.passwordInput.valid ||
+      !this.passwordConfirmInput.valid ||
+      (this.tokenRequired && !this.tokenInput.valid)
+    ) {
       return;
     }
 
@@ -75,7 +86,8 @@ export class SetupPage extends BaseElement {
     this.submitButton.disabled = true;
 
     try {
-      const response = await api.setup(this.usernameInput.value, this.passwordInput.value);
+      const setupToken = this.tokenRequired ? this.tokenInput.value : undefined;
+      const response = await api.setup(this.usernameInput.value, this.passwordInput.value, setupToken);
       if (response.ok) {
         const data = await response.json();
         storage.storeSession(data.session_token, data.username, data.role);
