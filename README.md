@@ -51,7 +51,7 @@ RuneLite plugin ──pair/events──▶ osrs-data-hub ◀──GET /api/v1/sn
   `ETag` and `since` for polling, and does a full refresh every two minutes.
 - Online players get fresh data. Offline players are imported once with the hub's `last_seen`, so they
   show as offline instead of briefly appearing online.
-- Accounts are matched by hub account id, then by the plugin's account hash, then by name. Renames on
+- Accounts are matched by hub account id, then by the plugin's account hash (service keys only), then by name. Renames on
   the hub are followed. Accounts that disappear from the hub are marked "not shared" and never deleted.
 - When the hub reports an account owner's Discord id, the player is linked to the map user who logged
   in with that Discord account. Admins can also link players by hand.
@@ -63,9 +63,15 @@ the guild, and the map shows exactly that. A player who keeps their location pri
 
 #### Setting up the hub connection
 
-1. Ask a hub admin for an **integration key** (a service key that belongs to the guild rather than a
-   person). A personal API key from the hub's API keys page also works, but it stops working when its
-   creator leaves the guild.
+1. Ask a hub admin to create a **service key** under **Admin → Integrations**
+   ([osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub) D-88). A service key:
+   - belongs to the guild rather than a person, so it keeps working when whoever created it leaves;
+   - reads exactly what the guild may see;
+   - allows 600 requests a minute and 50 accounts per history request;
+   - is the only kind that sees the plugin's `account_hash`.
+
+   A personal API key from the hub's **API keys** page also works, with limits: 120 requests a minute,
+   10 accounts per request, no `account_hash` matching, and it dies with its creator's membership.
 2. Give the key at least these categories:
    - `activity` and `location_live` for the map;
    - `stats`, `equipment` and `inventory` for player panels, items and graphs;
@@ -76,7 +82,13 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    HUB_BASE_URL=https://hub.example.com # without /api/v1
    HUB_API_KEY=ohub_xxxxxxxxxx_xxxxxxxx
    ```
+   At start-up the backend asks the hub's `/me` what the key allows. It then uses 80 % of the key's
+   rate limit and the key's bulk size, and logs a warning when the key is a personal one.
 4. Open **Admin → All Players → Test connection** to check the key and see how many accounts it can read.
+
+**Players choose what the map sees.** On the hub, equipment and inventory are private until their owner
+shares them with the guild, and live location is shared with the guild by default. A player whose items
+don't show up on the map should share them in the hub's sharing settings.
 
 ## Running it
 
@@ -108,7 +120,7 @@ a file for local development.
 | `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. |
 | `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
 | `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails and the Activity page from the hub. |
-| `HUB_REQUEST_BUDGET` | `100` | Hub requests per minute this server allows itself (the hub allows 120). |
+| `HUB_REQUEST_BUDGET` | 80 % of the key's limit | Hub requests per minute this server allows itself (the hub allows 120 per personal key, 600 per service key). |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` | | Enables "Log in with Discord". The redirect URI is `https://<site>/login/discord`. |
 | `DISCORD_AUTO_REGISTRATION` | `false` | Let members of the servers below create an account by logging in. |
 | `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |

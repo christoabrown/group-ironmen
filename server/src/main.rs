@@ -62,7 +62,20 @@ async fn main() -> std::io::Result<()> {
         .uses_hub()
         .then(|| hub::client::HubClient::new(&config.hub));
     let hub_events = hub::events::EventBuffer::default();
+    let hub_capabilities = hub::SharedKeyCapabilities::default();
+    if let Some(status) = hub_status.write().ok().as_mut() {
+        status.request_budget_per_min = hub_client
+            .as_ref()
+            .map_or(0, |client| client.budget_per_min());
+        status.bulk_accounts = hub::USER_KEY_BULK_ACCOUNTS;
+    }
     if let Some(client) = &hub_client {
+        hub::start_key_discovery(
+            Arc::clone(client),
+            config.hub.request_budget_per_min,
+            Arc::clone(&hub_capabilities),
+            Arc::clone(&hub_status),
+        );
         hub::sync::start(hub::sync::SyncContext {
             pool: pool.clone(),
             client: Arc::clone(client),
@@ -87,6 +100,7 @@ async fn main() -> std::io::Result<()> {
         status: hub_status,
         cache: Arc::new(hub::cache::TtlCache::new()),
         events: hub_events,
+        capabilities: hub_capabilities,
     });
     let direct_seen = web::Data::new(direct_seen);
     let accepts_direct = config.data_source.accepts_direct();

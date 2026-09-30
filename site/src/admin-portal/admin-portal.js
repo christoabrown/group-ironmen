@@ -28,6 +28,13 @@ function relativeTime(dateStr) {
   return `${diffMonth} month${diffMonth !== 1 ? "s" : ""} ago`;
 }
 
+export function describeHubKey(status) {
+  if (!status.key_kind) return `not checked yet (budget ${status.request_budget_per_min}/min)`;
+  const kind = status.key_kind === "service" ? "service key" : "personal key";
+  const limit = status.key_rate_limit_per_minute ? `${status.key_rate_limit_per_minute}/min, ` : "";
+  return `${kind} (${limit}using ${status.request_budget_per_min}/min, ${status.bulk_accounts} per bulk request)`;
+}
+
 export class AdminPortal extends BaseElement {
   constructor() {
     super();
@@ -282,6 +289,7 @@ export class AdminPortal extends BaseElement {
         ["Hub", status.base_url],
         ["Last sync", relativeTime(status.last_success)],
         ["Accounts", `${status.accounts_visible} visible, ${status.accounts_online} online`],
+        ["Key", describeHubKey(status)],
         ["Orphaned", String(status.members_orphaned)],
         ["History", status.history_enabled ? `on (${status.events_buffered} events buffered)` : "off"]
       );
@@ -317,10 +325,18 @@ export class AdminPortal extends BaseElement {
         try {
           const response = await api.adminTestHub();
           const test = await response.json();
-          result.textContent = test.ok
-            ? `OK: key "${test.key.name}" (${test.key.categories.join(", ")}), ` +
-              `${test.visible_accounts ?? "?"} accounts visible`
-            : test.message;
+          if (!test.ok) {
+            result.textContent = test.message;
+          } else {
+            const kind = test.key.kind === "service" ? "service key" : "personal key";
+            const limit = test.key.rate_limit_per_minute ? `, ${test.key.rate_limit_per_minute}/min` : "";
+            result.textContent =
+              `OK: ${kind} "${test.key.name}"${limit} (${test.key.categories.join(", ")}), ` +
+              `${test.visible_accounts ?? "?"} accounts visible` +
+              (test.key.kind === "service"
+                ? ""
+                : ". A personal key stops working when its creator leaves the guild; ask a hub admin for a service key.");
+          }
         } catch (e) {
           result.textContent = "The test request failed.";
         }

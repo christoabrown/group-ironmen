@@ -5,11 +5,14 @@ use crate::config::HubConfig;
 use crate::hub::models::{Envelope, ErrorEnvelope, Meta};
 use serde::de::DeserializeOwned;
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const RESPONSE_BODY_LIMIT: u64 = 64 * 1024 * 1024;
 const BUDGET_WINDOW: Duration = Duration::from_secs(60);
+/// Budget until the hub's `/me` says what the key may use (a user key allows 120).
+pub const DEFAULT_BUDGET_PER_MIN: usize = 100;
 
 /// Who is asking. Background sync always goes first; interactive history
 /// requests give up early so they never starve the sync.
@@ -25,6 +28,8 @@ pub enum HubError {
     Unauthorized,
     /// The account or resource is not visible to the key (404).
     NotFound,
+    /// The hub rejected the request's parameters (400), with its message.
+    Invalid(String),
     /// Rate limited by the hub or by our own budget; retry after the duration.
     RateLimited(Duration),
     /// Anything else: network errors, 5xx, unexpected bodies.
@@ -36,6 +41,7 @@ impl std::fmt::Display for HubError {
         match self {
             HubError::Unauthorized => write!(f, "the hub rejected the API key (401)"),
             HubError::NotFound => write!(f, "not found on the hub (404)"),
+            HubError::Invalid(message) => write!(f, "rejected by the hub (400): {}", message),
             HubError::RateLimited(after) => {
                 write!(f, "rate limited, retry after {}s", after.as_secs().max(1))
             }
@@ -65,8 +71,7 @@ pub struct HubClient {
     agent: ureq::Agent,
     base_url: String,
     authorization: String,
-    budget_per_min: usize,
-    interactive_reserve: usize,
+    budget_per_min: AtomicUsize,
     budget: Mutex<Budget>,
 }
 
@@ -78,19 +83,29 @@ impl HubClient {
             .user_agent("ha-osrs-map (github.com/RedFirebreak/ha-osrs-map)")
             .build()
             .new_agent();
-        let budget_per_min = config.request_budget_per_min as usize;
+        let budget_per_min = config
+            .request_budget_per_min
+            .map(|budget| budget as usize)
+            .unwrap_or(DEFAULT_BUDGET_PER_MIN);
         Arc::new(HubClient {
             agent,
             base_url: format!("{}/api/v1", config.base_url),
             authorization: format!("Bearer {}", config.api_key),
-            budget_per_min,
-            // Keep this many requests per minute free for the sync loop.
-            interactive_reserve: (budget_per_min / 4).max(10),
+            budget_per_min: AtomicUsize::new(budget_per_min),
             budget: Mutex::new(Budget {
                 sent: VecDeque::new(),
                 blocked_until: None,
             }),
         })
+    }
+
+    /// Requests per minute this client allows itself.
+    pub fn budget_per_min(&self) -> usize {
+        self.budget_per_min.load(Ordering::Relaxed)
+    }
+
+    pub fn set_budget_per_min(&self, budget: usize) {
+        self.budget_per_min.store(budget.max(1), Ordering::Relaxed);
     }
 
     /// Reserves a request slot, or says how long to wait.
@@ -110,9 +125,12 @@ impl HubClient {
         {
             budget.sent.pop_front();
         }
+        let budget_per_min = self.budget_per_min();
+        // Keep a quarter of the budget (at least 10) free for the sync loop.
+        let interactive_reserve = (budget_per_min / 4).max(10);
         let limit = match priority {
-            Priority::Sync => self.budget_per_min,
-            Priority::Interactive => self.budget_per_min.saturating_sub(self.interactive_reserve),
+            Priority::Sync => budget_per_min,
+            Priority::Interactive => budget_per_min.saturating_sub(interactive_reserve),
         };
         if budget.sent.len() >= limit {
             let oldest = *budget.sent.front().expect("budget window is not empty");
@@ -217,6 +235,18 @@ impl HubClient {
                 })
             }
             304 => Ok(Fetched::NotModified),
+            400 => {
+                let body = response
+                    .body_mut()
+                    .with_config()
+                    .limit(64 * 1024)
+                    .read_to_string()
+                    .unwrap_or_default();
+                let message = serde_json::from_str::<ErrorEnvelope>(&body)
+                    .map(|err| err.error.message)
+                    .unwrap_or(body);
+                Err(HubError::Invalid(message))
+            }
             401 => Err(HubError::Unauthorized),
             404 => Err(HubError::NotFound),
             429 | 503 => {
@@ -251,7 +281,7 @@ mod tests {
         HubClient::new(&HubConfig {
             base_url: "http://127.0.0.1:9".to_string(),
             api_key: "ohub_test".to_string(),
-            request_budget_per_min: budget,
+            request_budget_per_min: Some(budget),
             ..HubConfig::default()
         })
     }

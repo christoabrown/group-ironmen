@@ -74,3 +74,18 @@ describe("activity page helpers", () => {
     expect(describeEvent({ member: "Bob", type: "death" })).toBe("Bob died");
   });
 });
+
+describe("admin hub key description", () => {
+  it("describes service and personal keys", async () => {
+    const { describeHubKey } = await import("../src/admin-portal/admin-portal");
+    expect(
+      describeHubKey({
+        key_kind: "service",
+        key_rate_limit_per_minute: 600,
+        request_budget_per_min: 480,
+        bulk_accounts: 50,
+      })
+    ).toBe("service key (600/min, using 480/min, 50 per bulk request)");
+    expect(describeHubKey({ key_kind: null, request_budget_per_min: 100 })).toBe("not checked yet (budget 100/min)");
+  });
+});

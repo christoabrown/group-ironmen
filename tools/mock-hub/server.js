@@ -6,7 +6,9 @@
 //
 // Three accounts walk around Lumbridge; one is offline. It serves /me,
 // /snapshot (with ETag/If-None-Match and `since`), /xp, /accounts/{id}/locations,
-// /leaderboards/gains and /events with a cursor, following docs/API.md of the hub.
+// /locations, /leaderboards/gains and /events with a cursor, following the hub's
+// docs/API.md as of osrs-data-hub PR #8 (service keys, owner, account_hash,
+// inventory_slot, 50-account bulk requests).
 const http = require("http");
 const crypto = require("crypto");
 
@@ -17,6 +19,10 @@ const SKILLS = [
   "Fishing", "Fletching", "Herblore", "Hitpoints", "Hunter", "Magic", "Mining", "Prayer", "Ranged",
   "Runecraft", "Slayer", "Smithing", "Strength", "Thieving", "Woodcutting", "Sailing",
 ];
+// Skills the hub has seen. Set MOCK_HUB_UNKNOWN_SKILLS=Sailing to mimic a hub
+// that has no data for a skill yet (it then rejects /xp requests naming it).
+const UNKNOWN = new Set((process.env.MOCK_HUB_UNKNOWN_SKILLS || "").split(",").map((s) => s.trim().toLowerCase()));
+const KNOWN_SKILLS = new Set(["overall", ...SKILLS.map((s) => s.toLowerCase())].filter((s) => !UNKNOWN.has(s)));
 const started = Date.now();
 
 const accounts = [
@@ -49,7 +55,8 @@ function snapshotAccount(account) {
     type: 0,
     type_label: "Normal",
     categories: ["stats", "events", "activity", "location_live", "location_history", "equipment", "inventory"],
-    owner: { name: account.name, discord_id: null },
+    account_hash: crypto.createHash("sha224").update(account.id).digest("hex"),
+    owner: account.online ? { name: `${account.name} owner`, discord_id: null } : null,
     online: account.online,
     world: 302 + accounts.indexOf(account),
     special_world: false,
@@ -66,15 +73,15 @@ function snapshotAccount(account) {
     equipment: {
       value: 0,
       items: [
-        { id: 4151, name: "Abyssal whip", quantity: 1, ge_price: 0, ha_price: 0, equipment_slot: "WEAPON" },
-        { id: 10828, name: "Helm of neitiznot", quantity: 1, ge_price: 0, ha_price: 0, equipment_slot: "HEAD" },
+        { id: 4151, name: "Abyssal whip", quantity: 1, ge_price: 0, ha_price: 0, equipment_slot: "WEAPON", inventory_slot: null },
+        { id: 10828, name: "Helm of neitiznot", quantity: 1, ge_price: 0, ha_price: 0, equipment_slot: "HEAD", inventory_slot: null },
       ],
     },
     inventory: {
       value: 0,
       items: [
-        { id: 995, name: "Coins", quantity: 1234567, ge_price: 1, ha_price: 1, equipment_slot: null },
-        { id: 385, name: "Shark", quantity: 1, ge_price: 0, ha_price: 0, equipment_slot: null },
+        { id: 995, name: "Coins", quantity: 1234567, ge_price: 1, ha_price: 1, equipment_slot: null, inventory_slot: 0 },
+        { id: 385, name: "Shark", quantity: 1, ge_price: 0, ha_price: 0, equipment_slot: null, inventory_slot: 27 },
       ],
     },
   };
@@ -131,7 +138,16 @@ const server = http.createServer((req, res) => {
 
   if (path === "/me") {
     return ok(res, {
-      key: { id: "k1", name: "Mock integration key", kind: "service", prefix: "mock", categories: ["stats", "events", "activity", "location_live", "location_history", "equipment", "inventory"], account_scope: "all_visible", expires_at: null },
+      key: {
+        id: "k1",
+        kind: "service",
+        name: "Mock integration key",
+        prefix: "mock",
+        categories: ["stats", "events", "activity", "location_live", "location_history", "equipment", "inventory"],
+        account_scope: "all_visible",
+        rate_limit_per_minute: 600,
+        expires_at: null,
+      },
       user: null,
       visible_accounts: accounts.length,
     });
@@ -149,6 +165,14 @@ const server = http.createServer((req, res) => {
 
   if (path === "/xp") {
     const ids = (url.searchParams.get("accounts") || "").split(",");
+    if (ids.length > 50) {
+      return send(res, 400, { error: { code: "invalid", message: "at most 50 accounts" } });
+    }
+    const requestedSkills = (url.searchParams.get("skills") || "Overall").split(",");
+    const unknown = requestedSkills.find((name) => !KNOWN_SKILLS.has(name.trim().toLowerCase()));
+    if (unknown) {
+      return send(res, 400, { error: { code: "invalid", message: `unknown skill: ${unknown}` } });
+    }
     const from = new Date(url.searchParams.get("from") || Date.now() - 7 * 86400_000).getTime();
     const step = url.searchParams.get("resolution") === "1h" ? 3600_000 : 86400_000;
     const selected = accounts.filter((a) => ids.includes(a.id));
@@ -162,7 +186,8 @@ const server = http.createServer((req, res) => {
       accounts: selected.map((account) => ({
         account: { id: account.id, name: account.name },
         resolution: "1d",
-        series: SKILLS.map((skill, i) => {
+        series: SKILLS.filter((skill) => requestedSkills.some((r) => r.toLowerCase() === skill.toLowerCase())).map((skill) => {
+          const i = SKILLS.indexOf(skill);
           const points = [];
           for (let t = from, n = 0; t <= Date.now(); t += step, n++) {
             points.push([new Date(t).toISOString(), Math.floor(account.xp / (i + 2)) - (40 - n) * 1000 * (i + 1)]);
@@ -173,16 +198,32 @@ const server = http.createServer((req, res) => {
     });
   }
 
-  const locations = path.match(/^\/accounts\/([^/]+)\/locations$/);
-  if (locations) {
-    const account = accounts.find((a) => a.id === decodeURIComponent(locations[1]));
-    if (!account) return send(res, 404, { error: { code: "not_found", message: "Unknown account" } });
+  const trail = (account) => {
     const points = [];
     for (let t = Date.now() - 3600_000; t <= Date.now(); t += 60_000) {
       const { x, y } = position(account, t);
       points.push({ at: new Date(t).toISOString(), x, y, plane: 0, world: 302, is_on_boat: false });
     }
-    return ok(res, { account: { id: account.id, name: account.name }, from: "", to: "", points });
+    return points;
+  };
+
+  if (path === "/locations") {
+    const ids = (url.searchParams.get("accounts") || "").split(",");
+    if (ids.length > 50) return send(res, 400, { error: { code: "invalid", message: "at most 50 accounts" } });
+    const selected = ids.map((id) => accounts.find((a) => a.id === id));
+    if (selected.some((a) => !a)) return send(res, 404, { error: { code: "not_found", message: "Unknown account" } });
+    return ok(res, {
+      from: "",
+      to: "",
+      accounts: selected.map((account) => ({ account: { id: account.id, name: account.name }, points: trail(account) })),
+    });
+  }
+
+  const locations = path.match(/^\/accounts\/([^/]+)\/locations$/);
+  if (locations) {
+    const account = accounts.find((a) => a.id === decodeURIComponent(locations[1]));
+    if (!account) return send(res, 404, { error: { code: "not_found", message: "Unknown account" } });
+    return ok(res, { account: { id: account.id, name: account.name }, from: "", to: "", points: trail(account) });
   }
 
   if (path === "/leaderboards/gains") {

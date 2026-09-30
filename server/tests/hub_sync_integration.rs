@@ -436,6 +436,67 @@ async fn rate_limits_are_reported_with_retry_after() {
     assert_eq!(h.hub.lock().unwrap().requests.len(), before);
 }
 
+#[tokio::test]
+async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
+    let _guard = TEST_MUTEX.lock().await;
+    let mut h = harness(DataSource::Hub).await;
+    let mut account = online_account("acc-alpha", "Alpha", None);
+    // Shape of osrs-data-hub PR #8: `owner` is null without an active owner and
+    // inventory items carry `inventory_slot` (D-86, D-90).
+    account["owner"] = Value::Null;
+    account["inventory"]["items"] = json!([
+        {"id": 4151, "name": "Abyssal whip", "quantity": 1, "ge_price": 0, "ha_price": 0,
+         "equipment_slot": null, "inventory_slot": 0},
+        {"id": 385, "name": "Shark", "quantity": 1, "ge_price": 0, "ha_price": 0,
+         "equipment_slot": null, "inventory_slot": 27}
+    ]);
+    h.hub.lock().unwrap().accounts = vec![account];
+    h.poll().await.unwrap();
+
+    let inventory = h.member("Alpha").await.unwrap().inventory.unwrap();
+    assert_eq!(&inventory[0..2], &[4151, 1]);
+    assert_eq!(&inventory[54..56], &[385, 1]);
+    let links: i64 = h
+        .scalar("SELECT COUNT(*) FROM groupironman.user_player_links")
+        .await;
+    assert_eq!(links, 0);
+}
+
+#[tokio::test]
+async fn matches_a_directly_paired_player_by_account_hash() {
+    let _guard = TEST_MUTEX.lock().await;
+    let mut h = harness(DataSource::Both).await;
+    // The player first paired with the map directly; direct ingest stored the
+    // plugin's accountHash. On the hub the account goes by a newer name.
+    {
+        let client = h.pool.get().await.unwrap();
+        db::ensure_member_exists(&client, h.group_id, "Old Name")
+            .await
+            .unwrap();
+        db::set_direct_source(&client, h.group_id, "Old Name", Some("hash-123"))
+            .await
+            .unwrap();
+    }
+    let mut account = online_account("acc-alpha", "New Name", None);
+    account["account_hash"] = json!("hash-123");
+    h.hub.lock().unwrap().accounts = vec![account];
+    h.poll().await.unwrap();
+
+    assert!(
+        h.member("Old Name").await.is_none(),
+        "renamed, not duplicated"
+    );
+    assert!(h.member("New Name").await.unwrap().coordinates.is_some());
+    let bound: String = h
+        .scalar(
+            "SELECT member_name::text FROM groupironman.members WHERE hub_account_id='acc-alpha'",
+        )
+        .await;
+    assert_eq!(bound, "New Name");
+    let members: i64 = h.scalar("SELECT COUNT(*) FROM groupironman.members").await;
+    assert_eq!(members, 1);
+}
+
 trait TruncSubsecsMs {
     fn trunc_subsecs_ms(self) -> Self;
 }

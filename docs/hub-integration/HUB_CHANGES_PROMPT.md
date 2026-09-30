@@ -1,5 +1,20 @@
 # osrs-data-hub changes for the guild map
 
+> **Status: delivered** in [RedFirebreak/osrs-data-hub#8](https://github.com/RedFirebreak/osrs-data-hub/pull/8)
+> (decisions D-88 … D-93). Verified live against that PR's head `4c9e867` with ha-osrs-map in `both` mode;
+> see the table below. The original prompt follows for reference.
+
+| Asked | Shipped in PR #8 | How the map uses it (verified) |
+|---|---|---|
+| Guild-audience service keys that survive offboarding | ✅ D-88, D-89 | `/me` → `kind: service`, 600/min. The map uses 480/min and 50-account batches. The key kept working after its creating admin was offboarded. Private locations stay off the map. |
+| `owner {name, discord_id}` | ✅ D-90 (`null` without an active owner) | The player is linked to the map user with that Discord account (`user_player_links.source = hub`). |
+| `account_hash` | ✅ D-91, service keys only | A player first paired directly was matched and renamed to the hub name instead of being duplicated. |
+| Bulk `/xp` for 50 accounts | ✅ D-92 (over the cap is a 400) | One `/xp` call covers up to 50 players. |
+| Bulk `/locations` | ✅ D-92 | Not used: the map draws one trail at a time. |
+| Push for keys | Deferred, D-93 | Polling stays the contract. |
+| (extra) `inventory_slot` on items | ✅ D-86 | Inventories are placed by slot, like direct ingest. |
+| (extra) `/xp` rejects unknown skills with a 400 | Existing behaviour | The map drops the skill it names and retries, so graphs keep working on a hub that has never seen, for example, Sailing. |
+
 The map works with the hub's current `/api/v1` and a personal API key. The hub changes below make the
 integration sturdier and unlock two features that are already built on the map side:
 

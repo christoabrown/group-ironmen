@@ -22,7 +22,8 @@ use std::time::Duration;
 
 type XpPoint = (DateTime<Utc>, i64);
 
-const XP_ACCOUNTS_PER_REQUEST: usize = 10;
+/// A request naming more skills than this is retried without the unknown ones at most this often.
+const MAX_UNKNOWN_SKILL_RETRIES: usize = 5;
 const XP_TTL: Duration = Duration::from_secs(300);
 const GAINS_TTL: Duration = Duration::from_secs(300);
 const LOCATIONS_TTL: Duration = Duration::from_secs(60);
@@ -44,6 +45,13 @@ fn hub_error_response(err: HubError) -> HttpResponse {
                 "error": "rate_limited",
                 "message": "The hub is busy, try again shortly."
             })),
+        HubError::Invalid(message) => {
+            log::warn!("The hub rejected a request: {}", message);
+            HttpResponse::BadGateway().json(serde_json::json!({
+                "error": "hub_rejected",
+                "message": "The hub rejected the request."
+            }))
+        }
         HubError::Unauthorized => {
             log::error!("The hub rejected the API key; check HUB_API_KEY");
             HttpResponse::BadGateway().json(serde_json::json!({
@@ -136,6 +144,32 @@ pub fn xp_series_to_rows(series: &[HubXpLine]) -> Vec<AggregateSkillData> {
     rows
 }
 
+/// The skill name a hub 400 complains about ("unknown skill: Sailing").
+fn unknown_skill(message: &str) -> Option<String> {
+    let (_, name) = message.split_once("unknown skill:")?;
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// The skills to request: every skill the site knows, minus those the hub has
+/// said it has never seen (the hub rejects the whole request for one of those).
+fn requested_skills(context: &HubContext) -> Vec<&'static str> {
+    let capabilities = context
+        .capabilities
+        .read()
+        .expect("capabilities lock poisoned");
+    SKILL_ORDER
+        .iter()
+        .copied()
+        .filter(|skill| {
+            !capabilities
+                .unknown_skills
+                .iter()
+                .any(|unknown| unknown.eq_ignore_ascii_case(skill))
+        })
+        .collect()
+}
+
 async fn fetch_xp_chunk(
     context: &HubContext,
     ids: &[String],
@@ -144,19 +178,38 @@ async fn fetch_xp_chunk(
     let client = hub_client(context)?;
     let key = format!("xp:{}:{}", period_key(period), ids.join(","));
     let (from, resolution) = xp_window(period, Utc::now());
-    let query = vec![
-        ("accounts", ids.join(",")),
-        ("skills", SKILL_ORDER.join(",")),
-        ("from", from.to_rfc3339()),
-        ("resolution", resolution.to_string()),
-    ];
     context
         .cache
         .get_or_fetch(&key, XP_TTL, || async {
-            let (data, _) = client
-                .get_data::<Value>("/xp", &query, Priority::Interactive)
-                .await?;
-            Ok(data)
+            let mut retries = 0;
+            loop {
+                let query = vec![
+                    ("accounts", ids.join(",")),
+                    ("skills", requested_skills(context).join(",")),
+                    ("from", from.to_rfc3339()),
+                    ("resolution", resolution.to_string()),
+                ];
+                match client
+                    .get_data::<Value>("/xp", &query, Priority::Interactive)
+                    .await
+                {
+                    Ok((data, _)) => return Ok(data),
+                    Err(HubError::Invalid(message)) if retries < MAX_UNKNOWN_SKILL_RETRIES => {
+                        let Some(skill) = unknown_skill(&message) else {
+                            return Err(HubError::Invalid(message));
+                        };
+                        log::info!("The hub has no XP data for {} yet; leaving it out", skill);
+                        context
+                            .capabilities
+                            .write()
+                            .expect("capabilities lock poisoned")
+                            .unknown_skills
+                            .insert(skill);
+                        retries += 1;
+                    }
+                    Err(err) => return Err(err),
+                }
+            }
         })
         .await
 }
@@ -174,8 +227,14 @@ async fn hub_skill_data(
     let mut ids: Vec<String> = bindings.iter().map(|(_, id)| id.clone()).collect();
     ids.sort();
 
+    let batch = context
+        .capabilities
+        .read()
+        .map(|capabilities| capabilities.bulk_accounts)
+        .unwrap_or(crate::hub::USER_KEY_BULK_ACCOUNTS)
+        .max(1);
     let mut result = HashMap::new();
-    for chunk in ids.chunks(XP_ACCOUNTS_PER_REQUEST) {
+    for chunk in ids.chunks(batch) {
         let values = match fetch_xp_chunk(context, chunk, period).await {
             Ok(value) => vec![value],
             // One unreadable account fails the whole request; retry one by one.
@@ -502,6 +561,15 @@ mod tests {
         assert_eq!((rows[1].data[attack], rows[1].data[sailing]), (100, 20));
         assert_eq!((rows[2].data[attack], rows[2].data[sailing]), (150, 20));
         assert!(rows.iter().all(|row| row.data.len() == 24));
+    }
+
+    #[test]
+    fn unknown_skill_is_read_from_the_hub_message() {
+        assert_eq!(
+            unknown_skill("unknown skill: Sailing").as_deref(),
+            Some("Sailing")
+        );
+        assert_eq!(unknown_skill("too many accounts"), None);
     }
 
     #[test]

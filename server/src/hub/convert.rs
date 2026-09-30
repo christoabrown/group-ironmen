@@ -134,11 +134,22 @@ fn stats(account: &HubAccount) -> Option<Vec<i32>> {
     ])
 }
 
-/// 28 inventory slots as id/quantity pairs, filled in the order the hub sends.
+/// 28 inventory slots as id/quantity pairs. Items are placed by their
+/// `inventory_slot` when the hub sends one (plugin 1.5.1 and later), otherwise
+/// in the order the hub sends them, like direct ingest does.
 fn inventory(items: &HubItems) -> Vec<i32> {
     let mut flat = vec![0i32; 56];
-    for (slot, item) in items.items.iter().take(28).enumerate() {
-        if item.id > 0 {
+    let has_slots = items.items.iter().any(|item| item.inventory_slot.is_some());
+    for (index, item) in items.items.iter().enumerate() {
+        let slot = if has_slots {
+            match item.inventory_slot {
+                Some(slot) => slot,
+                None => continue,
+            }
+        } else {
+            index
+        };
+        if slot < 28 && item.id > 0 {
             flat[slot * 2] = item.id;
             flat[slot * 2 + 1] = clamp_i32(item.quantity);
         }
@@ -224,6 +235,21 @@ mod tests {
         let inventory = sections.inventory.unwrap();
         assert_eq!(&inventory[0..4], &[995, i32::MAX, 385, 1]);
         assert!(inventory[4..].iter().all(|value| *value == 0));
+    }
+
+    #[test]
+    fn inventory_is_placed_by_slot_when_the_hub_sends_slots() {
+        let items: HubItems = serde_json::from_value(serde_json::json!({"value": 0, "items": [
+            {"id": 4151, "name": "Abyssal whip", "quantity": 1, "ge_price": 0, "ha_price": 0,
+             "equipment_slot": null, "inventory_slot": 0},
+            {"id": 385, "name": "Shark", "quantity": 1, "ge_price": 0, "ha_price": 0,
+             "equipment_slot": null, "inventory_slot": 27}
+        ]}))
+        .unwrap();
+        let flat = inventory(&items);
+        assert_eq!(&flat[0..2], &[4151, 1]);
+        assert_eq!(&flat[54..56], &[385, 1]);
+        assert!(flat[2..54].iter().all(|value| *value == 0));
     }
 
     #[test]

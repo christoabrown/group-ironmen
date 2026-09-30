@@ -101,8 +101,10 @@ pub struct HubConfig {
     #[serde(default = "default_true")]
     pub history_enabled: bool,
     /// Requests per minute this server allows itself (the hub allows 120 per key by default).
-    #[serde(default = "default_request_budget_per_min")]
-    pub request_budget_per_min: u32,
+    /// Requests per minute this server allows itself. When unset it follows the
+    /// key's rate limit reported by the hub's `/me` (80 % of it).
+    #[serde(default)]
+    pub request_budget_per_min: Option<u32>,
     /// In `both` mode, hub data for a player is ignored for this long after direct data arrived.
     #[serde(default = "default_both_direct_grace_secs")]
     pub both_direct_grace_secs: u64,
@@ -118,7 +120,7 @@ impl Default for HubConfig {
             full_refresh_secs: default_full_refresh_secs(),
             events_poll_secs: default_events_poll_secs(),
             history_enabled: true,
-            request_budget_per_min: default_request_budget_per_min(),
+            request_budget_per_min: None,
             both_direct_grace_secs: default_both_direct_grace_secs(),
             timeout_secs: default_timeout_secs(),
         }
@@ -137,9 +139,6 @@ fn default_full_refresh_secs() -> u64 {
 }
 fn default_events_poll_secs() -> u64 {
     15
-}
-fn default_request_budget_per_min() -> u32 {
-    100
 }
 fn default_both_direct_grace_secs() -> u64 {
     120
@@ -198,7 +197,10 @@ impl Config {
         self.hub.poll_interval_secs = self.hub.poll_interval_secs.max(2);
         self.hub.full_refresh_secs = self.hub.full_refresh_secs.max(30);
         self.hub.events_poll_secs = self.hub.events_poll_secs.max(5);
-        self.hub.request_budget_per_min = self.hub.request_budget_per_min.clamp(20, 10_000);
+        self.hub.request_budget_per_min = self
+            .hub
+            .request_budget_per_min
+            .map(|budget| budget.clamp(20, 10_000));
         self.hub.timeout_secs = self.hub.timeout_secs.clamp(2, 120);
 
         if self.data_source.uses_hub() && !self.hub.is_configured() {
@@ -308,7 +310,7 @@ impl Config {
             self.hub.events_poll_secs = value;
         }
         if let Some(value) = env_u64("HUB_REQUEST_BUDGET") {
-            self.hub.request_budget_per_min = value as u32;
+            self.hub.request_budget_per_min = Some(value as u32);
         }
         if let Some(value) = env_u64("HUB_BOTH_DIRECT_GRACE_SECS") {
             self.hub.both_direct_grace_secs = value;

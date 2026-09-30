@@ -67,6 +67,9 @@ pub struct HubItem {
     pub quantity: i64,
     #[serde(default)]
     pub equipment_slot: Option<String>,
+    /// Inventory slot 0–27, sent by plugin 1.5.1 and later (hub D-86).
+    #[serde(default)]
+    pub inventory_slot: Option<usize>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -128,8 +131,18 @@ pub struct HubMeKey {
     pub kind: Option<String>,
     #[serde(default)]
     pub categories: Vec<String>,
+    /// Requests per minute the hub allows this key (hub D-88).
+    #[serde(default)]
+    pub rate_limit_per_minute: Option<u32>,
     #[serde(default)]
     pub expires_at: Option<String>,
+}
+
+impl HubMeKey {
+    /// Service (integration) keys belong to the guild, not to a person (hub D-88).
+    pub fn is_service_key(&self) -> bool {
+        self.kind.as_deref() == Some("service")
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
