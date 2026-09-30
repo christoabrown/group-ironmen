@@ -1,0 +1,108 @@
+name: Release
+
+# Publishes the two runtime images to GHCR so a cluster can pull them by exact tag:
+#   ghcr.io/redfirebreak/ha-osrs-map-frontend:<version>
+#   ghcr.io/redfirebreak/ha-osrs-map-backend:<version>
+# Git tag `v0.1.0` becomes image tags `0.1.0` and `0.1`. The Kubernetes deployment pins an exact
+# version and Renovate bumps it.
+#
+# Unlike osrs-data-hub, a release also moves `latest`: docker-compose.yml pulls `:latest`, and compose
+# users should get the newest release. `latest` moves only here, on a release, never on a master push.
+# The cluster never uses it. Republishing an older tag (see below) moves `latest` back to that tag.
+#
+# Three ways in:
+#   - cut-release.yml calls this (`workflow_call`) with the tag it just created. A tag pushed with the
+#     workflow token never triggers another workflow, hence the direct call;
+#   - a tag pushed by hand (`git push origin v0.2.0`, or a GitHub Release created in the UI);
+#   - `workflow_dispatch`: from a branch it builds both images without pushing (a dry run), from a
+#     tag it publishes that tag again.
+#
+# The actions are pinned by commit SHA (this workflow has packages: write); the comment is the release
+# the SHA belongs to, which Renovate (helpers:pinGitHubActionDigests) keeps in step with the SHA.
+#
+# GHCR makes a new package private even when the repository is public. Both packages already exist
+# and are public; if one is ever recreated, make it public again (GitHub → Packages → <package> →
+# Package settings → Change visibility) or anonymous pulls fail with ImagePullBackOff.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: The git tag to publish, with its v prefix (v0.1.2); it must point at this commit.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # The tag the images are named after: the caller's, else the ref that triggered this run.
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # One publish per image and tag at a time; a re-run queues behind, never cancels.
+    concurrency:
+      group: publish-${{ matrix.component }}-${{ inputs.tag || github.ref_name }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two Dockerfiles, one per image; the image name is ha-osrs-map-<component>.
+        include:
+          - component: frontend
+            context: ./site
+          - component: backend
+            context: ./server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # buildx with the docker-container driver: needed for the GitHub Actions cache backend below.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tags and OCI labels (org.opencontainers.image.source/revision/version/…) from the git tag.
+      # GHCR wants a lowercase owner, so the image name is spelled out rather than derived from
+      # github.repository_owner. `latest=auto` adds `latest` next to a semver tag that is not a
+      # prerelease. A value that is not a semver tag (a dispatch from a branch) yields no tags at all,
+      # `latest` included, and nothing is pushed.
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/redfirebreak/ha-osrs-map-${{ matrix.component }}
+          flavor: latest=auto
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
+          labels: |
+            org.opencontainers.image.title=ha-osrs-map-${{ matrix.component }}
+            org.opencontainers.image.description=OSRS Guild Map ${{ matrix.component }} image (see docs/DEPLOYMENT.md)
+
+      # amd64 only: the cluster is amd64, and a Rust release build under QEMU was the slowest part of
+      # the old workflow. Layer cache per component in the Actions cache.
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          push: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          # A plain single-platform manifest: the default provenance attestation turns the push into
+          # an image index with an extra unknown/unknown entry, which some registries' UIs show as a
+          # second platform.
+          provenance: false

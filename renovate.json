@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "packageRules": [
+    {
+      "description": "docker-compose.yml, docker-compose-local.yml and ci.yml pin the same Postgres image, and the Kubernetes deployment mirrors it (docs/DEPLOYMENT.md): bump all three in one PR so they cannot drift.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "groupName": "postgres image"
+    },
+    {
+      "description": "A Postgres major bump needs a dump and restore of the data directory, so it never rides along with the group above: it gets its own PR, and only when approved on the Dependency Dashboard.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "postgres major (dump and restore)",
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
