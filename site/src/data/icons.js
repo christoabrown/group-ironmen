@@ -18,12 +18,19 @@ export const SLOT_SLUGS = [
   "ammo",
 ];
 
+let cachedConfigured;
+let cachedBase;
+
 /** The configured icon base URL without trailing slashes, or "" when icons are disabled. */
 export function iconsBase() {
   const configured = typeof window === "undefined" ? undefined : window.siteConfig?.iconsBaseUrl;
-  return String(configured ?? DEFAULT_ICONS_BASE_URL)
-    .trim()
-    .replace(/\/+$/, "");
+  if (cachedBase === undefined || configured !== cachedConfigured) {
+    cachedConfigured = configured;
+    cachedBase = String(configured ?? DEFAULT_ICONS_BASE_URL)
+      .trim()
+      .replace(/\/+$/, "");
+  }
+  return cachedBase;
 }
 
 /** The icon for an item id as-is (resolve stack variants before calling this). */

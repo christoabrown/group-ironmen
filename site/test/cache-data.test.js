@@ -5,6 +5,7 @@ import path from "path";
 const dataDir = path.resolve(__dirname, "../public/data");
 // Item icons come from the icon CDN; see README "Keeping up with group-ironmen".
 const iconsDir = path.resolve(__dirname, "../public/icons/items");
+const uiDir = path.resolve(__dirname, "../public/ui");
 
 const RAW_MASTER_BASE =
   "https://raw.githubusercontent.com/christoabrown/group-ironmen/master/site/public/data";
@@ -271,6 +272,18 @@ describe("cache data validation", () => {
   describe("item icons", () => {
     it("are not bundled (an upstream cache merge must not bring site/public/icons/items back)", () => {
       expect(fs.existsSync(iconsDir)).toBe(false);
+    });
+
+    it("skill and empty-slot sprites stay deleted from site/public/ui", () => {
+      const removed = [
+        ...Array.from({ length: 11 }, (_, i) => 156 + i),
+        ...Array.from({ length: 21 }, (_, i) => 197 + i),
+        220,
+        221,
+        228,
+      ];
+      const present = removed.map((n) => `${n}-0.png`).filter((f) => fs.existsSync(path.join(uiDir, f)));
+      expect(present).toEqual([]);
     });
   });
 

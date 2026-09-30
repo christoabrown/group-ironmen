@@ -3,8 +3,7 @@ import { api } from "../data/api";
 import { groupData } from "../data/group-data";
 import { selection } from "../data/selection";
 import { Item } from "../data/item";
-import { Skill } from "../data/skill";
-import { itemIconUrl } from "../data/icons";
+import { Skill, SkillName } from "../data/skill";
 import { carriedValue, shares, totalLevel, world } from "../data/roster-model";
 import { formatDuration, formatGp, hubErrorMessage, relativeTime } from "../data/hub-format";
 import { ACCOUNT_TYPE_BADGES } from "../player-roster/player-roster";
@@ -294,7 +293,7 @@ export class PlayerProfileView extends BaseElement {
     const row = el("li", "player-profile-view__gain");
     const icon = el("img", "player-profile-view__gain-icon");
     icon.alt = "";
-    icon.src = Skill.getIcon(skill) || "/ui/3579-0.png";
+    icon.src = skill === SkillName.Overall ? "/ui/3579-0.png" : Skill.getIcon(skill);
     const name = el("span", "player-profile-view__gain-skill", skill);
     const amount = el("span", "player-profile-view__gain-xp", `+${xp.toLocaleString()}`);
     row.append(icon, name, amount);
@@ -429,8 +428,7 @@ export class PlayerProfileView extends BaseElement {
           img.loading = "lazy";
           img.alt = Item.itemDetails?.[id]?.name || "";
           img.title = img.alt;
-          const src = Item.itemDetails?.[id] ? Item.imageUrl(id, equipment[i + 1]) : itemIconUrl(id);
-          if (src) img.src = src;
+          img.src = Item.imageUrl(id, equipment[i + 1]);
           items.appendChild(img);
         }
         row.append(time, items);

@@ -5,7 +5,6 @@ import { describeEvent, relativeTime, hubErrorMessage } from "../data/hub-format
 import { selection } from "../data/selection";
 import { groupData } from "../data/group-data";
 import { Skill } from "../data/skill";
-import { itemIconUrl } from "../data/icons";
 
 export const EVENT_FILTERS = [
   { label: "All", types: [] },
@@ -21,8 +20,7 @@ const TIME_REFRESH_MS = 30000;
 
 /** The image for an event: its item, or a sprite for its kind. */
 export function eventIcon(event) {
-  if (event.item_id && Item.itemDetails?.[event.item_id]) return Item.imageUrl(event.item_id, 1) || null;
-  if (event.item_id) return itemIconUrl(event.item_id) || null;
+  if (event.item_id) return Item.imageUrl(event.item_id, 1) || null;
   if (event.type === "level_up" && event.skill) return Skill.getIcon(event.skill) || null;
   return null;
 }

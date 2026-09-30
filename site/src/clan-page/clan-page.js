@@ -2,7 +2,6 @@ import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { groupData } from "../data/group-data";
 import { Item } from "../data/item";
-import { itemIconUrl } from "../data/icons";
 import { selection } from "../data/selection";
 import { groupByRegion, groupByWorld } from "../data/regions";
 import { describeEvent, formatGp, relativeTime } from "../data/hub-format";
@@ -268,11 +267,7 @@ export class ClanPage extends BaseElement {
     const icon = el("img", "clan-page__drop-icon");
     icon.alt = "";
     icon.loading = "lazy";
-    const iconUrl = event.item_id
-      ? Item.itemDetails?.[event.item_id]
-        ? Item.imageUrl(event.item_id, 1)
-        : itemIconUrl(event.item_id)
-      : "";
+    const iconUrl = event.item_id ? Item.imageUrl(event.item_id, 1) : "";
     if (iconUrl) {
       icon.src = iconUrl;
     } else {

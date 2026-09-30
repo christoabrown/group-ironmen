@@ -42,6 +42,8 @@ for (let i = 1; i <= 126; ++i) {
   levelLookup.set(i + 1, xpForLevel(i));
 }
 
+const SKILL_NAMES = new Set(Object.values(SkillName));
+
 export class Skill {
   constructor(name, xp) {
     this.name = SkillName[name];
@@ -51,8 +53,7 @@ export class Skill {
 
   /** The skill's icon URL, or "" for Overall, unknown names, or when icons are disabled. */
   static getIcon(skillName) {
-    if (skillName === SkillName.Overall || !Object.values(SkillName).includes(skillName)) return "";
-    return skillIconUrl(skillName);
+    return SKILL_NAMES.has(skillName) ? skillIconUrl(skillName) : "";
   }
 
   get icon() {
