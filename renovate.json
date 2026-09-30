@@ -1,6 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
   "packageRules": [
     {
       "description": "docker-compose.yml, docker-compose-local.yml and ci.yml pin the same Postgres image, and the Kubernetes deployment mirrors it (docs/DEPLOYMENT.md): bump all three in one PR so they cannot drift.",
