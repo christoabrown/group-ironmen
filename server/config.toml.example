@@ -16,6 +16,7 @@ level = "Info"  # Info, Warn or Error
 
 [server]
 secure_cookies = true   # COOKIE_SECURE; set to false for plain-HTTP local development
+# setup_token = ""      # SETUP_TOKEN; when set, creating the first admin asks for it
 
 # Discord OAuth (DISCORD_CLIENT_ID enables it; DISCORD_CLIENT_SECRET,
 # DISCORD_REDIRECT_URI, DISCORD_AUTO_REGISTRATION, DISCORD_AUTOREG_SERVERS)

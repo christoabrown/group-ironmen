@@ -6,6 +6,7 @@ pub mod config;
 pub mod db;
 pub mod discord_routes;
 pub mod error;
+pub mod health;
 pub mod hub;
 pub mod models;
 pub mod osrs;

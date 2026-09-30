@@ -153,11 +153,12 @@ class Api {
     return response.json();
   }
 
-  async setup(username, password) {
+  // setupToken is only sent when the server has a SETUP_TOKEN (setup-status says token_required).
+  async setup(username, password, setupToken) {
     const response = await fetch(this.setupUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, setup_token: setupToken }),
     });
     return response;
   }

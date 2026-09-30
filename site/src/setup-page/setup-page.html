@@ -23,6 +23,16 @@
     input-label="Confirm Password"
     type-password
   ></men-input>
+  <div class="setup-page__token-field" hidden>
+    <p>This server asks for its setup token (the backend's <code>SETUP_TOKEN</code>).</p>
+    <men-input
+      class="setup-page__token"
+      input-id="setupToken"
+      placeholder-text="Setup token"
+      input-label="Setup Token"
+      type-password
+    ></men-input>
+  </div>
   <button class="setup-page__submit men-button">Create Admin Account</button>
   <div class="setup-page__error validation-error"></div>
 </div>

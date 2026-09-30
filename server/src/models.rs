@@ -164,11 +164,16 @@ pub struct PlayerUserLink {
 pub struct SetupRequest {
     pub username: String,
     pub password: String,
+    /// Required when the server has `SETUP_TOKEN`; the `X-Setup-Token` header also works.
+    #[serde(default)]
+    pub setup_token: Option<String>,
 }
 
 #[derive(Serialize)]
 pub struct SetupStatusResponse {
     pub needs_setup: bool,
+    /// Whether `POST /api/auth/setup` asks for the `SETUP_TOKEN`.
+    pub token_required: bool,
 }
 
 // --- Discord OAuth models ---
