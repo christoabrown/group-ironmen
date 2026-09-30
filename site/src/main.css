@@ -32,6 +32,11 @@ body {
   text-shadow: 1.3px 1.3px var(--black);
 }
 
+/* Icons come from the icon CDN; with ICONS_BASE_URL empty their src is "", so don't draw a broken image. */
+img[src=""] {
+  visibility: hidden;
+}
+
 h1,
 h2,
 h3 {

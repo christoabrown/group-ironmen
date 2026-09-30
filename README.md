@@ -143,6 +143,22 @@ a file for local development.
 | `DISCORD_AUTO_REGISTRATION` | `false` | Let members of the servers below create an account by logging in. |
 | `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |
 | `HOST_URL`, `SITE_TITLE`, `SITE_NAME` | | Frontend: backend URL for its `/api` proxy, and branding. |
+| `ICONS_BASE_URL` | `https://icons.scapekeeper.com` | Frontend: where browsers load item, skill and equipment-slot icons from (see [Icons](#icons)). Empty turns icons off. |
+
+### Icons
+
+Item, skill and equipment-slot icons are not part of this repository or the images. The page loads them
+from the shared [osrs-icons](https://github.com/RedFirebreak/osrs-icons) CDN at
+`https://icons.scapekeeper.com`, which follows each game update on its own. `ICONS_BASE_URL` changes that:
+
+- leave it unset for the default;
+- set it empty (`ICONS_BASE_URL=`) to turn icons off, for example on an offline install;
+- point it at your own copy to self-host. Every osrs-icons release on GitHub has a
+  `osrs-icons-rev….tar.gz` with the same layout as the CDN: extract it into any static web root, let it
+  send `Access-Control-Allow-Origin: *`, and set `ICONS_BASE_URL` to that root's URL (no trailing slash
+  needed).
+
+Map tiles and labels are still served by the site itself.
 
 ## Development
 
@@ -188,7 +204,19 @@ git merge upstream/master
 ```
 
 Generated data under `site/public/` merges without conflicts (the quest, diary and collection log files
-are kept for that reason, although the site no longer loads them). Server changes rarely apply: this fork
+are kept for that reason, although the site no longer loads them). The exception is item icons: this fork loads them from
+the icon CDN (see [Icons](#icons)), so `site/public/icons/items/` is deleted here. Upstream's
+"chore: update cache outputs" merges add or modify files in it, which shows up as modify/delete conflicts
+or as new files. Resolve them as deleted before committing the merge:
+
+```bash
+git rm -rq --ignore-unmatch site/public/icons/items
+git commit
+```
+
+The same goes for the skill and empty-slot sprites that used to be in `site/public/ui/` (`156-0.png` to
+`166-0.png`, `197-0.png` to `217-0.png`, `220-0.png`, `221-0.png` and `228-0.png`): keep them deleted.
+`npm test` fails while `site/public/icons/items` exists, so a merge that brings it back is caught. Server changes rarely apply: this fork
 replaced group tokens with sessions, reads every player from the hub, and dropped the Group Ironman data.
 
 ## Project structure

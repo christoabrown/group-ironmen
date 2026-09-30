@@ -1,3 +1,5 @@
+import { skillIconUrl } from "./icons";
+
 export const SkillName = {
   Agility: "Agility",
   Attack: "Attack",
@@ -47,58 +49,10 @@ export class Skill {
     this.level = this.calculateLevel();
   }
 
+  /** The skill's icon URL, or "" for Overall, unknown names, or when icons are disabled. */
   static getIcon(skillName) {
-    switch (skillName) {
-      case SkillName.Attack:
-        return "/ui/197-0.png";
-      case SkillName.Strength:
-        return "/ui/198-0.png";
-      case SkillName.Defence:
-        return "/ui/199-0.png";
-      case SkillName.Ranged:
-        return "/ui/200-0.png";
-      case SkillName.Prayer:
-        return "/ui/201-0.png";
-      case SkillName.Magic:
-        return "/ui/202-0.png";
-      case SkillName.Hitpoints:
-        return "/ui/203-0.png";
-      case SkillName.Agility:
-        return "/ui/204-0.png";
-      case SkillName.Herblore:
-        return "/ui/205-0.png";
-      case SkillName.Thieving:
-        return "/ui/206-0.png";
-      case SkillName.Crafting:
-        return "/ui/207-0.png";
-      case SkillName.Fletching:
-        return "/ui/208-0.png";
-      case SkillName.Mining:
-        return "/ui/209-0.png";
-      case SkillName.Smithing:
-        return "/ui/210-0.png";
-      case SkillName.Fishing:
-        return "/ui/211-0.png";
-      case SkillName.Cooking:
-        return "/ui/212-0.png";
-      case SkillName.Firemaking:
-        return "/ui/213-0.png";
-      case SkillName.Woodcutting:
-        return "/ui/214-0.png";
-      case SkillName.Runecraft:
-        return "/ui/215-0.png";
-      case SkillName.Slayer:
-        return "/ui/216-0.png";
-      case SkillName.Farming:
-        return "/ui/217-0.png";
-      case SkillName.Hunter:
-        return "/ui/220-0.png";
-      case SkillName.Construction:
-        return "/ui/221-0.png";
-      case SkillName.Sailing:
-        return "/ui/228-0.png";
-    }
-    return "";
+    if (skillName === SkillName.Overall || !Object.values(SkillName).includes(skillName)) return "";
+    return skillIconUrl(skillName);
   }
 
   get icon() {

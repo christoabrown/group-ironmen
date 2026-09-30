@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 
 const dataDir = path.resolve(__dirname, "../public/data");
+// Item icons come from the icon CDN; see README "Keeping up with group-ironmen".
 const iconsDir = path.resolve(__dirname, "../public/icons/items");
 
 const RAW_MASTER_BASE =
@@ -268,24 +269,8 @@ describe("cache data validation", () => {
   });
 
   describe("item icons", () => {
-    it("icons exist for known items", () => {
-      expect(fs.existsSync(path.join(iconsDir, "4151.webp"))).toBe(true);
-      expect(fs.existsSync(path.join(iconsDir, "995.webp"))).toBe(true);
-    });
-
-    it("icons exist for a sample of collection log items", () => {
-      const allItems = collectionLog.flatMap((t) =>
-        t.pages.flatMap((p) => p.items.map((i) => i.id)),
-      );
-      const sample = allItems.filter((_, i) => i % 50 === 0).slice(0, 50);
-      for (const id of sample) {
-        expect(fs.existsSync(path.join(iconsDir, `${id}.webp`))).toBe(true);
-      }
-    });
-
-    it("icon count > 15000", () => {
-      const files = fs.readdirSync(iconsDir).filter((f) => f.endsWith(".webp"));
-      expect(files.length).toBeGreaterThan(15000);
+    it("are not bundled (an upstream cache merge must not bring site/public/icons/items back)", () => {
+      expect(fs.existsSync(iconsDir)).toBe(false);
     });
   });
 

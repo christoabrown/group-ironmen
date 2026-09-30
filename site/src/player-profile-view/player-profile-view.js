@@ -4,6 +4,7 @@ import { groupData } from "../data/group-data";
 import { selection } from "../data/selection";
 import { Item } from "../data/item";
 import { Skill } from "../data/skill";
+import { itemIconUrl } from "../data/icons";
 import { carriedValue, shares, totalLevel, world } from "../data/roster-model";
 import { formatDuration, formatGp, hubErrorMessage, relativeTime } from "../data/hub-format";
 import { ACCOUNT_TYPE_BADGES } from "../player-roster/player-roster";
@@ -428,7 +429,8 @@ export class PlayerProfileView extends BaseElement {
           img.loading = "lazy";
           img.alt = Item.itemDetails?.[id]?.name || "";
           img.title = img.alt;
-          img.src = Item.itemDetails?.[id] ? Item.imageUrl(id, equipment[i + 1]) : `/icons/items/${id}.webp`;
+          const src = Item.itemDetails?.[id] ? Item.imageUrl(id, equipment[i + 1]) : itemIconUrl(id);
+          if (src) img.src = src;
           items.appendChild(img);
         }
         row.append(time, items);
