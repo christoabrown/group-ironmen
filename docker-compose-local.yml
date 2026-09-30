@@ -1,49 +1,38 @@
+# Builds both images from source. Usage:
+#   cp .env.example .env   # set COOKIE_SECURE=false for http://localhost
+#   docker compose -f docker-compose-local.yml up --build
 services:
   osrs_tracker_frontend:
     build:
       context: ./site
-      dockerfile: Dockerfile
     environment:
-      - HOST_URL=${HOST_URL}
-      - SITE_TITLE=${SITE_TITLE:-OSRS Group Tracker}
-      - SITE_NAME=${SITE_NAME:-GroupIron.men}
-    restart: always
+      - HOST_URL=${HOST_URL:-http://osrs_tracker_backend:8080}
+      - SITE_TITLE=${SITE_TITLE:-OSRS Guild Map}
+      - SITE_NAME=${SITE_NAME:-OSRS Guild Map}
+    restart: unless-stopped
     depends_on:
-      - "osrs_tracker_backend"
+      - osrs_tracker_backend
     ports:
       - 4000:4000
   osrs_tracker_backend:
     build:
       context: ./server
-      dockerfile: Dockerfile
-    environment:
-      - PG_USER=${PG_USER}
-      - PG_PASSWORD=${PG_PASSWORD}
-      - PG_HOST=${PG_HOST}
-      - PG_PORT=${PG_PORT}
-      - PG_DB=${PG_DB}
-      - BACKEND_SECRET=${BACKEND_SECRET}
-      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
-      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
-      - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-}
-      - DISCORD_AUTO_REGISTRATION=${DISCORD_AUTO_REGISTRATION:-false}
-      - DISCORD_AUTOREG_SERVERS=${DISCORD_AUTOREG_SERVERS:-}
-    restart: always
+    env_file: .env
+    restart: unless-stopped
     depends_on:
-      - "postgres"
+      - postgres
     ports:
       - 5000:8080
-
+    extra_hosts:
+      - host.docker.internal:host-gateway # lets HUB_BASE_URL point at a hub or mock hub on the host
   postgres:
     image: postgres:17
-    restart: always
-    container_name: group-ironmen-tracker-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: osrs_tracker
+      POSTGRES_USER: ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
+      POSTGRES_DB: ${PG_DB:-osrs_tracker}
     ports:
       - 5432:5432
     volumes:
       - ./pg-data:/var/lib/postgresql/data
-      - ./server/src/sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql

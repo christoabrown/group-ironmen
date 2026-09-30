@@ -1,6 +1,9 @@
 use actix_web::{HttpResponse, ResponseError};
 use deadpool_postgres::PoolError;
-use derive_more::{Display, From};#[derive(Debug, Display, From)]
+use derive_more::{Display, From};
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Display, From)]
 pub enum ApiError {
     PoolError(PoolError),
     PGError(tokio_postgres::error::Error),
@@ -27,7 +30,10 @@ pub enum ApiError {
     PairingCodeError(tokio_postgres::error::Error),
     #[from(ignore)]
     DeviceAuthError(tokio_postgres::error::Error),
-    ReqwestError(reqwest::Error),
+    UreqError(ureq::Error),
+    #[display("Hub error: {}", _0)]
+    #[from(ignore)]
+    HubError(String),
     GroupMemberValidationError(String),
     #[display("Unauthorized")]
     #[from(ignore)]
@@ -82,23 +88,23 @@ impl ResponseError for ApiError {
             ApiError::DeviceAuthError(ref _err) => {
                 HttpResponse::Unauthorized().body("Invalid device token")
             }
-            ApiError::ReqwestError(ref err) => {
-                log::error!("ReqwestError: {}", err);
-                HttpResponse::InternalServerError().body(format!("ReqwestError: {}", err))
+            ApiError::UreqError(ref err) => {
+                log::error!("UreqError: {}", err);
+                HttpResponse::InternalServerError().body(format!("UreqError: {}", err))
+            }
+            ApiError::HubError(ref err) => {
+                log::warn!("HubError: {}", err);
+                HttpResponse::ServiceUnavailable()
+                    .insert_header(("Retry-After", "10"))
+                    .body("The data hub is currently unavailable")
             }
             ApiError::GroupMemberValidationError(ref reason) => {
                 log::error!("Validation error: {}", reason);
                 HttpResponse::BadRequest().body(reason.clone())
             }
-            ApiError::Unauthorized => {
-                HttpResponse::Unauthorized().body("Unauthorized")
-            }
-            ApiError::Forbidden => {
-                HttpResponse::Forbidden().body("Forbidden")
-            }
-            ApiError::BadRequest(ref msg) => {
-                HttpResponse::BadRequest().body(msg.clone())
-            }
+            ApiError::Unauthorized => HttpResponse::Unauthorized().body("Unauthorized"),
+            ApiError::Forbidden => HttpResponse::Forbidden().body("Forbidden"),
+            ApiError::BadRequest(ref msg) => HttpResponse::BadRequest().body(msg.clone()),
             ApiError::BcryptError(ref err) => {
                 log::error!("BcryptError: {}", err);
                 HttpResponse::InternalServerError().finish()

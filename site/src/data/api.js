@@ -2,6 +2,7 @@ import { pubsub } from "./pubsub";
 import { utility } from "../utility";
 import { groupData } from "./group-data";
 import { exampleData } from "./example-data";
+import { storage } from "./storage";
 
 class Api {
   constructor() {
@@ -46,10 +47,6 @@ class Api {
     return `${this.baseUrl}/captcha-enabled`;
   }
 
-  get collectionLogInfoUrl() {
-    return `${this.baseUrl}/collection-log-info`;
-  }
-
   get setupStatusUrl() {
     return `${this.baseUrl}/auth/setup-status`;
   }
@@ -81,8 +78,10 @@ class Api {
   // Auth headers using session cookie + Bearer fallback
   authHeaders() {
     const headers = {};
-    if (this.sessionToken) {
-      headers["Authorization"] = `Bearer ${this.sessionToken}`;
+    // Pages can mount before the app initializer has restored the session.
+    const sessionToken = this.sessionToken || storage.getSession().sessionToken;
+    if (sessionToken) {
+      headers["Authorization"] = `Bearer ${sessionToken}`;
     }
     return headers;
   }
@@ -321,12 +320,12 @@ class Api {
     return `${this.baseUrl}/auth/discord/callback`;
   }
 
-  async discordCallback(code) {
+  async discordCallback(code, state) {
     const response = await fetch(this.discordCallbackUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, state }),
     });
     return response;
   }
@@ -446,6 +445,96 @@ class Api {
       credentials: "same-origin",
     });
     return response;
+  }
+
+  async adminLinkPlayerUser(memberName, userId) {
+    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/users/${userId}`, {
+      method: "POST",
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    return response;
+  }
+
+  async adminUnlinkPlayerUser(memberName, userId) {
+    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/users/${userId}`, {
+      method: "DELETE",
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    return response;
+  }
+
+  async adminGetHubStatus() {
+    const response = await fetch(`${this.baseUrl}/admin/hub/status`, {
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    return response;
+  }
+
+  async adminTestHub() {
+    const response = await fetch(`${this.baseUrl}/admin/hub/test`, {
+      method: "POST",
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    return response;
+  }
+
+  // --- Data source features and hub history ---
+
+  /**
+   * Loads which data source this server uses and whether hub history is
+   * available, and publishes it as "features". Defaults to direct pairing
+   * without hub history when the server does not answer.
+   */
+  async loadFeatures() {
+    let features = { data_source: "direct", direct_pairing: true, hub_history: false };
+    if (!this.exampleDataEnabled) {
+      try {
+        const response = await fetch(`${this.baseUrl}/group/features`, {
+          headers: this.authHeaders(),
+          credentials: "same-origin",
+        });
+        if (response.ok) {
+          features = await response.json();
+        }
+      } catch {
+        // Keep the defaults.
+      }
+    }
+    pubsub.publish("features", features);
+    return features;
+  }
+
+  async getHubJson(path) {
+    const response = await fetch(`${this.baseUrl}/group/hub/${path}`, {
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const error = new Error(`Hub request failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    return response.json();
+  }
+
+  /** The member's location trail as [x, y, plane, unixSeconds] points. */
+  async getHubLocations(memberName, days) {
+    return this.getHubJson(`locations/${encodeURIComponent(memberName)}?days=${days}`);
+  }
+
+  async getHubEvents({ types = [], member, limit = 100 } = {}) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (types.length) params.set("types", types.join(","));
+    if (member) params.set("member", member);
+    return this.getHubJson(`events?${params}`);
+  }
+
+  async getHubGains(period) {
+    return this.getHubJson(`gains?period=${encodeURIComponent(period)}`);
   }
 }
 

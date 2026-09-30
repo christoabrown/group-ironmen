@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Coordinates {
     x: i32,
@@ -10,7 +9,7 @@ pub struct Coordinates {
     plane: i32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Interacting {
     name: String,
@@ -31,7 +30,7 @@ pub struct RenameGroupMember {
     pub new_name: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct GroupMember {
     #[serde(skip)]
     pub group_id: Option<i64>,
@@ -51,8 +50,6 @@ pub struct GroupMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bank: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub shared_bank: Option<Vec<i32>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub rune_pouch: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interacting: Option<Interacting>,
@@ -65,7 +62,14 @@ pub struct GroupMember {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collection_log_v2: Option<Vec<i32>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub potion_storage: Option<Vec<i32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_updated: Option<DateTime<Utc>>,
+    /// When the data was observed at its source. The batcher stores it as the
+    /// `*_last_update` timestamp of each supplied field instead of NOW(), so
+    /// data imported for a player who is offline is not shown as online.
+    #[serde(skip)]
+    pub source_time: Option<DateTime<Utc>>,
 }
 #[derive(Serialize)]
 pub struct AggregateSkillData {
@@ -210,6 +214,19 @@ pub struct PlayerInfo {
     pub member_id: i64,
     pub member_name: String,
     pub last_updated: Option<DateTime<Utc>>,
+    /// `direct` or `hub`: which data source last wrote this player.
+    pub last_source: Option<String>,
+    pub hub_linked: bool,
+    /// Set when the hub no longer shows this player's account.
+    pub hub_orphaned_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize)]
+pub struct PlayerUserLink {
+    pub user_id: i64,
+    pub username: String,
+    /// `device`, `hub` or `manual`.
+    pub source: String,
 }
 
 #[derive(Deserialize)]
@@ -277,6 +294,9 @@ pub struct IngestItems {
 #[allow(dead_code)]
 pub struct IngestPlayer {
     pub name: String,
+    /// The plugin's salted hash of the account id; stable across renames.
+    #[serde(default, rename = "accountHash")]
+    pub account_hash: Option<String>,
     #[serde(rename = "accountType")]
     pub account_type: Option<String>,
     pub world: Option<String>,
@@ -306,6 +326,8 @@ pub struct IngestPayload {
 #[derive(Deserialize)]
 pub struct DiscordCallbackRequest {
     pub code: String,
+    #[serde(default)]
+    pub state: Option<String>,
 }
 
 #[derive(Deserialize)]

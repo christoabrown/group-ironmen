@@ -76,9 +76,9 @@ export class Quest {
     Quest.freeToPlayQuests = {};
     Quest.memberQuests = {};
     Quest.miniQuests = {};
-    Quest.tutorial = {};
     Quest.lookupByName = new Map();
     Quest.questIds = Object.keys(Quest.questData)
+      .filter((questId) => !Quest.questData[questId].hidden)
       .map((s) => parseInt(s))
       .sort((a, b) => a - b);
     let totalQuestPoints = 0;
@@ -90,8 +90,6 @@ export class Quest {
       totalQuestPoints += questData.points;
       if (questData.miniquest) {
         Quest.miniQuests[questId] = questData;
-      } else if (questData.tutorial) {
-        Quest.tutorial[questId] = questData;
       } else if (questData.member === false) {
         Quest.freeToPlayQuests[questId] = questData;
       } else {

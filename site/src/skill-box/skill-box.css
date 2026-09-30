@@ -1,7 +1,6 @@
 skill-box {
   display: flex;
   position: relative;
-  transform: translateZ(1px);
   width: 62px;
   height: 32px;
 

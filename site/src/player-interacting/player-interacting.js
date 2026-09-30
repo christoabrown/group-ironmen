@@ -35,6 +35,11 @@ export class PlayerInteracting extends BaseElement {
   }
 
   handleInteracting(interacting) {
+    if (!interacting || !interacting.last_updated || !interacting.location) {
+      this.hide();
+      return;
+    }
+
     this.interacting = interacting;
     const timeSinceLastUpdate = utility.timeSinceLastUpdate(interacting.last_updated);
     const timeUntilHide = this.staleTimeout - timeSinceLastUpdate;

@@ -86,3 +86,7 @@ setup-instructions {
   font-size: 0.9em;
   color: #aaa;
 }
+
+.setup__block[hidden] {
+  display: none;
+}

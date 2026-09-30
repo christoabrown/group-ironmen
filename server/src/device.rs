@@ -1,26 +1,16 @@
+use crate::auth_middleware::SessionAuthenticated;
 use crate::crypto::token_hash;
 use crate::db;
 use crate::error::ApiError;
-use crate::auth_middleware::{Authenticated, SessionAuthenticated};
-use crate::models::{
-    GroupMember, IngestPayload, PairCodeResponse, PairRequest, PairResponse,
-};
+use crate::hub::DirectSeen;
+use crate::models::{GroupMember, IngestPayload, PairCodeResponse, PairRequest, PairResponse};
+use crate::osrs::{equipment_slot_index, SKILL_ORDER};
 use crate::token_lockout::TokenLockout;
 use crate::validators::valid_name;
 use actix_web::{post, web, Error, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::{Client, Pool};
 use tokio::sync::mpsc;
-
-// Must match the iteration order of SkillName in site/src/data/skill.js
-// (Object.keys order, excluding Overall)
-const SKILL_ORDER: &[&str] = &[
-    "Agility", "Attack", "Construction", "Cooking", "Crafting", "Defence",
-    "Farming", "Firemaking", "Fishing", "Fletching", "Herblore", "Hitpoints",
-    "Hunter", "Magic", "Mining",
-    "Prayer", "Ranged", "Runecraft", "Slayer", "Smithing", "Strength",
-    "Thieving", "Woodcutting", "Sailing",
-];
 
 const DEVICE_TOKEN_SALT: &str = "osrs-device";
 
@@ -60,29 +50,6 @@ pub async fn create_pairing_code(
     }))
 }
 
-// Legacy pairing code endpoint (for backward compatibility with group token auth)
-#[post("/legacy-pair/code")]
-pub async fn create_pairing_code_legacy(
-    auth: Authenticated,
-    db_pool: web::Data<Pool>,
-) -> Result<HttpResponse, Error> {
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-
-    // Clean up expired codes
-    let _ = db::cleanup_expired_pairing_codes(&client).await;
-
-    let code = generate_pairing_code();
-    let expires_at = Utc::now() + Duration::seconds(300);
-
-    db::store_pairing_code(&client, &code, auth.group_id, &expires_at).await?;
-
-    Ok(HttpResponse::Ok().json(PairCodeResponse {
-        ok: true,
-        code,
-        expires_in: 300,
-    }))
-}
-
 #[post("/osrs-data/pair")]
 pub async fn pair_device(
     body: web::Json<PairRequest>,
@@ -107,29 +74,17 @@ pub async fn pair_device(
 
 // Maps RuneLite equipmentSlot string names to frontend EquipmentSlot indices
 // (see site/src/player-equipment/player-equipment.js)
-fn equipment_slot_index(slot_name: &str) -> Option<usize> {
-    match slot_name {
-        "HEAD" => Some(0),
-        "CAPE" => Some(1),
-        "AMULET" => Some(2),
-        "WEAPON" => Some(3),
-        "BODY" => Some(4),
-        "SHIELD" => Some(5),
-        "LEGS" => Some(7),
-        "GLOVES" => Some(9),
-        "BOOTS" => Some(10),
-        "RING" => Some(12),
-        "AMMO" => Some(13),
-        _ => None,
-    }
-}
-
 fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> GroupMember {
     let player = &payload.player;
 
-    let coordinates = player.location.as_ref().map(|loc| vec![loc.x, loc.y, loc.plane]);
+    let coordinates = player
+        .location
+        .as_ref()
+        .map(|loc| vec![loc.x, loc.y, loc.plane]);
 
-    let world: i32 = player.world.as_ref()
+    let world: i32 = player
+        .world
+        .as_ref()
         .and_then(|w| w.parse().ok())
         .unwrap_or(0);
 
@@ -146,7 +101,9 @@ fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> Gro
                 hp.map(|h| h.max).unwrap_or(0),
                 pr.map(|p| p.current).unwrap_or(0),
                 pr.map(|p| p.max).unwrap_or(0),
-                0, 0, world,
+                0,
+                0,
+                world,
             ])
         } else {
             None
@@ -157,12 +114,7 @@ fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> Gro
         stats.skills.as_ref().map(|skill_map| {
             SKILL_ORDER
                 .iter()
-                .map(|name| {
-                    skill_map
-                        .get(*name)
-                        .and_then(|s| s.xp)
-                        .unwrap_or(0)
-                })
+                .map(|name| skill_map.get(*name).and_then(|s| s.xp).unwrap_or(0))
                 .collect()
         })
     });
@@ -197,7 +149,9 @@ fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> Gro
 
             for item in items {
                 // Prefer equipmentSlot name mapping, fall back to numeric slot
-                let slot_idx = item.equipment_slot.as_ref()
+                let slot_idx = item
+                    .equipment_slot
+                    .as_ref()
                     .and_then(|name| equipment_slot_index(name))
                     .or(item.slot);
 
@@ -218,18 +172,9 @@ fn convert_ingest_to_group_member(payload: &IngestPayload, group_id: i64) -> Gro
         stats,
         coordinates,
         skills,
-        quests: None,
         inventory,
         equipment,
-        bank: None,
-        shared_bank: None,
-        rune_pouch: None,
-        interacting: None,
-        seed_vault: None,
-        deposited: None,
-        diary_vars: None,
-        collection_log_v2: None,
-        last_updated: None,
+        ..Default::default()
     }
 }
 
@@ -240,6 +185,7 @@ pub async fn ingest(
     db_pool: web::Data<Pool>,
     sender: web::Data<mpsc::Sender<GroupMember>>,
     lockout: web::Data<TokenLockout>,
+    direct_seen: web::Data<DirectSeen>,
 ) -> Result<HttpResponse, Error> {
     let token = match req.headers().get("X-Osrs-Token") {
         Some(header) => match header.to_str() {
@@ -281,6 +227,13 @@ pub async fn ingest(
     }
 
     db::ensure_member_exists(&client, group_id, player_name).await?;
+    direct_seen.record(player_name);
+    let account_hash = body
+        .player
+        .account_hash
+        .as_deref()
+        .filter(|hash| !hash.is_empty() && hash.len() <= 128);
+    db::set_direct_source(&client, group_id, player_name, account_hash).await?;
 
     // Track user-player link
     if let Ok(Some(user_id)) = db::get_device_user_id(&client, &hashed_token).await {

@@ -3,7 +3,6 @@ player-stats {
   width: 100%;
   overflow: visible;
   white-space: nowrap;
-  line-height: 1;
   position: relative;
   color: white;
 }

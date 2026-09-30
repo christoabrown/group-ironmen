@@ -1,26 +1,18 @@
-mod auth_middleware;
-mod auth_routes;
-mod admin_routes;
-mod authed;
-mod collection_log;
-mod config;
-mod crypto;
-mod db;
-mod discord_routes;
-mod error;
-mod models;
-mod unauthed;
-mod validators;
-mod device;
-mod update_batcher;
-mod token_lockout;
-use crate::auth_middleware::{AuthenticateMiddlewareFactory, SessionMiddlewareFactory};
-use crate::config::Config;
+use server::auth_middleware::SessionMiddlewareFactory;
+use server::config::Config;
+use server::hub::{self, HubContext, HubStatus};
+use server::{
+    admin_routes, auth_routes, authed, db, device, discord_routes, models, token_lockout, unauthed,
+    update_batcher,
+};
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, HttpServer};
-use tokio_postgres::NoTls;
+use deadpool_postgres::Runtime;
 use tokio::sync::mpsc;
+use tokio_postgres::NoTls;
 
 use mimalloc::MiMalloc;
 
@@ -30,7 +22,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config = Config::from_env().unwrap();
-    let pool = config.pg.create_pool(None, NoTls).unwrap();
+    let pool = config.pg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
     env_logger::init_from_env(
         env_logger::Env::new().default_filter_or(config.logger.level.to_string()),
     );
@@ -39,21 +31,79 @@ async fn main() -> std::io::Result<()> {
     db::update_schema(&mut client).await.unwrap();
 
     // Get or create singleton group
-    let group_id = db::get_or_create_singleton_group(&mut client).await.unwrap();
+    let group_id = db::get_or_create_singleton_group(&mut client)
+        .await
+        .unwrap();
     log::info!("Singleton group_id: {}", group_id);
 
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());
 
-    let update_batcher_pool = config.pg.create_pool(None, NoTls).unwrap();
+    let update_batcher_pool = config.pg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
     let (tx, rx) = mpsc::channel::<models::GroupMember>(10000);
     tokio::spawn(async move {
-        update_batcher::background_worker(update_batcher_pool, rx).await;
+        update_batcher::background_worker(update_batcher_pool, rx, None).await;
     });
 
-    let token_lockout = web::Data::new(
-        token_lockout::TokenLockout::new(std::time::Duration::from_secs(15 * 60)),
-    );
+    let token_lockout = web::Data::new(token_lockout::TokenLockout::new(
+        std::time::Duration::from_secs(15 * 60),
+    ));
+
+    log::info!("Data source: {:?}", config.data_source);
+    let direct_seen = hub::DirectSeen::default();
+    let hub_status = Arc::new(RwLock::new(HubStatus {
+        data_source: format!("{:?}", config.data_source).to_lowercase(),
+        history_enabled: config.hub_history_enabled(),
+        base_url: config.hub.base_url.clone(),
+        ..Default::default()
+    }));
+    let hub_client = config
+        .data_source
+        .uses_hub()
+        .then(|| hub::client::HubClient::new(&config.hub));
+    let hub_events = hub::events::EventBuffer::default();
+    let hub_capabilities = hub::SharedKeyCapabilities::default();
+    if let Some(status) = hub_status.write().ok().as_mut() {
+        status.request_budget_per_min = hub_client
+            .as_ref()
+            .map_or(0, |client| client.budget_per_min());
+        status.bulk_accounts = hub::USER_KEY_BULK_ACCOUNTS;
+    }
+    if let Some(client) = &hub_client {
+        hub::start_key_discovery(
+            Arc::clone(client),
+            config.hub.request_budget_per_min,
+            Arc::clone(&hub_capabilities),
+            Arc::clone(&hub_status),
+        );
+        hub::sync::start(hub::sync::SyncContext {
+            pool: pool.clone(),
+            client: Arc::clone(client),
+            sender: tx.clone(),
+            group_id,
+            config: config.hub.clone(),
+            data_source: config.data_source,
+            status: Arc::clone(&hub_status),
+            direct_seen: direct_seen.clone(),
+        });
+        if config.hub_history_enabled() {
+            hub::events::start(
+                Arc::clone(client),
+                hub_events.clone(),
+                Duration::from_secs(config.hub.events_poll_secs),
+                Arc::clone(&hub_status),
+            );
+        }
+    }
+    let hub_context = web::Data::new(HubContext {
+        client: hub_client,
+        status: hub_status,
+        cache: Arc::new(hub::cache::TtlCache::new()),
+        events: hub_events,
+        capabilities: hub_capabilities,
+    });
+    let direct_seen = web::Data::new(direct_seen);
+    let accepts_direct = config.data_source.accepts_direct();
 
     HttpServer::new(move || {
         // Public auth endpoints (no session required)
@@ -85,7 +135,11 @@ async fn main() -> std::io::Result<()> {
             .service(admin_routes::list_players)
             .service(admin_routes::delete_player)
             .service(admin_routes::get_user_players)
-            .service(admin_routes::get_player_users);
+            .service(admin_routes::get_player_users)
+            .service(admin_routes::link_player_user)
+            .service(admin_routes::unlink_player_user)
+            .service(hub::routes::get_hub_status)
+            .service(hub::routes::test_hub_connection);
 
         // Session-protected group data routes
         let session_group_scope = web::scope("/api/group")
@@ -99,30 +153,28 @@ async fn main() -> std::io::Result<()> {
             .service(authed::am_i_in_group)
             .service(authed::get_skill_data)
             .service(authed::get_collection_log)
-            .service(device::create_pairing_code);
-
-        // Legacy group token auth scope (backward compat)
-        let legacy_authed_scope = web::scope("/api/group/{group_name}")
-            .wrap(AuthenticateMiddlewareFactory::new())
-            .service(authed::update_group_member)
-            .service(authed::get_group_data)
-            .service(authed::add_group_member)
-            .service(authed::delete_group_member)
-            .service(authed::rename_group_member)
-            .service(authed::am_i_logged_in)
-            .service(authed::am_i_in_group)
-            .service(authed::get_skill_data)
-            .service(authed::get_collection_log)
-            .service(device::create_pairing_code_legacy);
+            .service(hub::routes::get_features)
+            .service(hub::proxy::get_gains)
+            .service(hub::proxy::get_locations)
+            .service(hub::proxy::get_events);
+        let session_group_scope = if accepts_direct {
+            session_group_scope.service(device::create_pairing_code)
+        } else {
+            session_group_scope
+        };
 
         // Public endpoints
         let unauthed_scope = web::scope("/api")
-            .service(unauthed::create_group)
             .service(unauthed::get_ge_prices)
-            .service(unauthed::captcha_enabled)
-            .service(unauthed::collection_log_info)
-            .service(device::pair_device)
-            .service(device::ingest);
+            .service(unauthed::captcha_enabled);
+        // Direct plugin pairing and ingest, unless data only comes from the hub.
+        let unauthed_scope = if accepts_direct {
+            unauthed_scope
+                .service(device::pair_device)
+                .service(device::ingest)
+        } else {
+            unauthed_scope
+        };
 
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
@@ -154,11 +206,12 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(tx.clone()))
             .app_data(web::Data::new(group_id))
             .app_data(token_lockout.clone())
+            .app_data(hub_context.clone())
+            .app_data(direct_seen.clone())
             .service(auth_scope)
             .service(session_auth_scope)
             .service(admin_scope)
             .service(session_group_scope)
-            .service(legacy_authed_scope)
             .service(unauthed_scope)
     })
     .bind(("0.0.0.0", 8080))?

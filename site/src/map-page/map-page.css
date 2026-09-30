@@ -15,3 +15,21 @@ map-page {
 .map-page__focus-player-buttons > button + button {
   margin-left: 6px;
 }
+
+.map-page__trail-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.map-page__trail-controls[hidden] {
+  display: none;
+}
+
+.map-page__trail-status {
+  color: #ddd;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}

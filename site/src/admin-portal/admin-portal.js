@@ -28,6 +28,13 @@ function relativeTime(dateStr) {
   return `${diffMonth} month${diffMonth !== 1 ? "s" : ""} ago`;
 }
 
+export function describeHubKey(status) {
+  if (!status.key_kind) return `not checked yet (budget ${status.request_budget_per_min}/min)`;
+  const kind = status.key_kind === "service" ? "service key" : "personal key";
+  const limit = status.key_rate_limit_per_minute ? `${status.key_rate_limit_per_minute}/min, ` : "";
+  return `${kind} (${limit}using ${status.request_budget_per_min}/min, ${status.bulk_accounts} per bulk request)`;
+}
+
 export class AdminPortal extends BaseElement {
   constructor() {
     super();
@@ -49,6 +56,7 @@ export class AdminPortal extends BaseElement {
     api.setSession(session.sessionToken, session.username, session.role);
     this.render();
     this.loadUsers();
+    this.loadHubStatus();
     this.loadPlayers();
     this.loadAuditLog();
     this.setupCreateUser();
@@ -112,9 +120,10 @@ export class AdminPortal extends BaseElement {
 
     container.innerHTML = users
       .map((user) => {
-        const roleBadge = user.role === "admin"
-          ? `<span class="admin-portal__badge admin-portal__badge--admin">admin</span>`
-          : `<span class="admin-portal__badge admin-portal__badge--member">member</span>`;
+        const roleBadge =
+          user.role === "admin"
+            ? `<span class="admin-portal__badge admin-portal__badge--admin">admin</span>`
+            : `<span class="admin-portal__badge admin-portal__badge--member">member</span>`;
         const disabledBadge = !user.enabled
           ? `<span class="admin-portal__badge admin-portal__badge--disabled">disabled</span>`
           : "";
@@ -141,7 +150,9 @@ export class AdminPortal extends BaseElement {
               <strong>${escapeHtml(user.username)}</strong>
               ${roleBadge}
               ${disabledBadge}
-              <span style="font-size:0.85rem;color:#999" title="${escapeHtml(lastSeen)}">Last seen: ${escapeHtml(lastSeenRelative)}</span>
+              <span style="font-size:0.85rem;color:#999" title="${escapeHtml(lastSeen)}">Last seen: ${escapeHtml(
+          lastSeenRelative
+        )}</span>
             </div>
             <div class="admin-portal__user-actions">${actions}</div>
           </div>
@@ -178,7 +189,9 @@ export class AdminPortal extends BaseElement {
           response = await api.adminChangeUserRole(userId, btn.dataset.role);
           break;
         case "kick":
-          if (!confirm("Are you sure you want to kick this user? This will delete their account and revoke all tokens.")) {
+          if (
+            !confirm("Are you sure you want to kick this user? This will delete their account and revoke all tokens.")
+          ) {
             return;
           }
           response = await api.adminKickUser(userId);
@@ -254,6 +267,86 @@ export class AdminPortal extends BaseElement {
       .join("");
   }
 
+  async loadHubStatus() {
+    const container = this.querySelector(".admin-portal__hub-status");
+    if (!container) return;
+    try {
+      const response = await api.adminGetHubStatus();
+      if (!response.ok) return;
+      const status = await response.json();
+      this.renderHubStatus(container, status);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  renderHubStatus(container, status) {
+    container.hidden = false;
+    const usesHub = status.data_source === "hub" || status.data_source === "both";
+    const rows = [["Data source", status.data_source || "direct"]];
+    if (usesHub) {
+      rows.push(
+        ["Hub", status.base_url],
+        ["Last sync", relativeTime(status.last_success)],
+        ["Accounts", `${status.accounts_visible} visible, ${status.accounts_online} online`],
+        ["Key", describeHubKey(status)],
+        ["Orphaned", String(status.members_orphaned)],
+        ["History", status.history_enabled ? `on (${status.events_buffered} events buffered)` : "off"]
+      );
+    }
+
+    const heading = document.createElement("h4");
+    heading.textContent = "Data source";
+    const list = document.createElement("dl");
+    for (const [label, value] of rows) {
+      const dt = document.createElement("dt");
+      dt.textContent = label;
+      const dd = document.createElement("dd");
+      dd.textContent = value ?? "";
+      list.append(dt, dd);
+    }
+    const children = [heading, list];
+
+    if (usesHub && status.last_error && status.consecutive_failures > 0) {
+      const error = document.createElement("div");
+      error.className = "admin-portal__hub-error";
+      error.textContent = `Last error (${relativeTime(status.last_error_at)}): ${status.last_error}`;
+      children.push(error);
+    }
+
+    if (usesHub) {
+      const button = document.createElement("button");
+      button.className = "men-button";
+      button.textContent = "Test connection";
+      const result = document.createElement("div");
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        result.textContent = "Testing...";
+        try {
+          const response = await api.adminTestHub();
+          const test = await response.json();
+          if (!test.ok) {
+            result.textContent = test.message;
+          } else {
+            const kind = test.key.kind === "service" ? "service key" : "personal key";
+            const limit = test.key.rate_limit_per_minute ? `, ${test.key.rate_limit_per_minute}/min` : "";
+            result.textContent =
+              `OK: ${kind} "${test.key.name}"${limit} (${test.key.categories.join(", ")}), ` +
+              `${test.visible_accounts ?? "?"} accounts visible` +
+              (test.key.kind === "service"
+                ? ""
+                : ". A personal key stops working when its creator leaves the guild; ask a hub admin for a service key.");
+          }
+        } catch (e) {
+          result.textContent = "The test request failed.";
+        }
+        button.disabled = false;
+      });
+      children.push(button, result);
+    }
+    container.replaceChildren(...children);
+  }
+
   async loadPlayers() {
     try {
       const response = await api.adminListPlayers();
@@ -276,29 +369,41 @@ export class AdminPortal extends BaseElement {
 
     container.innerHTML = players
       .map((player) => {
-        const lastUpdated = player.last_updated
-          ? new Date(player.last_updated).toLocaleString()
-          : "";
+        const lastUpdated = player.last_updated ? new Date(player.last_updated).toLocaleString() : "";
         const lastUpdatedRelative = relativeTime(player.last_updated);
         const isStale = player.last_updated
-          ? (Date.now() - new Date(player.last_updated).getTime()) > STALE_THRESHOLD_MS
+          ? Date.now() - new Date(player.last_updated).getTime() > STALE_THRESHOLD_MS
           : true;
-        const staleBadge = isStale
-          ? `<span class="admin-portal__badge admin-portal__badge--stale">stale</span>`
+        const staleBadge = isStale ? `<span class="admin-portal__badge admin-portal__badge--stale">stale</span>` : "";
+        const sourceBadge = player.hub_linked
+          ? `<span class="admin-portal__badge admin-portal__badge--hub" title="Synced from osrs-data-hub">hub</span>`
+          : "";
+        const orphanedBadge = player.hub_orphaned_at
+          ? `<span class="admin-portal__badge admin-portal__badge--orphaned" title="No longer visible on the hub">not shared</span>`
           : "";
 
         return `
           <div class="admin-portal__player-row">
             <span class="admin-portal__player-name">${escapeHtml(player.member_name)}</span>
             ${staleBadge}
+            ${sourceBadge}
+            ${orphanedBadge}
             <span class="admin-portal__player-spacer"></span>
             <div class="admin-portal__player-actions">
-              <span class="admin-portal__badge admin-portal__badge--time" title="${escapeHtml(lastUpdated)}">${escapeHtml(lastUpdatedRelative)}</span>
-              <button class="men-button" data-player-action="show-users" data-player-name="${escapeHtml(player.member_name)}">Users</button>
-              <button class="men-button" data-player-action="delete" data-player-name="${escapeHtml(player.member_name)}">Remove</button>
+              <span class="admin-portal__badge admin-portal__badge--time" title="${escapeHtml(
+                lastUpdated
+              )}">${escapeHtml(lastUpdatedRelative)}</span>
+              <button class="men-button" data-player-action="show-users" data-player-name="${escapeHtml(
+                player.member_name
+              )}">Users</button>
+              <button class="men-button" data-player-action="delete" data-player-name="${escapeHtml(
+                player.member_name
+              )}">Remove</button>
             </div>
           </div>
-          <div class="admin-portal__linked-list" data-player-users-name="${escapeHtml(player.member_name)}" style="display:none"></div>
+          <div class="admin-portal__linked-list" data-player-users-name="${escapeHtml(
+            player.member_name
+          )}" style="display:none"></div>
         `;
       })
       .join("");
@@ -318,7 +423,9 @@ export class AdminPortal extends BaseElement {
     }
 
     if (action === "delete") {
-      if (!confirm(`Are you sure you want to remove player '${playerName}'? All player data will be permanently deleted.`)) {
+      if (
+        !confirm(`Are you sure you want to remove player '${playerName}'? All player data will be permanently deleted.`)
+      ) {
         return;
       }
       try {
@@ -339,20 +446,70 @@ export class AdminPortal extends BaseElement {
 
     if (el.style.display !== "none") {
       el.style.display = "none";
-      el.innerHTML = "";
+      el.replaceChildren();
       return;
     }
 
+    await this.renderPlayerUsers(el, playerName);
+    el.style.display = "";
+  }
+
+  async renderPlayerUsers(el, playerName) {
     try {
-      const response = await api.adminGetPlayerUsers(playerName);
-      if (!response.ok) return;
-      const users = await response.json();
-      if (users.length === 0) {
-        el.innerHTML = "No linked users";
-      } else {
-        el.innerHTML = `<strong>Linked users:</strong> ${users.map((u) => escapeHtml(u)).join(", ")}`;
+      const [linksResponse, usersResponse] = await Promise.all([
+        api.adminGetPlayerUsers(playerName),
+        api.adminListUsers(),
+      ]);
+      if (!linksResponse.ok) return;
+      const links = await linksResponse.json();
+      const users = usersResponse.ok ? await usersResponse.json() : [];
+
+      const linked = document.createElement("div");
+      const label = document.createElement("strong");
+      label.textContent = links.length ? "Linked users: " : "No linked users";
+      linked.append(label);
+      for (const link of links) {
+        const item = document.createElement("span");
+        item.className = "admin-portal__linked-user";
+        item.textContent = `${link.username} (${link.source})`;
+        const unlink = document.createElement("button");
+        unlink.className = "men-button small";
+        unlink.textContent = "Unlink";
+        unlink.addEventListener("click", async () => {
+          const response = await api.adminUnlinkPlayerUser(playerName, link.user_id);
+          if (response.ok) {
+            await this.renderPlayerUsers(el, playerName);
+            this.loadAuditLog();
+          }
+        });
+        item.append(unlink);
+        linked.append(item);
       }
-      el.style.display = "";
+
+      const linkedIds = new Set(links.map((link) => link.user_id));
+      const candidates = users.filter((user) => !linkedIds.has(user.user_id));
+      const children = [linked];
+      if (candidates.length) {
+        const form = document.createElement("div");
+        form.className = "admin-portal__link-user";
+        const select = document.createElement("select");
+        for (const user of candidates) {
+          select.append(new Option(user.username, String(user.user_id)));
+        }
+        const link = document.createElement("button");
+        link.className = "men-button small";
+        link.textContent = "Link user";
+        link.addEventListener("click", async () => {
+          const response = await api.adminLinkPlayerUser(playerName, select.value);
+          if (response.ok) {
+            await this.renderPlayerUsers(el, playerName);
+            this.loadAuditLog();
+          }
+        });
+        form.append(select, link);
+        children.push(form);
+      }
+      el.replaceChildren(...children);
     } catch (e) {
       // ignore
     }

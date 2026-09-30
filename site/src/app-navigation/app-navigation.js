@@ -29,6 +29,13 @@ export class AppNavigation extends BaseElement {
     super.connectedCallback();
     this.render();
     this.subscribe("route-activated", this.handleRouteActivated.bind(this));
+    this.subscribe("features", this.handleFeatures.bind(this));
+  }
+
+  handleFeatures(features) {
+    for (const link of this.querySelectorAll(".app-navigation__hub-only")) {
+      link.hidden = !features?.hub_history;
+    }
   }
 
   handleRouteActivated(route) {

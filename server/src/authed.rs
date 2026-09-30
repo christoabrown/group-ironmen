@@ -1,10 +1,10 @@
 use crate::auth_middleware::Authenticated;
+use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
-use crate::models::{
-    AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember,
-};
-use crate::validators::{valid_name, validate_member_prop_length};
+use crate::hub::HubContext;
+use crate::models::{AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember};
+use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
@@ -67,32 +67,100 @@ pub async fn rename_group_member(
 pub async fn update_group_member(
     auth: Authenticated,
     group_member: web::Json<GroupMember>,
-    db_pool: web::Data<Pool>,
-    sender: web::Data<mpsc::Sender<GroupMember>>
+    sender: web::Data<mpsc::Sender<GroupMember>>,
 ) -> Result<HttpResponse, Error> {
-    {
-        let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-        let in_group: bool = db::is_member_in_group(&client, auth.group_id, &group_member.name).await?;
-        if !in_group {
-            return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
-        }
+    if !valid_name(&group_member.name) {
+        return Ok(HttpResponse::BadRequest().body("Invalid member name"));
     }
 
     let mut group_member_inner: GroupMember = group_member.into_inner();
     group_member_inner.group_id = Some(auth.group_id);
 
-    validate_member_prop_length("stats", &group_member_inner.stats, 7, 7)?;
-    validate_member_prop_length("coordinates", &group_member_inner.coordinates, 3, 4)?;
-    validate_member_prop_length("skills", &group_member_inner.skills, 23, 24)?;
-    validate_member_prop_length("quests", &group_member_inner.quests, 0, 220)?;
-    validate_member_prop_length("inventory", &group_member_inner.inventory, 56, 56)?;
-    validate_member_prop_length("equipment", &group_member_inner.equipment, 28, 28)?;
-    validate_member_prop_length("bank", &group_member_inner.bank, 0, 3000)?;
-    validate_member_prop_length("rune_pouch", &group_member_inner.rune_pouch, 6, 8)?;
-    validate_member_prop_length("seed_vault", &group_member_inner.seed_vault, 0, 500)?;
-    validate_member_prop_length("deposited", &group_member_inner.deposited, 0, 200)?;
-    validate_member_prop_length("diary_vars", &group_member_inner.diary_vars, 0, 62)?;
-    validate_member_prop_length("collection_log_v2", &group_member_inner.collection_log_v2, 0, 4000)?;
+    validate_member_prop_length("stats", &group_member_inner.stats, 7, 7, ArrayFormat::Flat)?;
+    validate_member_prop_length(
+        "coordinates",
+        &group_member_inner.coordinates,
+        3,
+        4,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "skills",
+        &group_member_inner.skills,
+        23,
+        24,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "quests",
+        &group_member_inner.quests,
+        0,
+        250,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "inventory",
+        &group_member_inner.inventory,
+        56,
+        56,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "equipment",
+        &group_member_inner.equipment,
+        28,
+        28,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "bank",
+        &group_member_inner.bank,
+        0,
+        3000,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "rune_pouch",
+        &group_member_inner.rune_pouch,
+        6,
+        8,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "seed_vault",
+        &group_member_inner.seed_vault,
+        0,
+        500,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "deposited",
+        &group_member_inner.deposited,
+        0,
+        200,
+        ArrayFormat::ItemPairs,
+    )?;
+    validate_member_prop_length(
+        "diary_vars",
+        &group_member_inner.diary_vars,
+        0,
+        62,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "collection_log_v2",
+        &group_member_inner.collection_log_v2,
+        0,
+        4000,
+        ArrayFormat::Flat,
+    )?;
+    validate_member_prop_length(
+        "potion_storage",
+        &group_member_inner.potion_storage,
+        0,
+        400,
+        ArrayFormat::ItemPairs,
+    )?;
 
     match sender.send(group_member_inner).await {
         Ok(_) => Ok(HttpResponse::Ok().finish()),
@@ -134,6 +202,8 @@ pub async fn get_skill_data(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
     query: web::Query<GetSkillDataQuery>,
+    config: web::Data<Config>,
+    hub_context: web::Data<HubContext>,
 ) -> Result<web::Json<GroupSkillData>, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let aggregate_period = match query.period {
@@ -142,8 +212,18 @@ pub async fn get_skill_data(
         SkillDataPeriod::Month => db::AggregatePeriod::Month,
         SkillDataPeriod::Year => db::AggregatePeriod::Year,
     };
-    let group_skill_data =
+    let mut group_skill_data =
         db::get_skills_for_period(&client, auth.group_id, aggregate_period).await?;
+    if config.hub_history_enabled() {
+        group_skill_data = crate::hub::proxy::merge_skill_data(
+            &hub_context,
+            &client,
+            auth.group_id,
+            &query.period,
+            group_skill_data,
+        )
+        .await?;
+    }
     Ok(web::Json(group_skill_data))
 }
 
@@ -168,7 +248,6 @@ pub async fn am_i_in_group(
 }
 
 #[get("/collection-log")]
-pub async fn get_collection_log(
-) -> Result<web::Json<HashMap<String, Vec<i32>>>, Error> {
+pub async fn get_collection_log() -> Result<web::Json<HashMap<String, Vec<i32>>>, Error> {
     Ok(web::Json(HashMap::new()))
 }

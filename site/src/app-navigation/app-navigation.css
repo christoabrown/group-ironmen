@@ -47,3 +47,7 @@ app-navigation .men-button img {
   margin-right: 1em;
   font-weight: 300;
 }
+
+.app-navigation__nav men-link[hidden] {
+  display: none;
+}
