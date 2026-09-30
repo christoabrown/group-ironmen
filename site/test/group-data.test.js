@@ -1,11 +1,23 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { GroupData } from "../src/data/group-data";
 import { SkillName } from "../src/data/skill";
-import { Quest } from "../src/data/quest";
 import { Item } from "../src/data/item";
 import { pubsub } from "../src/data/pubsub";
 
+const roster = (...entries) =>
+  entries.map(([name, online = true, lastSeen = "2026-09-30T10:00:00.000Z"]) => ({
+    name,
+    online,
+    last_seen: lastSeen,
+    orphaned: false,
+  }));
+
 describe("group-data", () => {
+  beforeEach(() => {
+    Item.itemDetails = { 4151: { id: 4151, name: "Abyssal whip", highalch: 100 } };
+    pubsub.unpublishAll();
+  });
+
   it("transforms packed item data from storage", () => {
     expect(GroupData.transformItemsFromStorage([4151, 2, 995, 100])).toEqual([
       { id: 4151, quantity: 2 },
@@ -20,16 +32,13 @@ describe("group-data", () => {
     const result = GroupData.transformSkillsFromStorage(packedSkills);
 
     expect(result[skillNames[0]]).toBe(1);
-    expect(result[SkillName.Overall]).toBe(
-      packedSkills.reduce((sum, xp) => sum + xp, 0),
-    );
+    expect(result[SkillName.Overall]).toBe(packedSkills.reduce((sum, xp) => sum + xp, 0));
   });
 
   it("transforms packed stats and coordinates", () => {
-    expect(GroupData.transformStatsFromStorage([50, 99, 25, 70, 3500, 0, 328])).toEqual({
+    expect(GroupData.transformStatsFromStorage([50, 99, 25, 70, 0, 0, 328])).toEqual({
       hitpoints: { current: 50, max: 99 },
       prayer: { current: 25, max: 70 },
-      energy: { current: 3500, max: 10000 },
       world: 328,
     });
 
@@ -40,130 +49,78 @@ describe("group-data", () => {
     });
   });
 
-  it("maps quest indexes to quest states", () => {
-    Quest.questIds = [100, 101, 102];
-
-    expect(GroupData.transformQuestsFromStorage([0, 2, 1])).toEqual({
-      100: "IN_PROGRESS",
-      101: "FINISHED",
-      102: "NOT_STARTED",
-    });
-  });
-
-  it("applies text filters with exact, partial, and id matching", () => {
+  it("follows the roster: adds, updates and removes members", () => {
     const data = new GroupData();
-    data.groupItems = {
-      1: { id: 1, name: "Rune scimitar", quantities: { Alice: 1 }, visible: false },
-      2: { id: 2, name: "Dragon dagger", quantities: { Alice: 1 }, visible: false },
-      4151: { id: 4151, name: "Abyssal whip", quantities: { Alice: 1 }, visible: false },
-    };
+    const published = [];
+    pubsub.subscribe("members-updated", (members) => published.push(members.map((m) => m.name)));
 
-    data.applyTextFilter("rune|\"dragon dagger\"|4151");
+    data.update({
+      cursor: "2026-09-30T10:00:00.000Z",
+      roster: roster(["Bob"], ["Alice", false]),
+      members: [
+        { name: "Bob", inventory: [4151, 1], meta: { total_level: 1500 } },
+        { name: "Alice", coordinates: [3200, 3200, 0] },
+      ],
+    });
+    expect([...data.members.keys()].sort()).toEqual(["Alice", "Bob"]);
+    expect(data.members.get("Bob").inventory[0].id).toBe(4151);
+    expect(data.members.get("Bob").meta.total_level).toBe(1500);
+    expect(data.members.get("Bob").online).toBe(true);
+    expect(data.members.get("Alice").online).toBe(false);
+    expect(data.members.get("Alice").lastSeen).toEqual(new Date("2026-09-30T10:00:00.000Z"));
 
-    expect(data.groupItems[1].visible).toBe(true);
-    expect(data.groupItems[2].visible).toBe(true);
-    expect(data.groupItems[4151].visible).toBe(true);
-
-    data.applyTextFilter("\"dragon dagger\"");
-
-    expect(data.groupItems[1].visible).toBe(false);
-    expect(data.groupItems[2].visible).toBe(true);
-    expect(data.groupItems[4151].visible).toBe(false);
+    data.update({ cursor: "2026-09-30T10:00:02.000Z", roster: roster(["Alice", false]), members: [] });
+    expect([...data.members.keys()]).toEqual(["Alice"]);
+    expect(published).toEqual([["Alice", "Bob"], ["Alice"]]);
   });
 
-  describe("potion storage", () => {
-    beforeEach(() => {
-      Item.itemDetails = {
-        244: { id: 244, name: "Attack potion(1)", highalch: 1 },
-        245: { id: 245, name: "Strength potion(1)", highalch: 2 },
-        4151: { id: 4151, name: "Abyssal whip", highalch: 100 },
-      };
-      Item.gePrices = { 244: 50, 245: 60, 4151: 1000 };
-      pubsub.unpublishAll();
+  it("returns the server's cursor", () => {
+    const data = new GroupData();
+    const next = data.update({
+      cursor: "2026-09-30T11:00:00.000Z",
+      roster: roster(["Alice"]),
+      members: [{ name: "Alice", stats: [1, 1, 1, 1, 0, 0, 301] }],
+    });
+    expect(next.toISOString()).toBe("2026-09-30T11:00:00.000Z");
+  });
+
+  it("asks for a full reload once when a new name arrives without data", () => {
+    const data = new GroupData();
+    data.update({
+      cursor: "2026-09-30T11:00:00.000Z",
+      roster: roster(["Alice"]),
+      members: [{ name: "Alice", stats: [1, 1, 1, 1, 0, 0, 301] }],
     });
 
-    it("transforms packed potion_storage via transformItemsFromStorage", () => {
-      expect(GroupData.transformItemsFromStorage([244, 6, 245, 3])).toEqual([
-        { id: 244, quantity: 6 },
-        { id: 245, quantity: 3 },
-      ]);
+    // Renamed on the hub: the new name's data is older than the cursor.
+    const next = data.update({ cursor: "2026-09-30T11:00:02.000Z", roster: roster(["Alice Two"]), members: [] });
+    expect(next.getTime()).toBe(0);
+    const after = data.update({ cursor: "2026-09-30T11:00:04.000Z", roster: roster(["Alice Two"]), members: [] });
+    expect(after.toISOString()).toBe("2026-09-30T11:00:04.000Z");
+  });
+
+  it("publishes the names that changed and online flips in members-updated", () => {
+    const data = new GroupData();
+    const changed = [];
+    let memberLists = 0;
+    pubsub.subscribe("roster-changed", (names) => changed.push([...names].sort()));
+    pubsub.subscribe("members-updated", () => memberLists++);
+
+    data.update({
+      cursor: "2026-09-30T11:00:00.000Z",
+      roster: roster(["Alice"], ["Bob"]),
+      members: [{ name: "Alice" }, { name: "Bob" }],
     });
-
-    it("aggregates per-member doses into group-level potion collection", () => {
-      const data = new GroupData();
-      data.update([
-        { name: "Alice", potion_storage: [244, 4] },
-        { name: "Bob", potion_storage: [244, 2, 245, 1] },
-      ]);
-
-      expect(data.potionStorageItems[244].quantity).toBe(6);
-      expect(data.potionStorageItems[244].quantities.Alice).toBe(4);
-      expect(data.potionStorageItems[244].quantities.Bob).toBe(2);
-      expect(data.potionStorageItems[245].quantity).toBe(1);
-      expect(data.potionStorageItems[244].source).toBe("potion-storage");
+    data.update({
+      cursor: "2026-09-30T11:00:02.000Z",
+      roster: roster(["Alice"], ["Bob"]),
+      members: [{ name: "Bob", stats: [5, 10, 1, 1, 0, 0, 301] }],
     });
+    expect(changed[1]).toEqual(["Bob"]);
+    expect(memberLists).toBe(1);
 
-    it("removes potion entries after an explicit empty update", () => {
-      const data = new GroupData();
-      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
-      expect(data.potionStorageItems[244]).toBeDefined();
-
-      data.update([{ name: "Alice", potion_storage: [] }]);
-      expect(data.potionStorageItems[244]).toBeUndefined();
-    });
-
-    it("publishes items-updated when potion storage changes", () => {
-      const data = new GroupData();
-      let itemsUpdated = false;
-      pubsub.subscribe("items-updated", () => {
-        itemsUpdated = true;
-      });
-
-      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
-      expect(itemsUpdated).toBe(true);
-    });
-
-    it("publishes source-specific potion-storage-item-update events", () => {
-      const data = new GroupData();
-      const events = [];
-      pubsub.subscribe("potion-storage-item-update:244", (item) => {
-        events.push(item);
-      });
-
-      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
-      expect(events).toHaveLength(1);
-      expect(events[0].id).toBe(244);
-      expect(events[0].quantity).toBe(4);
-    });
-
-    it("applies text filters to the potion storage collection", () => {
-      const data = new GroupData();
-      data.update([
-        { name: "Alice", potion_storage: [244, 4, 245, 2] },
-      ]);
-
-      data.applyTextFilter("attack");
-      expect(data.potionStorageItems[244].visible).toBe(true);
-      expect(data.potionStorageItems[245].visible).toBe(false);
-    });
-
-    it("applies player filters to the potion storage collection", () => {
-      const data = new GroupData();
-      data.update([
-        { name: "Alice", potion_storage: [244, 4] },
-        { name: "Bob", potion_storage: [245, 2] },
-      ]);
-
-      data.applyPlayerFilter("Alice");
-      expect(data.potionStorageItems[244].visible).toBe(true);
-      expect(data.potionStorageItems[245].visible).toBe(false);
-    });
-
-    it("does not include potion doses in normal groupItems", () => {
-      const data = new GroupData();
-      data.update([{ name: "Alice", potion_storage: [244, 4] }]);
-
-      expect(data.groupItems[244]).toBeUndefined();
-    });
+    data.update({ cursor: "2026-09-30T11:00:04.000Z", roster: roster(["Alice", false], ["Bob"]), members: [] });
+    expect(changed[2]).toEqual(["Alice"]);
+    expect(memberLists).toBe(2);
   });
 });

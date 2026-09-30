@@ -66,8 +66,6 @@ describe("item", () => {
     expect(item.gePrice).toBe(2100000);
     expect(item.wikiLink).toContain("id=4151");
     expect(item.isValid()).toBe(true);
-    expect(item.isRunePouch()).toBe(false);
-    expect(new Item(12791, 1).isRunePouch()).toBe(true);
   });
 
   it("falls back ge price to zero when missing", () => {

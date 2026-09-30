@@ -1,0 +1,297 @@
+player-profile-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  color: white;
+}
+
+.player-profile-view__panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.player-profile-view__header {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.player-profile-view__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-profile-view__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--player-color);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+}
+
+.player-profile-view__name {
+  margin: 0;
+  color: var(--player-light);
+  font-size: 1.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-profile-view__badge {
+  font-size: 0.75rem;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.player-profile-view__badge:empty {
+  display: none;
+}
+
+.player-profile-view__close {
+  margin-left: auto;
+  color: var(--orange);
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.player-profile-view__status {
+  margin-top: 4px;
+  color: #bbb;
+}
+
+.player-profile-view__status.online {
+  color: var(--green);
+}
+
+.player-profile-view__details {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.player-profile-view__details:empty {
+  display: none;
+}
+
+.player-profile-view__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.player-profile-view__actions .men-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.player-profile-view__trail.active {
+  filter: brightness(1.5);
+}
+
+.player-profile-view__tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.player-profile-view__tab {
+  flex: 1;
+  padding: 6px 2px;
+  color: #ccc;
+  font-family: inherit;
+  font-size: 0.9rem;
+  border-bottom: 2px solid transparent;
+}
+
+.player-profile-view__tab:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.player-profile-view__tab.active {
+  color: var(--orange);
+  border-bottom-color: var(--orange);
+}
+
+.player-profile-view__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px 12px;
+}
+
+.player-profile-view__section + .player-profile-view__section {
+  margin-top: 14px;
+}
+
+.player-profile-view__section-title {
+  margin: 0 0 6px;
+  color: var(--orange);
+  font-family: "rsbold", ui-sans-serif, Arial, sans-serif;
+  font-size: 0.95rem;
+}
+
+.player-profile-view__note {
+  color: #aaa;
+  font-style: italic;
+  margin: 4px 0;
+}
+
+player-profile-view .player-stats__name {
+  visibility: hidden;
+}
+
+.player-profile-view__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 10px 0 0;
+}
+
+.player-profile-view__facts dt {
+  color: #aaa;
+}
+
+.player-profile-view__facts dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-profile-view__facts dd.positive {
+  color: #7fff7f;
+}
+
+.player-profile-view__facts dd.negative {
+  color: #ff8f8f;
+}
+
+.player-profile-view__gear-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-around;
+}
+
+.player-profile-view__controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.player-profile-view__gains {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.player-profile-view__gain {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+}
+
+.player-profile-view__gain--overall {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 4px;
+}
+
+.player-profile-view__gain-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  z-index: 1;
+}
+
+.player-profile-view__gain-skill {
+  flex: 1;
+  z-index: 1;
+}
+
+.player-profile-view__gain-xp {
+  color: #7fff7f;
+  font-variant-numeric: tabular-nums;
+  z-index: 1;
+}
+
+.player-profile-view__gain-bar {
+  position: absolute;
+  inset: 2px 0;
+  background: rgba(255, 152, 31, 0.18);
+  transform-origin: left;
+}
+
+.player-profile-view__summary {
+  margin: 0 0 6px;
+}
+
+.player-profile-view__sessions,
+.player-profile-view__gear-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.player-profile-view__sessions li {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.9rem;
+}
+
+.player-profile-view__session-worlds {
+  flex: 1;
+  color: #9fd2ff;
+  text-align: right;
+}
+
+.player-profile-view__session-length {
+  min-width: 56px;
+  text-align: right;
+}
+
+.player-profile-view__sparkline {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.player-profile-view__sparkline polyline {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.player-profile-view__gear-changes li {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.player-profile-view__gear-changes time {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.player-profile-view__gear-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.player-profile-view__gear-items img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}

@@ -151,9 +151,8 @@ async fn discord_login(code: &str, db_pool: &Pool, config: &Config) -> Result<Ht
 
         if !is_in_allowed_server {
             // User is no longer in an allowed Discord server
-            // Revoke their plugin tokens and deny login
-            let _ = db::revoke_user_devices(&db_client, user_id).await;
-            let _ = db::revoke_user_pairing_codes(&db_client, user_id).await;
+            // End their existing sessions and deny login
+            let _ = db::delete_user_sessions(&db_client, user_id).await;
 
             db::write_audit_log(
                 &db_client,

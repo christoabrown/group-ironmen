@@ -1,0 +1,54 @@
+<h3 class="clan-page__title"></h3>
+
+<div class="clan-page__tiles"></div>
+
+<div class="clan-page__grid">
+  <section class="clan-page__section rsborder-tiny rsbackground clan-page__where">
+    <div class="clan-page__section-header">
+      <h4>Who's where</h4>
+      <span class="clan-page__hint">Click a place to see it on the map</span>
+    </div>
+    <ul class="clan-page__regions"></ul>
+  </section>
+
+  <section class="clan-page__section rsborder-tiny rsbackground">
+    <div class="clan-page__section-header">
+      <h4>Worlds</h4>
+    </div>
+    <ul class="clan-page__worlds"></ul>
+  </section>
+</div>
+
+<div class="clan-page__history" hidden>
+  <div class="clan-page__grid">
+    <section class="clan-page__section rsborder-tiny rsbackground">
+      <div class="clan-page__section-header">
+        <h4>Top gainers</h4>
+        <div class="clan-page__controls">
+          <select class="clan-page__gains-period" aria-label="Period"></select>
+          <select class="clan-page__gains-skill" aria-label="Skill"></select>
+        </div>
+      </div>
+      <ol class="clan-page__gains"></ol>
+      <div class="clan-page__status clan-page__gains-status"></div>
+    </section>
+
+    <section class="clan-page__section rsborder-tiny rsbackground">
+      <div class="clan-page__section-header">
+        <h4>Biggest drops</h4>
+        <div class="clan-page__controls">
+          <select class="clan-page__loot-period" aria-label="Period"></select>
+        </div>
+      </div>
+      <ol class="clan-page__loot"></ol>
+      <div class="clan-page__status clan-page__loot-status"></div>
+    </section>
+  </div>
+
+  <section class="clan-page__section rsborder-tiny rsbackground">
+    <div class="clan-page__section-header">
+      <h4>Recent events</h4>
+    </div>
+    <event-feed filters></event-feed>
+  </section>
+</div>

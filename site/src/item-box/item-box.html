@@ -5,10 +5,4 @@
     ${this.veryShortQuantity ? Item.veryShortQuantity(this.quantity) : Item.shortQuantity(this.quantity)}
   </span>
   ` : ""}
-  ${this.item?.isRunePouch() ? `
-  <rune-pouch
-    player-name="${this.playerName}"
-    pouch-name="${this.item.name}">
-  </rune-pouch>
-  ` : ""}
 </div>

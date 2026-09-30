@@ -1,6 +1,7 @@
 use crate::auth_middleware::AdminAuthenticated;
 use crate::db;
 use crate::error::ApiError;
+use crate::hub::HubContext;
 use crate::models::{AdminChangePasswordRequest, ChangeRoleRequest, CreateUserRequest};
 use actix_web::{delete, get, post, put, web, Error, HttpResponse};
 use deadpool_postgres::{Client, Pool};
@@ -196,10 +197,6 @@ pub async fn kick_user(
 
     let target_user = db::get_user_by_id(&client, target_user_id).await?;
 
-    // Revoke all tokens and devices
-    let devices_revoked = db::revoke_user_devices(&client, target_user_id).await?;
-    let codes_revoked = db::revoke_user_pairing_codes(&client, target_user_id).await?;
-
     // Delete sessions
     db::delete_user_sessions(&client, target_user_id).await?;
 
@@ -212,8 +209,8 @@ pub async fn kick_user(
         "user_kicked",
         None, // user already deleted
         Some(&format!(
-            "Admin '{}' kicked/deleted user '{}' (devices revoked: {}, codes revoked: {})",
-            admin.user.username, target_user.username, devices_revoked, codes_revoked
+            "Admin '{}' kicked/deleted user '{}'",
+            admin.user.username, target_user.username
         )),
     )
     .await?;
@@ -287,10 +284,14 @@ pub async fn delete_player(
     path: web::Path<DeletePlayerPath>,
     db_pool: web::Data<Pool>,
     group_id: web::Data<i64>,
+    hub: web::Data<HubContext>,
 ) -> Result<HttpResponse, Error> {
     let member_name = &path.member_name;
     let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     db::delete_group_member(&mut client, **group_id, member_name).await?;
+    // A deleted member the hub still shares comes back with the next full sync.
+    hub.directory.remove_member(member_name);
+    hub.sync_control.forget_member(member_name);
 
     db::write_audit_log(
         &client,
@@ -300,6 +301,56 @@ pub async fn delete_player(
         Some(&format!(
             "Admin '{}' deleted player '{}'",
             admin.user.username, member_name
+        )),
+    )
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true})))
+}
+
+#[derive(serde::Deserialize)]
+pub struct SetHiddenRequest {
+    pub hidden: bool,
+}
+
+/// Hides a player from the map (the hub keeps sharing it, the map ignores it),
+/// or shows it again.
+#[put("/players/{member_name}/hidden")]
+pub async fn set_player_hidden(
+    admin: AdminAuthenticated,
+    path: web::Path<DeletePlayerPath>,
+    body: web::Json<SetHiddenRequest>,
+    db_pool: web::Data<Pool>,
+    group_id: web::Data<i64>,
+    hub: web::Data<HubContext>,
+) -> Result<HttpResponse, Error> {
+    let member_name = &path.member_name;
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    if !db::set_member_hidden(&client, **group_id, member_name, body.hidden).await? {
+        return Ok(HttpResponse::NotFound().body("No such player"));
+    }
+    // Hide the player's events and leaderboard entries at once, not only
+    // after the sync has resolved the member again.
+    if let Some(hub_id) = hub.directory.hub_id(member_name) {
+        hub.directory.set_hidden(&hub_id, body.hidden);
+    }
+    hub.directory.remove_member(member_name);
+    hub.sync_control.forget_member(member_name);
+
+    db::write_audit_log(
+        &client,
+        Some(admin.user.user_id),
+        if body.hidden {
+            "player_hidden"
+        } else {
+            "player_shown"
+        },
+        None,
+        Some(&format!(
+            "Admin '{}' {} player '{}'",
+            admin.user.username,
+            if body.hidden { "hid" } else { "showed" },
+            member_name
         )),
     )
     .await?;

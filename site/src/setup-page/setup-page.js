@@ -80,7 +80,7 @@ export class SetupPage extends BaseElement {
         const data = await response.json();
         storage.storeSession(data.session_token, data.username, data.role);
         api.setSession(data.session_token, data.username, data.role);
-        window.history.pushState("", "", "/setup-instructions");
+        window.history.pushState("", "", "/group");
       } else {
         const body = await response.text();
         this.error.innerHTML = `Error: ${body}`;

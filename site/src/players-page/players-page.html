@@ -1,9 +1,28 @@
-<h3 class="players-page__heading">Players</h3>
-<div class="players-page__filters">
-  <button class="men-button small players-page__filter-btn active" data-filter="all" type="button">All</button>
-  <button class="men-button small players-page__filter-btn" data-filter="online" type="button">Online</button>
-  <button class="men-button small players-page__filter-btn" data-filter="offline" type="button">Offline</button>
-  <input type="text" class="players-page__search input-small" placeholder="Search player..." />
+<div class="players-page__header">
+  <h3 class="players-page__heading">Players</h3>
+  <input type="search" class="players-page__search input-small" placeholder="Search name or owner..." aria-label="Search players" />
+  <div class="players-page__chips" role="group" aria-label="Filter by status">
+    <button class="men-button small players-page__chip active" data-status="all" type="button">All</button>
+    <button class="men-button small players-page__chip" data-status="online" type="button">Online</button>
+    <button class="men-button small players-page__chip" data-status="offline" type="button">Offline</button>
+  </div>
   <span class="players-page__count"></span>
 </div>
-<div class="players-page__list"></div>
+<div class="players-page__table-wrap rsborder-tiny rsbackground">
+  <table class="players-page__table">
+    <thead>
+      <tr>
+        <th data-sort="name"><button class="players-page__sort" type="button">Player<span class="players-page__arrow"></span></button></th>
+        <th data-sort="status"><button class="players-page__sort" type="button">Status<span class="players-page__arrow"></span></button></th>
+        <th class="players-page__col-type">Type</th>
+        <th class="players-page__col-owner">Owner</th>
+        <th class="players-page__num" data-sort="total"><button class="players-page__sort" type="button">Total<span class="players-page__arrow"></span></button></th>
+        <th class="players-page__num players-page__col-xp" data-sort="xp"><button class="players-page__sort" type="button">XP<span class="players-page__arrow"></span></button></th>
+        <th class="players-page__num players-page__col-value" data-sort="value"><button class="players-page__sort" type="button">Carried<span class="players-page__arrow"></span></button></th>
+        <th class="players-page__num" data-sort="combat"><button class="players-page__sort" type="button">Combat<span class="players-page__arrow"></span></button></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p class="players-page__empty" hidden></p>
+</div>

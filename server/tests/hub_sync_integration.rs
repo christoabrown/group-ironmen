@@ -10,12 +10,13 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_postgres::NoTls;
 
-use server::config::{Config, DataSource, HubConfig};
+use server::config::{Config, HubConfig};
 use server::db;
 use server::hub::client::{HubClient, HubError};
-use server::hub::sync::{HubSync, SyncContext};
-use server::hub::{DirectSeen, HubStatus};
-use server::models::GroupMember;
+use server::hub::directory::HubDirectory;
+use server::hub::sync::{HubSync, SyncContext, SyncControl};
+use server::hub::HubStatus;
+use server::models::{GroupMember, RosterEntry};
 use server::update_batcher;
 
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -171,11 +172,12 @@ struct Harness {
     hub: Arc<Mutex<MockHub>>,
     sync: HubSync,
     notify: mpsc::Receiver<()>,
-    direct_seen: DirectSeen,
     sent: Arc<Mutex<usize>>,
+    control: SyncControl,
+    directory: HubDirectory,
 }
 
-async fn harness(data_source: DataSource) -> Harness {
+async fn harness() -> Harness {
     let pool = create_test_pool().await;
     let group_id = setup_database(&pool).await;
     let hub = Arc::new(Mutex::new(MockHub::default()));
@@ -205,16 +207,17 @@ async fn harness(data_source: DataSource) -> Harness {
         update_batcher::background_worker(batcher_pool, batch_rx, Some(notify_tx)).await;
     });
 
-    let direct_seen = DirectSeen::default();
+    let directory = HubDirectory::default();
+    let control = SyncControl::default();
     let sync = HubSync::new(SyncContext {
         pool: pool.clone(),
         client: HubClient::new(&hub_config),
         sender: tx,
         group_id,
         config: hub_config,
-        data_source,
         status: Arc::new(RwLock::new(HubStatus::default())),
-        direct_seen: direct_seen.clone(),
+        directory: directory.clone(),
+        control: control.clone(),
     });
 
     Harness {
@@ -223,8 +226,9 @@ async fn harness(data_source: DataSource) -> Harness {
         hub,
         sync,
         notify,
-        direct_seen,
         sent,
+        control,
+        directory,
     }
 }
 
@@ -247,13 +251,39 @@ impl Harness {
     }
 
     async fn member(&self, name: &str) -> Option<GroupMember> {
+        let epoch = DateTime::from_timestamp(0, 0).unwrap();
+        self.member_since(name, epoch).await
+    }
+
+    /// The member's data as a site polling since `from_time` gets it.
+    async fn member_since(&self, name: &str, from_time: DateTime<Utc>) -> Option<GroupMember> {
+        let client = self.pool.get().await.unwrap();
+        db::get_group_data(&client, self.group_id, &from_time)
+            .await
+            .unwrap()
+            .members
+            .into_iter()
+            .find(|member| member.name == name)
+    }
+
+    async fn roster(&self, name: &str) -> Option<RosterEntry> {
         let client = self.pool.get().await.unwrap();
         let epoch = DateTime::from_timestamp(0, 0).unwrap();
         db::get_group_data(&client, self.group_id, &epoch)
             .await
             .unwrap()
+            .roster
             .into_iter()
-            .find(|member| member.name == name)
+            .find(|entry| entry.name == name)
+    }
+
+    async fn cursor(&self) -> DateTime<Utc> {
+        let client = self.pool.get().await.unwrap();
+        let epoch = DateTime::from_timestamp(0, 0).unwrap();
+        db::get_group_data(&client, self.group_id, &epoch)
+            .await
+            .unwrap()
+            .cursor
     }
 
     async fn scalar<T: for<'a> tokio_postgres::types::FromSql<'a>>(&self, sql: &str) -> T {
@@ -269,7 +299,7 @@ impl Harness {
 #[tokio::test]
 async fn imports_online_and_offline_accounts() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
 
     // A map user whose Discord account owns the online hub account.
     {
@@ -300,14 +330,15 @@ async fn imports_online_and_offline_accounts() {
     assert_eq!(&alpha.equipment.as_ref().unwrap()[6..8], &[4151, 1]);
     assert!(Utc::now() - alpha.last_updated.unwrap() < ChronoDuration::seconds(30));
 
+    assert_eq!(alpha.meta.as_ref().unwrap()["type_label"], "Normal");
+    assert!(h.roster("Alpha").await.unwrap().online);
+
     let bravo = h.member("Bravo").await.expect("Bravo imported");
     assert!(bravo.skills.is_some());
     assert_eq!(bravo.coordinates, None, "stale locations are not imported");
-    assert_eq!(
-        bravo.last_updated.unwrap(),
-        last_seen,
-        "offline accounts keep the hub's last_seen so they show as offline"
-    );
+    let bravo = h.roster("Bravo").await.unwrap();
+    assert!(!bravo.online, "offline accounts show as offline");
+    assert_eq!(bravo.last_seen, Some(last_seen));
 
     let bound: i64 = h
         .scalar("SELECT COUNT(*) FROM groupironman.members WHERE hub_account_id IS NOT NULL")
@@ -320,9 +351,9 @@ async fn imports_online_and_offline_accounts() {
 }
 
 #[tokio::test]
-async fn unchanged_snapshot_sends_nothing_and_offline_members_are_not_refreshed() {
+async fn unchanged_snapshots_send_nothing_and_offline_changes_are_sent() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().accounts = vec![offline_account(
         "acc-bravo",
         "Bravo",
@@ -331,7 +362,6 @@ async fn unchanged_snapshot_sends_nothing_and_offline_members_are_not_refreshed(
 
     h.poll().await.unwrap();
     assert_eq!(h.sent(), 1);
-    let first = h.member("Bravo").await.unwrap().last_updated;
 
     // Same content: the client sends If-None-Match and gets 304.
     h.poll().await.unwrap();
@@ -339,23 +369,58 @@ async fn unchanged_snapshot_sends_nothing_and_offline_members_are_not_refreshed(
     assert!(requests[1].1.is_some(), "second poll is conditional");
     assert_eq!(h.sent(), 1);
 
-    // New content but still offline: already imported, so nothing is sent.
+    // Changed while offline (e.g. the hub learnt the last world): sent.
     h.hub.lock().unwrap().accounts[0]["world"] = json!(420);
     h.poll().await.unwrap();
-    assert_eq!(h.sent(), 1);
-    assert_eq!(h.member("Bravo").await.unwrap().last_updated, first);
+    assert_eq!(h.sent(), 2);
+    assert_eq!(h.member("Bravo").await.unwrap().stats.unwrap()[6], 420);
 }
 
 #[tokio::test]
-async fn online_accounts_send_a_heartbeat_and_only_changed_sections() {
+async fn offline_accounts_imported_later_reach_sites_that_are_already_polling() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.poll().await.unwrap();
+    let cursor = h.cursor().await;
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    h.hub.lock().unwrap().accounts.push(offline_account(
+        "acc-bravo",
+        "Bravo",
+        Utc::now() - ChronoDuration::days(30),
+    ));
+    h.poll().await.unwrap();
+
+    let bravo = h
+        .member_since("Bravo", cursor)
+        .await
+        .expect("a site polling since before the import gets Bravo");
+    assert!(bravo.skills.is_some());
+    assert!(!h.roster("Bravo").await.unwrap().online);
+    assert!(
+        h.member_since("Alpha", h.cursor().await + ChronoDuration::seconds(5))
+            .await
+            .is_none(),
+        "unchanged members are left out"
+    );
+}
+
+#[tokio::test]
+async fn only_changed_sections_are_stamped() {
+    let _guard = TEST_MUTEX.lock().await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
     h.poll().await.unwrap();
     let first = h.member("Alpha").await.unwrap();
 
+    // Only last_seen moved: nothing to send.
     tokio::time::sleep(Duration::from_millis(50)).await;
     h.hub.lock().unwrap().accounts[0]["last_seen"] = json!(Utc::now());
+    h.poll().await.unwrap();
+    assert_eq!(h.sent(), 1);
+
+    h.hub.lock().unwrap().accounts[0]["hp"] = json!({"current": 10, "max": 99});
     h.poll().await.unwrap();
     assert_eq!(h.sent(), 2);
 
@@ -370,20 +435,70 @@ async fn online_accounts_send_a_heartbeat_and_only_changed_sections() {
         .unwrap();
     let stats_updated: DateTime<Utc> = row.get(0);
     let skills_updated: DateTime<Utc> = row.get(1);
-    assert!(
-        stats_updated > first.last_updated.unwrap(),
-        "stats heartbeat"
-    );
+    assert!(stats_updated > first.last_updated.unwrap(), "stats changed");
     assert!(
         skills_updated < stats_updated,
-        "unchanged skills are not resent"
+        "unchanged skills keep their stamp"
     );
+}
+
+#[tokio::test]
+async fn presence_follows_the_hub() {
+    let _guard = TEST_MUTEX.lock().await;
+    let mut h = harness().await;
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.poll().await.unwrap();
+    assert!(h.roster("Alpha").await.unwrap().online);
+
+    h.hub.lock().unwrap().accounts[0]["online"] = json!(false);
+    h.poll().await.unwrap();
+    assert!(
+        !h.roster("Alpha").await.unwrap().online,
+        "a flip is written at once"
+    );
+}
+
+#[tokio::test]
+async fn hidden_members_are_left_alone_until_shown_again() {
+    let _guard = TEST_MUTEX.lock().await;
+    let mut h = harness().await;
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.poll().await.unwrap();
+    assert_eq!(h.directory.hub_id("Alpha").as_deref(), Some("acc-alpha"));
+
+    {
+        let client = h.pool.get().await.unwrap();
+        db::set_member_hidden(&client, h.group_id, "Alpha", true)
+            .await
+            .unwrap();
+    }
+    h.control.forget_member("Alpha");
+    h.hub.lock().unwrap().accounts[0]["hp"] = json!({"current": 1, "max": 99});
+    h.poll().await.unwrap();
+    assert_eq!(h.sent(), 1, "nothing is sent for a hidden member");
+    assert!(
+        h.roster("Alpha").await.is_none(),
+        "hidden members are not on the roster"
+    );
+    assert!(h.directory.is_hidden("acc-alpha"));
+
+    {
+        let client = h.pool.get().await.unwrap();
+        db::set_member_hidden(&client, h.group_id, "Alpha", false)
+            .await
+            .unwrap();
+    }
+    h.control.forget_member("Alpha");
+    h.poll().await.unwrap();
+    assert_eq!(h.sent(), 2, "shown again: everything is sent");
+    assert_eq!(h.member("Alpha").await.unwrap().stats.unwrap()[0], 1);
+    assert!(!h.directory.is_hidden("acc-alpha"));
 }
 
 #[tokio::test]
 async fn follows_renames() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
     h.poll().await.unwrap();
     {
@@ -403,7 +518,11 @@ async fn follows_renames() {
     h.poll().await.unwrap();
 
     assert!(h.member("Alpha").await.is_none());
-    assert!(h.member("Alpha Two").await.is_some());
+    assert!(h.member("Alpha Two").await.unwrap().skills.is_some());
+    assert_eq!(
+        h.directory.hub_id("Alpha Two").as_deref(),
+        Some("acc-alpha")
+    );
     let linked: String = h
         .scalar("SELECT member_name::text FROM groupironman.user_player_links")
         .await;
@@ -411,20 +530,9 @@ async fn follows_renames() {
 }
 
 #[tokio::test]
-async fn both_mode_prefers_recent_direct_data() {
-    let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Both).await;
-    h.direct_seen.record("Alpha");
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
-    h.poll().await.unwrap();
-    assert_eq!(h.sent(), 0);
-    assert!(h.member("Alpha").await.is_none());
-}
-
-#[tokio::test]
 async fn rate_limits_are_reported_with_retry_after() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().fail_with = Some(429);
     match h.poll().await {
         Err(HubError::RateLimited(after)) => assert_eq!(after, Duration::from_secs(7)),
@@ -439,7 +547,7 @@ async fn rate_limits_are_reported_with_retry_after() {
 #[tokio::test]
 async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     let mut account = online_account("acc-alpha", "Alpha", None);
     // Shape of osrs-data-hub PR #8: `owner` is null without an active owner and
     // inventory items carry `inventory_slot` (D-86, D-90).
@@ -463,17 +571,21 @@ async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
 }
 
 #[tokio::test]
-async fn matches_a_directly_paired_player_by_account_hash() {
+async fn matches_existing_member_by_account_hash() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Both).await;
-    // The player first paired with the map directly; direct ingest stored the
-    // plugin's accountHash. On the hub the account goes by a newer name.
+    let mut h = harness().await;
+    // An existing member carries the plugin's accountHash (from an earlier
+    // import); on the hub the account goes by a newer name.
     {
         let client = h.pool.get().await.unwrap();
         db::ensure_member_exists(&client, h.group_id, "Old Name")
             .await
             .unwrap();
-        db::set_direct_source(&client, h.group_id, "Old Name", Some("hash-123"))
+        client
+            .execute(
+                "UPDATE groupironman.members SET account_hash='hash-123' WHERE member_name='Old Name'",
+                &[],
+            )
             .await
             .unwrap();
     }

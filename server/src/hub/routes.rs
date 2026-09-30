@@ -6,15 +6,13 @@ use crate::hub::models::HubMe;
 use crate::hub::HubContext;
 use actix_web::{get, post, web, Error, HttpResponse};
 
-/// What the site should show: pairing instructions, hub-backed history, or both.
+/// Whether the site should show the hub-backed history (graphs, trails, events).
 #[get("/features")]
 pub async fn get_features(
     _auth: Authenticated,
     config: web::Data<Config>,
 ) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "data_source": config.data_source,
-        "direct_pairing": config.data_source.accepts_direct(),
         "hub_history": config.hub_history_enabled(),
     })))
 }
@@ -38,13 +36,11 @@ pub async fn test_hub_connection(
     _admin: AdminAuthenticated,
     context: web::Data<HubContext>,
 ) -> Result<HttpResponse, Error> {
-    let Some(client) = &context.client else {
-        return Ok(HttpResponse::Ok().json(serde_json::json!({
-            "ok": false,
-            "message": "The hub is not configured (set DATA_SOURCE, HUB_BASE_URL and HUB_API_KEY)."
-        })));
-    };
-    let response = match client.get_data::<HubMe>("/me", &[], Priority::Sync).await {
+    let response = match context
+        .client
+        .get_data::<HubMe>("/me", &[], Priority::Sync)
+        .await
+    {
         Ok((me, _)) => serde_json::json!({
             "ok": true,
             "key": me.key,

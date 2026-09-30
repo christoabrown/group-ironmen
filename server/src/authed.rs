@@ -3,170 +3,12 @@ use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::hub::HubContext;
-use crate::models::{AmIInGroupRequest, GroupMember, GroupSkillData, RenameGroupMember};
-use crate::validators::{valid_name, validate_member_prop_length, ArrayFormat};
-use actix_web::{delete, get, post, put, web, Error, HttpResponse};
+use crate::models::{GroupDataResponse, GroupSkillData};
+use actix_web::{get, web, Error};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
 use serde::Deserialize;
-use std::collections::HashMap;
-use tokio::sync::mpsc;
-
-#[post("/add-group-member")]
-pub async fn add_group_member(
-    auth: Authenticated,
-    group_member: web::Json<GroupMember>,
-    db_pool: web::Data<Pool>,
-) -> Result<HttpResponse, Error> {
-    if !valid_name(&group_member.name) {
-        return Ok(HttpResponse::BadRequest()
-            .body(format!("Member name {} is not valid", group_member.name)));
-    }
-
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::add_group_member(&client, auth.group_id, &group_member.name).await?;
-    Ok(HttpResponse::Created().finish())
-}
-
-#[delete("/delete-group-member")]
-pub async fn delete_group_member(
-    auth: Authenticated,
-    group_member: web::Json<GroupMember>,
-    db_pool: web::Data<Pool>,
-) -> Result<HttpResponse, Error> {
-    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::delete_group_member(&mut client, auth.group_id, &group_member.name).await?;
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[put("/rename-group-member")]
-pub async fn rename_group_member(
-    auth: Authenticated,
-    rename_member: web::Json<RenameGroupMember>,
-    db_pool: web::Data<Pool>,
-) -> Result<HttpResponse, Error> {
-    if !valid_name(&rename_member.new_name) {
-        return Ok(HttpResponse::BadRequest().body(format!(
-            "Member name {} is not valid",
-            rename_member.new_name
-        )));
-    }
-
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::rename_group_member(
-        &client,
-        auth.group_id,
-        &rename_member.original_name,
-        &rename_member.new_name,
-    )
-    .await?;
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[post("/update-group-member")]
-pub async fn update_group_member(
-    auth: Authenticated,
-    group_member: web::Json<GroupMember>,
-    sender: web::Data<mpsc::Sender<GroupMember>>,
-) -> Result<HttpResponse, Error> {
-    if !valid_name(&group_member.name) {
-        return Ok(HttpResponse::BadRequest().body("Invalid member name"));
-    }
-
-    let mut group_member_inner: GroupMember = group_member.into_inner();
-    group_member_inner.group_id = Some(auth.group_id);
-
-    validate_member_prop_length("stats", &group_member_inner.stats, 7, 7, ArrayFormat::Flat)?;
-    validate_member_prop_length(
-        "coordinates",
-        &group_member_inner.coordinates,
-        3,
-        4,
-        ArrayFormat::Flat,
-    )?;
-    validate_member_prop_length(
-        "skills",
-        &group_member_inner.skills,
-        23,
-        24,
-        ArrayFormat::Flat,
-    )?;
-    validate_member_prop_length(
-        "quests",
-        &group_member_inner.quests,
-        0,
-        250,
-        ArrayFormat::Flat,
-    )?;
-    validate_member_prop_length(
-        "inventory",
-        &group_member_inner.inventory,
-        56,
-        56,
-        ArrayFormat::ItemPairs,
-    )?;
-    validate_member_prop_length(
-        "equipment",
-        &group_member_inner.equipment,
-        28,
-        28,
-        ArrayFormat::ItemPairs,
-    )?;
-    validate_member_prop_length(
-        "bank",
-        &group_member_inner.bank,
-        0,
-        3000,
-        ArrayFormat::ItemPairs,
-    )?;
-    validate_member_prop_length(
-        "rune_pouch",
-        &group_member_inner.rune_pouch,
-        6,
-        8,
-        ArrayFormat::ItemPairs,
-    )?;
-    validate_member_prop_length(
-        "seed_vault",
-        &group_member_inner.seed_vault,
-        0,
-        500,
-        ArrayFormat::ItemPairs,
-    )?;
-    validate_member_prop_length(
-        "deposited",
-        &group_member_inner.deposited,
-        0,
-        200,
-        ArrayFormat::ItemPairs,
-    )?;
-    validate_member_prop_length(
-        "diary_vars",
-        &group_member_inner.diary_vars,
-        0,
-        62,
-        ArrayFormat::Flat,
-    )?;
-    validate_member_prop_length(
-        "collection_log_v2",
-        &group_member_inner.collection_log_v2,
-        0,
-        4000,
-        ArrayFormat::Flat,
-    )?;
-    validate_member_prop_length(
-        "potion_storage",
-        &group_member_inner.potion_storage,
-        0,
-        400,
-        ArrayFormat::ItemPairs,
-    )?;
-
-    match sender.send(group_member_inner).await {
-        Ok(_) => Ok(HttpResponse::Ok().finish()),
-        Err(_) => Ok(HttpResponse::InternalServerError().body("Failed to submit player update")),
-    }
-}
+use std::collections::HashSet;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -178,12 +20,15 @@ pub async fn get_group_data(
     auth: Authenticated,
     db_pool: web::Data<Pool>,
     query: web::Query<GetGroupDataQuery>,
-) -> Result<web::Json<Vec<GroupMember>>, Error> {
+) -> Result<web::Json<GroupDataResponse>, Error> {
     let from_time = query.from_time;
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let group_members = db::get_group_data(&client, auth.group_id, &from_time).await?;
-    Ok(web::Json(group_members))
+    let group_data = db::get_group_data(&client, auth.group_id, &from_time).await?;
+    Ok(web::Json(group_data))
 }
+
+/// Players the skill graphs may ask for at once.
+const MAX_SKILL_DATA_MEMBERS: usize = 10;
 
 #[derive(Deserialize)]
 pub enum SkillDataPeriod {
@@ -196,6 +41,9 @@ pub enum SkillDataPeriod {
 #[serde(deny_unknown_fields)]
 pub struct GetSkillDataQuery {
     pub period: SkillDataPeriod,
+    /// Comma-separated member names; all members when left out.
+    #[serde(default)]
+    pub members: Option<String>,
 }
 #[get("/get-skill-data")]
 pub async fn get_skill_data(
@@ -212,42 +60,27 @@ pub async fn get_skill_data(
         SkillDataPeriod::Month => db::AggregatePeriod::Month,
         SkillDataPeriod::Year => db::AggregatePeriod::Year,
     };
+    let members: Option<HashSet<String>> = query.members.as_deref().map(|members| {
+        members
+            .split(',')
+            .map(|name| name.trim().to_lowercase())
+            .filter(|name| !name.is_empty())
+            .take(MAX_SKILL_DATA_MEMBERS)
+            .collect()
+    });
     let mut group_skill_data =
         db::get_skills_for_period(&client, auth.group_id, aggregate_period).await?;
+    drop(client);
     if config.hub_history_enabled() {
         group_skill_data = crate::hub::proxy::merge_skill_data(
             &hub_context,
-            &client,
-            auth.group_id,
             &query.period,
             group_skill_data,
+            members.as_ref(),
         )
-        .await?;
+        .await;
+    } else if let Some(members) = &members {
+        group_skill_data.retain(|member| members.contains(&member.name.to_lowercase()));
     }
     Ok(web::Json(group_skill_data))
-}
-
-#[get("/am-i-logged-in")]
-pub async fn am_i_logged_in(_auth: Authenticated) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[get("/am-i-in-group")]
-pub async fn am_i_in_group(
-    auth: Authenticated,
-    db_pool: web::Data<Pool>,
-    q: web::Query<AmIInGroupRequest>,
-) -> Result<HttpResponse, Error> {
-    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let in_group: bool = db::is_member_in_group(&client, auth.group_id, &q.member_name).await?;
-
-    if !in_group {
-        return Ok(HttpResponse::Unauthorized().body("Player is not a member of this group"));
-    }
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[get("/collection-log")]
-pub async fn get_collection_log() -> Result<web::Json<HashMap<String, Vec<i32>>>, Error> {
-    Ok(web::Json(HashMap::new()))
 }

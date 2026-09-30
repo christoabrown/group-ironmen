@@ -11,33 +11,40 @@ wear, their skills and XP history, and what the guild has been up to.
 It is a fork of [group-ironmen](https://github.com/christoabrown/group-ironmen), reworked for guilds instead
 of Group Ironman teams:
 
-- Player data comes from the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter)
-  plugin, either directly or through [osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub).
+- Player data comes from [osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub), which collects it
+  from the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter)
+  plugin. Players pair the plugin with the hub and choose there what the guild may see.
 - Users log in with an account or with Discord (optionally limited to members of your Discord server), and
   an admin portal manages users and players.
-- There is no member limit and no shared group bank.
+- There is no member limit, and the Group Ironman features (shared bank, combined items, quests, diaries,
+  collection log) are gone: neither the hub nor the plugin sends that data.
 
 ## Features
 
-- **Live map** of every online player, with world, HP and prayer, and an optional location trail
-  (24 hours, 7 or 30 days) when the hub is connected.
-- **Items**: combined inventory and equipment of everyone online, searchable.
-- **Players**: everyone who ever reported, with online status.
-- **Graphs**: XP per skill over a day, week, month or year. With the hub connected the history comes from
-  the hub, so it includes play from before a player joined the map.
-- **Activity** (hub only): top XP gainers and a feed of loot, level ups, collection log slots, deaths,
-  diaries and combat tasks.
-- **Admin portal**: users and roles, players and who they belong to, the audit log, and the hub connection.
+- **Live map** of every online player in their own colour. Players close together merge into a counted
+  bubble when zoomed out, names never overlap, and a click opens the player. Loot, level ups and deaths
+  ping on the map where they happen, and deaths leave a marker for ten minutes.
+- **Player list** next to the map: search by name, owner or place, filter online/offline, sort by place,
+  total level, world or last seen. Each row shows the world, the place ("Lumbridge", "Wilderness (level
+  24)") and HP.
+- **Player profile**: vitals, total level and XP, carried value, gear and inventory, skills; XP gained
+  today, this week, month or year; play time and sessions with their worlds; carried value over 30 days;
+  gear changes; recent events. The map follows the player while it's open.
+- **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days).
+- **Clan page**: who's online and where (click a place to see it on the map), which worlds, the top XP
+  gainers, the biggest drops of the day, week or month, and the event feed.
+- **Players page**: a sortable table of everyone, with type, owner, totals and carried value.
+- **Graphs**: compare the XP of up to ten players over a day, week, month or year, from the hub's history.
+- **Admin portal**: users and roles, players (hide the ones the hub shares but the map shouldn't show),
+  who they belong to, the audit log, and the hub connection.
+
+A profile tab or trail says "not shared" when the player keeps that data private on the hub.
 
 ## Where player data comes from
 
-The backend's `DATA_SOURCE` setting picks one of three modes:
-
-| Mode | How players get on the map |
-|---|---|
-| `direct` (default) | Each player pairs the RuneLite plugin with this site using a 5-digit code from the Setup page. |
-| `hub` | The backend mirrors players from an osrs-data-hub. Players only pair with the hub; direct pairing is off. |
-| `both` | Both. When a player sends data directly, that data wins over the hub copy for the next two minutes. |
+Every player on the map comes from an osrs-data-hub. The backend mirrors the hub's accounts; players only
+pair the RuneLite plugin with the hub. (Earlier versions could also pair the plugin with the map directly;
+that is gone, and old direct pairings now get a 404.)
 
 ### How the hub integration works
 
@@ -49,14 +56,17 @@ RuneLite plugin ──pair/events──▶ osrs-data-hub ◀──GET /api/v1/sn
 
 - The backend polls the hub's `/api/v1/snapshot` with an API key that never leaves the server. It uses
   `ETag` and `since` for polling, and does a full refresh every two minutes.
-- Online players get fresh data. Offline players are imported once with the hub's `last_seen`, so they
-  show as offline instead of briefly appearing online.
+- Only what changed is stored, whether the player is online or not. Presence comes from the hub's
+  `online` and `last_seen`; if the sync stops for five minutes, everyone shows as offline.
+- The site polls the backend every 2 seconds and gets the roster plus only the players whose data
+  changed, so the cost stays small with 50+ players.
 - Accounts are matched by hub account id, then by the plugin's account hash (service keys only), then by name. Renames on
   the hub are followed. Accounts that disappear from the hub are marked "not shared" and never deleted.
 - When the hub reports an account owner's Discord id, the player is linked to the map user who logged
   in with that Discord account. Admins can also link players by hand.
-- XP graphs, trails, gains and the events feed are served by the backend from a short-lived cache, so
-  the hub sees the same number of requests however many people view the site.
+- XP graphs, trails, gains, profiles and the events feed are served by the backend from a short-lived
+  cache, so the hub sees the same number of requests however many people view the site. See
+  [docs/hub-integration](docs/hub-integration/HUB_INTEGRATION.md) for every endpoint the map calls.
 
 **What the hub shares is up to each player.** The hub only exposes what an account's owner shares with
 the guild, and the map shows exactly that. A player who keeps their location private stays off the map.
@@ -73,12 +83,14 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    A personal API key from the hub's **API keys** page also works, with limits: 120 requests a minute,
    10 accounts per request, no `account_hash` matching, and it dies with its creator's membership.
 2. Give the key at least these categories:
-   - `activity` and `location_live` for the map;
-   - `stats`, `equipment` and `inventory` for player panels, items and graphs;
-   - optionally `events` and `location_history` for the Activity page and trails.
-3. Set these for the backend:
+   - `activity` and `location_live` for the map and the player list;
+   - `stats`, `equipment` and `inventory` for profiles and graphs;
+   - `events` and `location_history` for the Clan page, map pings and trails.
+
+   The Clan page's "Biggest drops" and the profile's game state need a hub with D-94
+   (`/leaderboards/loot`, `game_state`); an older hub gets drops from recent events only.
+3. Set these for the backend (it refuses to start without them):
    ```env
-   DATA_SOURCE=hub                      # or both
    HUB_BASE_URL=https://hub.example.com # without /api/v1
    HUB_API_KEY=ohub_xxxxxxxxxx_xxxxxxxx
    ```
@@ -95,7 +107,7 @@ don't show up on the map should share them in the hub's sharing settings.
 ### Docker (recommended)
 
 ```bash
-cp .env.example .env   # set BACKEND_SECRET, database credentials and the data source
+cp .env.example .env   # set the database credentials and the hub URL and key
 docker compose up -d
 ```
 
@@ -114,10 +126,8 @@ a file for local development.
 |---|---|---|
 | `PG_USER`, `PG_PASSWORD`, `PG_HOST`, `PG_PORT`, `PG_DB` | | PostgreSQL connection. The schema is created on first start. |
 | `PG_POOL_MAX_SIZE` | `16` | Database connection pool size. |
-| `BACKEND_SECRET` | | Secret used to hash tokens. Changing it unpairs every device. |
 | `COOKIE_SECURE` | `true` | Mark session cookies `Secure`. Set to `false` only for plain HTTP. |
-| `DATA_SOURCE` | `direct` | `direct`, `hub` or `both`. |
-| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. |
+| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. Required. |
 | `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
 | `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails and the Activity page from the hub. |
 | `HUB_REQUEST_BUDGET` | 80 % of the key's limit | Hub requests per minute this server allows itself (the hub allows 120 per personal key, 600 per service key). |
@@ -126,23 +136,14 @@ a file for local development.
 | `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |
 | `HOST_URL`, `SITE_TITLE`, `SITE_NAME` | | Frontend: backend URL for its `/api` proxy, and branding. |
 
-### Pairing directly (`direct` or `both`)
-
-1. Install the RuneLite HomeAssistant Data Exporter from the Plugin Hub.
-2. Log in to the site and open **Setup**, then click **Generate Pairing Code**.
-3. Enter the code in the plugin. The player appears on the map with the next update.
-
-The plugin can pair with several endpoints at once, for example this site and the hub.
-
 ## Development
 
 Prerequisites: Rust (stable), Node.js 22+ and PostgreSQL 16+.
 
 ```bash
-# Backend (reads server/.env or environment variables; needs a secret)
+# Backend (reads the repository's .env, server/config.toml or environment variables)
 cd server
-echo "dev-secret" > secret
-PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false cargo run
+PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false   HUB_BASE_URL=http://localhost:3000 HUB_API_KEY=ohub_... cargo run
 
 # Frontend (http://localhost:4000, proxies /api to 127.0.0.1:8080)
 cd site
@@ -150,11 +151,12 @@ npm install
 npm start
 ```
 
-To try the hub integration without a hub, run the mock and point the backend at it:
+To try the map without a hub, run the mock and point the backend at it. `MOCK_HUB_ACCOUNTS` sets how
+many players it serves (default 12); every fourth keeps its inventory, equipment and trail private.
 
 ```bash
-node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
-DATA_SOURCE=hub HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
+MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
+HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
 ```
 
 Tests:
@@ -177,9 +179,9 @@ git fetch upstream
 git merge upstream/master
 ```
 
-Generated data under `site/public/` merges without conflicts. Server changes may need porting, because
-this fork replaced group tokens with sessions, removed the shared bank, and relies on
-`*_last_update` timestamps being refreshed on every update.
+Generated data under `site/public/` merges without conflicts (the quest, diary and collection log files
+are kept for that reason, although the site no longer loads them). Server changes rarely apply: this fork
+replaced group tokens with sessions, reads every player from the hub, and dropped the Group Ironman data.
 
 ## Project structure
 
@@ -189,7 +191,7 @@ server/            Rust backend (actix-web, tokio-postgres)
 site/              Frontend (web components bundled with esbuild) and its Express server
 tools/mock-hub/    Stand-in for the osrs-data-hub API
 backup/            Database backup script
-docs/              Integration notes
+docs/              Integration notes (docs/hub-integration: what the map uses from the hub)
 ```
 
 ## Credits and license
@@ -197,3 +199,6 @@ docs/              Integration notes
 - Original frontend and backend by [christoabrown](https://github.com/christoabrown/group-ironmen), BSD 2-Clause
   License (see [LICENSE](LICENSE)).
 - RuneLite companion plugin by [xXD4rkDragonXx](https://github.com/xXD4rkDragonXx).
+- Place names by map region from [RuneLite](https://github.com/runelite/runelite)'s Discord plugin,
+  BSD 2-Clause License (see `site/public/data/regions.NOTICE`). Regenerate them with
+  `node site/scripts/generate-regions.js path/to/DiscordGameEventType.java`.

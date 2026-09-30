@@ -1,11 +1,9 @@
-use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
-use crate::models::{CaptchaVerifyResponse, CreateGroup, GEPrices, WikiGEPrices};
-use crate::validators::valid_name;
-use actix_web::{get, post, web, Error, HttpResponse};
+use crate::models::{GEPrices, WikiGEPrices};
+use actix_web::{get, Error, HttpResponse};
 use arc_swap::{ArcSwap, ArcSwapAny};
-use deadpool_postgres::{Client, Pool};
+use deadpool_postgres::Pool;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -115,68 +113,4 @@ pub async fn get_ge_prices() -> Result<HttpResponse, Error> {
         .append_header(("Cache-Control", "public, max-age=86400"))
         .content_type("application/json")
         .body(res))
-}
-
-pub async fn verify_captcha(
-    response: &str,
-    secret: &str,
-) -> Result<CaptchaVerifyResponse, ApiError> {
-    let response = response.to_owned();
-    let secret = secret.to_owned();
-    let captcha_verify_response = task::spawn_blocking(move || {
-        ureq::post("https://hcaptcha.com/siteverify")
-            .send_form([("response", response.as_str()), ("secret", secret.as_str())])
-            .map_err(ApiError::UreqError)?
-            .body_mut()
-            .read_json::<CaptchaVerifyResponse>()
-            .map_err(ApiError::UreqError)
-    })
-    .await
-    .unwrap()?;
-
-    Ok(captcha_verify_response)
-}
-
-#[post("/create-group")]
-pub async fn create_group(
-    create_group: web::Json<CreateGroup>,
-    db_pool: web::Data<Pool>,
-    config: web::Data<Config>,
-) -> Result<HttpResponse, Error> {
-    let mut create_group_inner = create_group.into_inner();
-
-    if config.hcaptcha.enabled {
-        let captcha_verify_response = verify_captcha(
-            &create_group_inner.captcha_response,
-            &config.hcaptcha.secret,
-        )
-        .await?;
-        if !captcha_verify_response.success {
-            return Ok(HttpResponse::BadRequest().body("Captcha response verification failed"));
-        }
-    }
-
-    create_group_inner.name = create_group_inner.name.trim().to_string();
-    if !valid_name(&create_group_inner.name) {
-        return Ok(HttpResponse::BadRequest().body("Provided group name is not valid"));
-    }
-
-    create_group_inner
-        .member_names
-        .retain(|member_name| !member_name.trim().is_empty());
-    for member_name in &create_group_inner.member_names {
-        if !valid_name(member_name) {
-            return Ok(HttpResponse::BadRequest()
-                .body(format!("Member name {} is not valid", member_name)));
-        }
-    }
-
-    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::create_group(&mut client, &create_group_inner).await?;
-    Ok(HttpResponse::Created().json(&create_group_inner))
-}
-
-#[get("captcha-enabled")]
-pub async fn captcha_enabled(config: web::Data<Config>) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().json(&config.hcaptcha))
 }

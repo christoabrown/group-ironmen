@@ -1,43 +1,31 @@
 import { BaseElement } from "../base-element/base-element";
-import { utility } from "../utility";
+import { groupData } from "../data/group-data";
+import { carriedValue, filterMembers, overallXp, sortMembers, totalLevel, world } from "../data/roster-model";
+import { formatGp, relativeTime } from "../data/hub-format";
+import { selection } from "../data/selection";
 
-const ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+const DASH = "—";
+const REFRESH_TIMES_MS = 30000;
+// Sorts whose natural order runs A→Z; the others put the biggest value first.
+const ASCENDING_SORTS = new Set(["name"]);
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+function setText(el, text) {
+  if (el.textContent !== text) el.textContent = text;
 }
 
-function relativeTime(date) {
-  if (!date) return "Never";
-  const now = Date.now();
-  const then = date.getTime();
-  const diffMs = now - then;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHr = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHr / 24);
-
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin} min ago`;
-  if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? "s" : ""} ago`;
-  if (diffDay < 30) return `${diffDay} day${diffDay !== 1 ? "s" : ""} ago`; // ~30 days/month approximation
-  const diffMonth = Math.floor(diffDay / 30);
-  return `${diffMonth} month${diffMonth !== 1 ? "s" : ""} ago`;
+function formatNumber(value) {
+  return value === null || value === undefined ? DASH : value.toLocaleString();
 }
 
-function isOnline(member) {
-  if (!member.lastUpdated) return false;
-  const timeSince = utility.timeSinceLastUpdate(member.lastUpdated);
-  return !isNaN(timeSince) && timeSince <= ONLINE_THRESHOLD_MS;
-}
-
+// A directory of every player: one table row per player, created once and
+// patched in place when that player's data changes.
 export class PlayersPage extends BaseElement {
   constructor() {
     super();
-    this.statusFilter = "all";
-    this.nameFilter = "";
+    this.status = "all";
+    this.text = "";
+    this.sortKey = "status";
+    this.descending = false;
   }
 
   html() {
@@ -48,15 +36,26 @@ export class PlayersPage extends BaseElement {
     super.connectedCallback();
     document.body.classList.add("players-page");
     this.render();
-    this.listEl = this.querySelector(".players-page__list");
+    this.rows = new Map();
+    this.order = [];
+    this.tbody = this.querySelector("tbody");
     this.countEl = this.querySelector(".players-page__count");
+    this.emptyEl = this.querySelector(".players-page__empty");
     this.searchInput = this.querySelector(".players-page__search");
+    this.searchInput.value = this.text;
 
-    this.eventListener(this.querySelector(".players-page__filters"), "click", this.handleFilterClick.bind(this));
     this.eventListener(this.searchInput, "input", this.handleSearchInput.bind(this));
+    this.eventListener(this.querySelector(".players-page__chips"), "click", this.handleStatusClick.bind(this));
+    this.eventListener(this.querySelector("thead"), "click", this.handleSortClick.bind(this));
+    this.eventListener(this.tbody, "click", this.handleRowClick.bind(this));
+    this.eventListener(this.tbody, "keydown", this.handleRowKeyDown.bind(this));
 
-    this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
-    this.refreshInterval = setInterval(() => this.updateRelativeTimes(), 30000);
+    this.updateStatusChips();
+    this.updateSortHeaders();
+    this.syncRows();
+    this.subscribe("members-updated", this.syncRows.bind(this));
+    this.subscribe("roster-changed", this.patchRows.bind(this));
+    this.refreshInterval = setInterval(() => this.refreshTimes(), REFRESH_TIMES_MS);
   }
 
   disconnectedCallback() {
@@ -68,111 +67,216 @@ export class PlayersPage extends BaseElement {
     }
   }
 
-  handleFilterClick(e) {
-    const btn = e.target.closest("[data-filter]");
-    if (!btn) return;
-    this.statusFilter = btn.getAttribute("data-filter");
-
-    this.querySelectorAll(".players-page__filter-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    this.renderPlayerList();
-  }
-
   handleSearchInput() {
-    this.nameFilter = this.searchInput.value.trim().toLowerCase();
-    this.renderPlayerList();
+    this.text = this.searchInput.value;
+    this.applyOrder();
   }
 
-  handleUpdatedMembers(members) {
-    this.members = members;
-    this.renderPlayerList();
+  handleStatusClick(event) {
+    const chip = event.target.closest("[data-status]");
+    if (!chip) return;
+    this.status = chip.dataset.status;
+    this.updateStatusChips();
+    this.applyOrder();
   }
 
-  renderPlayerList() {
-    if (!this.members || !this.listEl) return;
+  handleSortClick(event) {
+    const header = event.target.closest("th[data-sort]");
+    if (!header) return;
+    const key = header.dataset.sort;
+    if (key === this.sortKey) {
+      this.descending = !this.descending;
+    } else {
+      this.sortKey = key;
+      this.descending = false;
+    }
+    this.updateSortHeaders();
+    this.applyOrder();
+  }
 
-    const online = [];
-    const offline = [];
+  handleRowClick(event) {
+    const row = event.target.closest("tr[data-name]");
+    if (row) selection.select(row.dataset.name);
+  }
 
-    for (const member of this.members) {
-      // Apply name filter
-      if (this.nameFilter && !member.name.toLowerCase().includes(this.nameFilter)) {
+  handleRowKeyDown(event) {
+    if (event.key !== "Enter") return;
+    this.handleRowClick(event);
+  }
+
+  updateStatusChips() {
+    for (const chip of this.querySelectorAll(".players-page__chip")) {
+      const active = chip.dataset.status === this.status;
+      chip.classList.toggle("active", active);
+      chip.setAttribute("aria-pressed", String(active));
+    }
+  }
+
+  updateSortHeaders() {
+    for (const header of this.querySelectorAll("th[data-sort]")) {
+      const key = header.dataset.sort;
+      const arrow = header.querySelector(".players-page__arrow");
+      if (key !== this.sortKey) {
+        header.classList.remove("players-page__sorted");
+        header.removeAttribute("aria-sort");
+        arrow.textContent = "";
         continue;
       }
-
-      if (isOnline(member)) {
-        online.push(member);
-      } else {
-        offline.push(member);
-      }
+      const ascending = ASCENDING_SORTS.has(key) !== this.descending;
+      header.classList.add("players-page__sorted");
+      header.setAttribute("aria-sort", ascending ? "ascending" : "descending");
+      arrow.textContent = ascending ? " ▲" : " ▼";
     }
-
-    // Sort offline by lastUpdated descending (most recently seen first)
-    offline.sort((a, b) => {
-      const aTime = a.lastUpdated ? a.lastUpdated.getTime() : 0;
-      const bTime = b.lastUpdated ? b.lastUpdated.getTime() : 0;
-      return bTime - aTime;
-    });
-
-    const showOnline = this.statusFilter === "all" || this.statusFilter === "online";
-    const showOffline = this.statusFilter === "all" || this.statusFilter === "offline";
-
-    let html = "";
-
-    if (showOnline) {
-      for (const member of online) {
-        const safeName = escapeHtml(member.name);
-        html += `
-          <div class="players-page__player players-page__player--online rsborder rsbackground">
-            <div class="players-page__player-header">
-              <player-icon player-name="${safeName}"></player-icon>
-              <span class="players-page__player-name">${safeName}</span>
-              <span class="players-page__badge players-page__badge--online">Online</span>
-              <span class="players-page__last-data" data-last-updated="${
-                member.lastUpdated ? member.lastUpdated.toISOString() : ""
-              }">Last data: ${relativeTime(member.lastUpdated)}</span>
-            </div>
-            <player-panel class="rsborder rsbackground" player-name="${safeName}"></player-panel>
-          </div>`;
-      }
-    }
-
-    if (showOffline) {
-      for (const member of offline) {
-        const safeName = escapeHtml(member.name);
-        html += `
-          <div class="players-page__player players-page__player--offline rsborder rsbackground">
-            <div class="players-page__player-header">
-              <player-icon player-name="${safeName}"></player-icon>
-              <span class="players-page__player-name">${safeName}</span>
-              <span class="players-page__badge players-page__badge--offline">Offline</span>
-              <span class="players-page__last-data" data-last-updated="${
-                member.lastUpdated ? member.lastUpdated.toISOString() : ""
-              }">Last data: ${relativeTime(member.lastUpdated)}</span>
-            </div>
-          </div>`;
-      }
-    }
-
-    this.listEl.innerHTML = html;
-
-    // Update count
-    const shownOnline = showOnline ? online.length : 0;
-    const shownOffline = showOffline ? offline.length : 0;
-    this.countEl.textContent = `${shownOnline + shownOffline} player${
-      shownOnline + shownOffline !== 1 ? "s" : ""
-    } (${shownOnline} online)`;
   }
 
-  updateRelativeTimes() {
-    const els = this.querySelectorAll(".players-page__last-data[data-last-updated]");
-    for (const el of els) {
-      const iso = el.getAttribute("data-last-updated");
-      if (iso) {
-        el.textContent = `Last data: ${relativeTime(new Date(iso))}`;
+  /** Adds rows for new players and drops the rows of players that left. */
+  syncRows() {
+    for (const member of groupData.members.values()) {
+      if (!this.rows.has(member.name)) this.createRow(member);
+    }
+    for (const [name, row] of this.rows) {
+      if (!groupData.members.has(name)) {
+        row.tr.remove();
+        this.rows.delete(name);
       }
     }
+    this.applyOrder();
+  }
+
+  /** Updates only the rows of the players in `names`. */
+  patchRows(names) {
+    for (const name of names) {
+      const member = groupData.members.get(name);
+      const row = this.rows.get(name);
+      if (!member) {
+        row?.tr.remove();
+        this.rows.delete(name);
+      } else if (row) {
+        this.patchRow(row, member);
+      } else {
+        this.createRow(member);
+      }
+    }
+    this.applyOrder();
+  }
+
+  createRow(member) {
+    const tr = document.createElement("tr");
+    tr.className = "players-page__row";
+    tr.dataset.name = member.name;
+    tr.tabIndex = 0;
+
+    const cell = (className) => {
+      const td = document.createElement("td");
+      if (className) td.className = className;
+      tr.appendChild(td);
+      return td;
+    };
+
+    const nameCell = document.createElement("span");
+    nameCell.className = "players-page__name";
+    cell().appendChild(nameCell);
+    const dot = document.createElement("span");
+    dot.className = "players-page__dot";
+    dot.style.background = member.color;
+    const name = document.createElement("span");
+    name.className = "players-page__player-name";
+    name.textContent = member.name;
+    nameCell.append(dot, name);
+
+    const status = cell("players-page__status");
+    const statusText = document.createElement("span");
+    const orphanedBadge = document.createElement("span");
+    orphanedBadge.className = "players-page__badge";
+    orphanedBadge.textContent = "not shared";
+    orphanedBadge.title = "No longer shared with the guild on the hub";
+    status.append(statusText, orphanedBadge);
+
+    const row = {
+      tr,
+      status,
+      statusText,
+      orphanedBadge,
+      type: cell("players-page__col-type"),
+      owner: cell("players-page__col-owner"),
+      total: cell("players-page__num"),
+      xp: cell("players-page__num players-page__col-xp"),
+      value: cell("players-page__num players-page__col-value"),
+      combat: cell("players-page__num"),
+    };
+    this.rows.set(member.name, row);
+    this.patchRow(row, member);
+    return row;
+  }
+
+  patchRow(row, member) {
+    row.tr.classList.toggle("players-page__row--offline", !member.online);
+    this.patchStatus(row, member);
+    setText(row.type, member.meta?.type_label || DASH);
+    setText(row.owner, member.meta?.owner || DASH);
+    setText(row.total, formatNumber(totalLevel(member)));
+    setText(row.xp, formatNumber(overallXp(member)));
+    const value = carriedValue(member);
+    setText(row.value, value === null ? DASH : formatGp(value));
+    setText(row.combat, formatNumber(member.combatLevel));
+  }
+
+  patchStatus(row, member) {
+    row.status.classList.toggle("players-page__status--online", member.online);
+    row.orphanedBadge.hidden = !member.orphaned;
+    if (member.online) {
+      const w = world(member);
+      setText(row.statusText, w ? `Online W${w}` : "Online");
+      row.status.title = "";
+    } else {
+      setText(row.statusText, member.lastSeen ? relativeTime(member.lastSeen) : "Offline");
+      row.status.title = member.lastSeen ? `Last seen ${member.lastSeen.toLocaleString()}` : "";
+    }
+  }
+
+  refreshTimes() {
+    for (const [name, row] of this.rows) {
+      const member = groupData.members.get(name);
+      if (member) this.patchStatus(row, member);
+    }
+  }
+
+  /** Puts the visible rows in sort order, moving only rows that are out of place. */
+  applyOrder() {
+    const members = [...groupData.members.values()];
+    const visible = sortMembers(
+      filterMembers(members, { text: this.text, status: this.status }),
+      this.sortKey,
+      this.descending
+    );
+    const order = visible.map((member) => member.name).filter((name) => this.rows.has(name));
+
+    const changed = order.length !== this.order.length || order.some((name, i) => name !== this.order[i]);
+    if (changed) {
+      this.order = order;
+      let cursor = this.tbody.firstChild;
+      for (const name of order) {
+        const tr = this.rows.get(name).tr;
+        if (tr === cursor) {
+          cursor = cursor.nextSibling;
+        } else {
+          this.tbody.insertBefore(tr, cursor);
+        }
+      }
+      while (cursor) {
+        const next = cursor.nextSibling;
+        cursor.remove();
+        cursor = next;
+      }
+    }
+
+    const online = members.filter((member) => member.online).length;
+    let count = `${members.length} player${members.length === 1 ? "" : "s"} (${online} online)`;
+    if (order.length !== members.length) count += ` · ${order.length} shown`;
+    setText(this.countEl, count);
+
+    this.emptyEl.hidden = order.length > 0;
+    setText(this.emptyEl, members.length === 0 ? "No players yet." : "No players match.");
   }
 }
 

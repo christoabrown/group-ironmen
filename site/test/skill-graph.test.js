@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { SkillName } from "../src/data/skill";
 import { SkillGraph } from "../src/skill-graph/skill-graph";
+import { colorForName } from "../src/data/player-colors";
 
 function assertConsecutiveDates(dates, nextDate) {
   for (let i = 1; i < dates.length; i += 1) {
@@ -148,5 +149,43 @@ describe("SkillGraph.createTable", () => {
 
     expect(graph.tableContainer.innerHTML).not.toContain("NaN%");
     expect(graph.tableContainer.innerHTML).not.toContain("Infinity%");
+  });
+});
+
+describe("SkillGraph with players missing from the roster", () => {
+  it("builds data sets and the table without throwing", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-02T23:30:00"));
+
+    const graph = new SkillGraph();
+    graph.skillName = SkillName.Overall;
+    graph.period = "Week";
+    graph.dates = SkillGraph.datesForPeriod("Week");
+    graph.tableContainer = document.createElement("div");
+    graph.currentGroupData = { members: new Map() };
+    const snapshot = (xp) => Object.fromEntries(Object.values(SkillName).map((skillName) => [skillName, xp]));
+    graph.skillDataForGroup = [
+      {
+        name: "Gone Player",
+        skill_data: [
+          { time: new Date("2026-11-02T10:00:00"), data: snapshot(2000) },
+          { time: new Date("2026-10-29T10:00:00"), data: snapshot(1000) },
+        ],
+      },
+      { name: "No Data", skill_data: [] },
+    ];
+
+    let dataSets;
+    expect(() => {
+      dataSets = graph.dataSets(SkillName.Overall);
+      graph.createTable(dataSets);
+    }).not.toThrow();
+
+    expect(dataSets).toHaveLength(1);
+    expect(dataSets[0].label).toBe("Gone Player");
+    expect(dataSets[0].borderColor).toBe(colorForName("Gone Player").color);
+    expect(dataSets[0].data[dataSets[0].data.length - 1]).toBe(1000);
+    expect(graph.tableContainer.innerHTML).toContain("Gone Player");
+    expect(graph.tableContainer.innerHTML).not.toContain("No Data");
   });
 });

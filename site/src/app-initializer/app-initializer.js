@@ -1,12 +1,13 @@
 import { BaseElement } from "../base-element/base-element";
 import { Item } from "../data/item";
-import { Quest } from "../data/quest";
 import { api } from "../data/api";
 import { storage } from "../data/storage";
 import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
-import { exampleData } from "../data/example-data";
-import { AchievementDiary } from "../data/diaries";
+import { liveEvents } from "../data/live-events";
+import { selection } from "../data/selection";
+import { loadRegions } from "../data/regions";
+import { groupData } from "../data/group-data";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -29,32 +30,27 @@ export class AppInitializer extends BaseElement {
 
   cleanup() {
     api.disable();
+    liveEvents.stop();
+    selection.reset();
     // Unpublish everything to prevent any data leaking over into another session
     pubsub.unpublishAll();
-    exampleData.disable();
-    api.exampleDataEnabled = false;
     loadingScreenManager.hideLoadingScreen();
   }
 
   async initializeApp() {
     this.cleanup();
     loadingScreenManager.showLoadingScreen();
-    await Promise.all([Item.loadItems(), Item.loadGePrices(), Quest.loadQuests(), AchievementDiary.loadDiaries()]);
+    await Promise.all([Item.loadItems(), Item.loadGePrices()]);
+    // Place names aren't needed to show the map; fill them in when they arrive.
+    loadRegions().then(() => groupData.refreshRegions());
 
-    // Check for session-based auth first, then legacy
     const session = storage.getSession();
-    const group = storage.getGroup();
 
     // Make sure this component is still connected after loading the above.
     if (this.isConnected) {
-      if (group.groupName === "@EXAMPLE") {
-        await this.loadExampleData();
-      } else if (session.sessionToken) {
+      if (session.sessionToken) {
         await this.loadWithSession(session);
-      } else if (group.groupName && group.groupToken) {
-        await this.loadGroup(group);
       } else {
-        // No credentials, redirect to login
         window.history.pushState("", "", "/login");
       }
 
@@ -62,24 +58,13 @@ export class AppInitializer extends BaseElement {
     }
   }
 
-  async loadExampleData() {
-    exampleData.enable();
-    api.exampleDataEnabled = true;
-    api.loadFeatures();
-    await api.enable();
-  }
-
   async loadWithSession(session) {
     api.setSession(session.sessionToken, session.username, session.role);
-    api.loadFeatures();
+    api.loadFeatures().then((features) => {
+      if (features.hub_history && this.isConnected) liveEvents.start();
+    });
     const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
     await api.enable();
-    await firstDataEvent;
-  }
-
-  async loadGroup(group) {
-    const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
-    await api.enable(group.groupName, group.groupToken);
     await firstDataEvent;
   }
 }

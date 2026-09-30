@@ -1,4 +1,4 @@
-use crate::auth_middleware::SessionAuthenticated;
+use crate::auth_middleware::{LastSeenThrottle, SessionAuthenticated, SessionMiddlewareFactory};
 use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
@@ -10,6 +10,27 @@ use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
 
 pub const SESSION_DURATION_HOURS: i64 = 72;
+
+/// Mounts `/api/auth`. Actix matches the first scope with a matching prefix
+/// and never falls through to a second one with the same prefix, so the
+/// session-protected routes are a nested scope after the public ones.
+pub fn configure(cfg: &mut web::ServiceConfig, last_seen: LastSeenThrottle) {
+    cfg.service(
+        web::scope("/api/auth")
+            .service(setup_status)
+            .service(setup)
+            .service(login)
+            .service(crate::discord_routes::discord_enabled)
+            .service(crate::discord_routes::discord_callback)
+            .service(
+                web::scope("")
+                    .wrap(SessionMiddlewareFactory::new(last_seen))
+                    .service(logout)
+                    .service(me)
+                    .service(change_password),
+            ),
+    );
+}
 
 /// Builds the `session` cookie. Every place that sets or clears the session
 /// cookie goes through here so the attributes stay consistent.
@@ -238,4 +259,31 @@ pub async fn change_password(
     .await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true})))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{test, App};
+
+    #[actix_web::test]
+    async fn session_routes_are_reachable_next_to_the_public_ones() {
+        let app = test::init_service(
+            App::new().configure(|cfg| configure(cfg, LastSeenThrottle::default())),
+        )
+        .await;
+        // Without a session these must be rejected by the middleware, not 404.
+        for (method, path) in [
+            ("POST", "/api/auth/logout"),
+            ("GET", "/api/auth/me"),
+            ("POST", "/api/auth/change-password"),
+        ] {
+            let request = test::TestRequest::default()
+                .method(method.parse().unwrap())
+                .uri(path)
+                .to_request();
+            let response = test::call_service(&app, request).await;
+            assert_eq!(response.status(), 401, "{method} {path}");
+        }
+    }
 }

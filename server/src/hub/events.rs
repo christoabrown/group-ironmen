@@ -5,50 +5,137 @@ use crate::hub::client::{HubClient, HubError, Priority};
 use crate::hub::models::HubEvent;
 use crate::hub::{record_error, SharedHubStatus};
 use chrono::Utc;
+use serde_json::Value;
 use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-const CAPACITY: usize = 500;
+const CAPACITY: usize = 1000;
 const INITIAL_EVENTS: u32 = 200;
 const PAGE_SIZE: u32 = 200;
 
+/// An event with the buffer's own increasing sequence number, which the site
+/// passes back as `after` to get only newer events.
+#[derive(Clone, Debug)]
+pub struct BufferedEvent {
+    pub seq: u64,
+    pub event: HubEvent,
+}
+
+#[derive(Default)]
+struct Inner {
+    events: VecDeque<BufferedEvent>,
+    next_seq: u64,
+}
+
 #[derive(Clone, Default)]
-pub struct EventBuffer(Arc<RwLock<VecDeque<HubEvent>>>);
+pub struct EventBuffer(Arc<RwLock<Inner>>);
+
+/// What `EventBuffer::query` returns events for.
+#[derive(Default)]
+pub struct EventFilter<'a> {
+    pub types: &'a [String],
+    /// Only this hub account.
+    pub account_id: Option<&'a str>,
+    /// Only events newer than this sequence number.
+    pub after: Option<u64>,
+    pub min_value: Option<i64>,
+}
 
 impl EventBuffer {
     /// Appends events (oldest first), skipping ids already buffered.
     pub fn extend(&self, events: Vec<HubEvent>) -> usize {
-        let mut buffer = self.0.write().expect("event buffer lock poisoned");
+        let mut inner = self.0.write().expect("event buffer lock poisoned");
         for event in events {
-            if buffer
+            if inner
+                .events
                 .iter()
                 .rev()
                 .take(PAGE_SIZE as usize)
-                .any(|e| e.id == event.id)
+                .any(|e| e.event.id == event.id)
             {
                 continue;
             }
-            buffer.push_back(event);
-            while buffer.len() > CAPACITY {
-                buffer.pop_front();
+            inner.next_seq += 1;
+            let seq = inner.next_seq;
+            inner.events.push_back(BufferedEvent { seq, event });
+            while inner.events.len() > CAPACITY {
+                inner.events.pop_front();
             }
         }
-        buffer.len()
+        inner.events.len()
     }
 
-    /// Newest first, filtered by type and account name.
-    pub fn query(&self, types: &[String], member: Option<&str>, limit: usize) -> Vec<HubEvent> {
-        let buffer = self.0.read().expect("event buffer lock poisoned");
-        buffer
+    /// Newest first.
+    pub fn query(&self, filter: &EventFilter, limit: usize) -> Vec<BufferedEvent> {
+        let inner = self.0.read().expect("event buffer lock poisoned");
+        inner
+            .events
             .iter()
             .rev()
-            .filter(|event| types.is_empty() || types.iter().any(|t| t == &event.event_type))
-            .filter(|event| member.is_none_or(|name| event.account.name.eq_ignore_ascii_case(name)))
+            .take_while(|buffered| filter.after.is_none_or(|after| buffered.seq > after))
+            .filter(|buffered| {
+                let event = &buffered.event;
+                (filter.types.is_empty() || filter.types.iter().any(|t| t == &event.event_type))
+                    && filter.account_id.is_none_or(|id| event.account.id == id)
+                    && filter
+                        .min_value
+                        .is_none_or(|min| event.value_gp.is_some_and(|value| value >= min))
+            })
             .take(limit)
             .cloned()
             .collect()
     }
+
+    /// The sequence number of the newest buffered event (0 when empty).
+    pub fn latest_seq(&self) -> u64 {
+        self.0.read().expect("event buffer lock poisoned").next_seq
+    }
+}
+
+/// The parts of the plugin's event object the site shows: where a death or a
+/// superior happened, and the most valuable items and the source of a drop.
+pub fn event_details(event: &HubEvent) -> (Option<Value>, Option<Value>, Option<String>) {
+    let Some(inner) = event.data.as_ref().and_then(|data| data.get("data")) else {
+        return (None, None, None);
+    };
+    let location = inner
+        .get("location")
+        .filter(|location| location.get("x").is_some() && location.get("y").is_some())
+        .map(|location| {
+            serde_json::json!({
+                "x": location.get("x"),
+                "y": location.get("y"),
+                "plane": location.get("plane").cloned().unwrap_or(Value::from(0)),
+            })
+        });
+    let items = inner.get("items").and_then(Value::as_array).map(|items| {
+        let mut items: Vec<&Value> = items.iter().collect();
+        let value = |item: &Value| {
+            let price = item.get("gePrice").and_then(Value::as_i64).unwrap_or(0);
+            let quantity = item.get("quantity").and_then(Value::as_i64).unwrap_or(1);
+            price.saturating_mul(quantity)
+        };
+        items.sort_by_key(|item| std::cmp::Reverse(value(item)));
+        Value::from(
+            items
+                .into_iter()
+                .take(3)
+                .map(|item| {
+                    serde_json::json!({
+                        "id": item.get("id"),
+                        "quantity": item.get("quantity"),
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+    });
+    let source = inner
+        .get("source")
+        .and_then(|source| source.get("text").or(Some(source)))
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    (location, items, source)
 }
 
 pub fn start(
@@ -110,55 +197,104 @@ pub fn start(
 mod tests {
     use super::*;
 
-    fn event(id: &str, event_type: &str, name: &str) -> HubEvent {
+    fn event(id: &str, event_type: &str, account: &str) -> HubEvent {
         serde_json::from_value(serde_json::json!({
             "id": id,
             "type": event_type,
-            "account": {"id": "a1", "name": name},
+            "account": {"id": account, "name": account.to_uppercase()},
             "occurred_at": "2026-09-29T14:13:40.046Z",
-            "line": format!("{} did {}", name, event_type),
+            "value_gp": id.parse::<i64>().unwrap_or(0) * 1000,
+            "line": format!("{} did {}", account, event_type),
         }))
         .unwrap()
+    }
+
+    fn ids(events: Vec<BufferedEvent>) -> Vec<String> {
+        events.into_iter().map(|e| e.event.id).collect()
     }
 
     #[test]
     fn deduplicates_and_returns_newest_first() {
         let buffer = EventBuffer::default();
-        buffer.extend(vec![
-            event("1", "loot", "Alice"),
-            event("2", "death", "Bob"),
-        ]);
-        buffer.extend(vec![
-            event("2", "death", "Bob"),
-            event("3", "level_up", "Alice"),
-        ]);
-        let ids: Vec<_> = buffer
-            .query(&[], None, 10)
-            .into_iter()
-            .map(|e| e.id)
-            .collect();
-        assert_eq!(ids, vec!["3", "2", "1"]);
+        buffer.extend(vec![event("1", "loot", "a"), event("2", "death", "b")]);
+        buffer.extend(vec![event("2", "death", "b"), event("3", "level_up", "a")]);
+        let all = buffer.query(&EventFilter::default(), 10);
+        assert_eq!(ids(all.clone()), vec!["3", "2", "1"]);
+        assert_eq!(all.iter().map(|e| e.seq).collect::<Vec<_>>(), vec![3, 2, 1]);
+        assert_eq!(buffer.latest_seq(), 3);
     }
 
     #[test]
-    fn filters_by_type_member_and_limit() {
+    fn filters_by_type_account_value_after_and_limit() {
         let buffer = EventBuffer::default();
         buffer.extend(vec![
-            event("1", "loot", "Alice"),
-            event("2", "loot", "Bob"),
-            event("3", "death", "alice"),
+            event("1", "loot", "a"),
+            event("2", "loot", "b"),
+            event("3", "death", "a"),
         ]);
-        assert_eq!(buffer.query(&["loot".to_string()], None, 10).len(), 2);
-        assert_eq!(buffer.query(&[], Some("ALICE"), 10).len(), 2);
-        assert_eq!(buffer.query(&[], None, 1)[0].id, "3");
+        let types = ["loot".to_string()];
+        let loot = EventFilter {
+            types: &types,
+            ..Default::default()
+        };
+        assert_eq!(buffer.query(&loot, 10).len(), 2);
+        let account = EventFilter {
+            account_id: Some("a"),
+            ..Default::default()
+        };
+        assert_eq!(ids(buffer.query(&account, 10)), vec!["3", "1"]);
+        let after = EventFilter {
+            after: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(ids(buffer.query(&after, 10)), vec!["3", "2"]);
+        let valuable = EventFilter {
+            min_value: Some(2000),
+            ..Default::default()
+        };
+        assert_eq!(ids(buffer.query(&valuable, 10)), vec!["3", "2"]);
+        assert_eq!(ids(buffer.query(&EventFilter::default(), 1)), vec!["3"]);
     }
 
     #[test]
     fn keeps_at_most_capacity_events() {
         let buffer = EventBuffer::default();
         let events = (0..CAPACITY + 50)
-            .map(|i| event(&i.to_string(), "loot", "Alice"))
+            .map(|i| event(&i.to_string(), "loot", "a"))
             .collect();
         assert_eq!(buffer.extend(events), CAPACITY);
+    }
+
+    #[test]
+    fn extracts_death_location_and_top_items() {
+        let mut death = event("1", "death", "a");
+        death.data = Some(serde_json::json!({"type": "death", "data": {
+            "valueLost": 100, "location": {"x": 3200, "y": 3201, "plane": 1}
+        }}));
+        let (location, items, _) = event_details(&death);
+        assert_eq!(location.unwrap()["plane"], 1);
+        assert!(items.is_none());
+
+        let mut loot = event("2", "loot", "a");
+        loot.data = Some(serde_json::json!({"type": "loot", "data": {
+            "source": {"text": "Kree'arra"},
+            "items": [
+                {"id": 1, "quantity": 10, "gePrice": 5},
+                {"id": 2, "quantity": 1, "gePrice": 1000},
+                {"id": 3, "quantity": 2, "gePrice": 200},
+                {"id": 4, "quantity": 1, "gePrice": 1}
+            ]
+        }}));
+        let (location, items, source) = event_details(&loot);
+        assert!(location.is_none());
+        let items = items.unwrap();
+        let top: Vec<_> = items
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["id"].as_i64().unwrap())
+            .collect();
+        assert_eq!(top, vec![2, 3, 1]);
+        assert_eq!(source.as_deref(), Some("Kree'arra"));
     }
 }

@@ -3,12 +3,34 @@ import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 import { utility } from "../utility";
 import { Animation } from "./animation";
 import { GroupData } from "../data/group-data";
+import { selection } from "../data/selection";
 
 export const ICON_SPRITE_SIZE = 15;
 
 // Consecutive trail points further apart than this (in tiles) are a teleport
 // and are not connected with a line.
 export const TRAIL_MAX_STEP_TILES = 40;
+
+// Below this zoom, players closer than CLUSTER_CELL_PX on screen are drawn as
+// one bubble with a count.
+export const CLUSTER_BELOW_ZOOM = 2;
+
+export const CLUSTER_CELL_PX = 34;
+
+// Player names are shown from this zoom on (and always for the selected one).
+export const LABEL_MIN_ZOOM = 1;
+const LABEL_FONT_PX = 16;
+
+// How long the parts of an event ping last, in ms.
+export const PING_RING_MS = 2400;
+
+export const PING_LABEL_MS = 20000;
+
+export const DEATH_MARKER_MS = 10 * 60 * 1000;
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
 
 export class CanvasMap extends BaseElement {
   html() {
@@ -34,10 +56,14 @@ export class CanvasMap extends BaseElement {
     this.eventListener(this, "touchcancel", this.stopDragging.bind(this));
     this.eventListener(window, "resize", this.onResize.bind(this));
     this.playerMarkers = new Map();
-    this.interactingMarkers = new Set();
     this.trails = new Map();
+    this.pings = [];
+    this.renderedPlayers = [];
+    this.selectedName = null;
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.subscribe("coordinates", this.handleUpdatedCoordinates.bind(this));
+    this.subscribe("player-selected", this.handleSelected.bind(this));
+    this.subscribe("map-focus", this.handleMapFocus.bind(this));
 
     this.plane = 1;
     this.tileSize = 256;
@@ -95,6 +121,7 @@ export class CanvasMap extends BaseElement {
       this.frameRequestId = null;
     }
     this.hideMapLinkTooltip();
+    this.hidePlayerTooltip();
     super.disconnectedCallback();
   }
 
@@ -194,8 +221,14 @@ export class CanvasMap extends BaseElement {
     const coordinates = member.coordinates || {};
     if (this.isValidCoordinates(coordinates)) {
       this.playerMarkers.set(member.name, {
+        name: member.name,
         label: member.name,
         coordinates,
+        color: member.color || "#348feb",
+        light: member.lightColor || "#34d8eb",
+        world: member.stats?.world,
+        hitpoints: member.stats?.hitpoints,
+        region: member.region,
       });
 
       if (this.followingPlayer.name === member.name) {
@@ -221,6 +254,30 @@ export class CanvasMap extends BaseElement {
 
   stopFollowingPlayer() {
     this.followingPlayer.name = null;
+  }
+
+  handleSelected(selected) {
+    this.selectedName = selected?.name || null;
+    if (selected?.follow) {
+      this.followPlayer(selected.name);
+    }
+    this.requestUpdate();
+  }
+
+  /** Shows a place: `{x, y, plane, zoom}` in game coordinates (plane zero-based). */
+  handleMapFocus(focus) {
+    if (!focus) return;
+    this.stopFollowingPlayer();
+    this.showPlane((focus.plane || 0) + 1);
+    if (focus.zoom) {
+      this.camera.zoom.goTo(Math.min(Math.max(focus.zoom, this.camera.minZoom), this.camera.maxZoom), 1);
+    }
+    const [x, y] = this.gamePositionToCameraCenter(focus.x, focus.y);
+    this.camera.x.goTo(x, 400);
+    this.camera.y.goTo(y, 400);
+    this.cursor.dx = 0;
+    this.cursor.dy = 0;
+    this.requestUpdate();
   }
 
   // Converts a position in the runescape world to a camera position at the center of the canvas
@@ -488,22 +545,9 @@ export class CanvasMap extends BaseElement {
       this.drawMapAreaLabels(!isPanningABigDistance);
       this.drawMapLinks();
       this.drawTrails();
-
-      this.drawTileMarkers(this.playerMarkers.values(), {
-        fillColor: "#348feb",
-        strokeColor: "#34d8eb",
-        labelPosition: "top",
-        labelFill: "yellow",
-        labelStroke: "black",
-      });
-      this.drawTileMarkers(this.interactingMarkers.values(), {
-        fillColor: "#a832a8",
-        strokeColor: "#cc2ed1",
-        labelPosition: "bottom",
-        labelFill: "red",
-        labelStroke: "black",
-      });
       this.drawCursorTile();
+      this.drawPlayers();
+      doAnotherUpdate = this.drawPings(performance.now()) || doAnotherUpdate;
     }
 
     this.updateRequested = doAnotherUpdate ? Math.max(1, this.updateRequested) : this.updateRequested;
@@ -575,11 +619,13 @@ export class CanvasMap extends BaseElement {
     const half = this.pixelsPerGameTile / 2;
     this.ctx.lineJoin = "round";
     this.ctx.lineCap = "round";
-    this.ctx.lineWidth = 3 / this.camera.zoom.current;
-    this.ctx.globalAlpha = 0.75;
-    for (const trail of this.trails.values()) {
+    this.ctx.globalAlpha = 0.8;
+    for (const [name, trail] of this.trails) {
+      const selected = name === this.selectedName;
+      this.ctx.lineWidth = (selected ? 5 : 3) / this.camera.zoom.current;
       this.ctx.strokeStyle = trail.color;
-      for (const segment of CanvasMap.trailSegments(trail.points, plane)) {
+      const segments = CanvasMap.trailSegments(trail.points, plane);
+      for (const segment of segments) {
         this.ctx.beginPath();
         segment.forEach((point, index) => {
           const [x, y] = this.gamePositionToCanvas(point.x, point.y);
@@ -591,21 +637,368 @@ export class CanvasMap extends BaseElement {
         });
         this.ctx.stroke();
       }
+      // Mark where the trail starts, so its direction is clear.
+      const first = trail.points.find((point) => point.plane === plane);
+      if (first) {
+        const [x, y] = this.gamePositionToCanvas(first.x, first.y);
+        this.ctx.beginPath();
+        this.ctx.fillStyle = trail.color;
+        this.ctx.arc(x + half, y + half, 4 / this.camera.zoom.current, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
     }
     this.ctx.globalAlpha = 1;
   }
 
-  addInteractingMarker(x, y, label) {
-    const marker = {
-      label,
-      coordinates: { x, y, plane: 0 },
-    };
-    this.interactingMarkers.add(marker);
-    return marker;
+  /** Screen position (relative to the canvas) of the centre of a game tile. */
+  tileCenterOnScreen(x, y) {
+    const tile = this.pixelsPerGameTile * this.camera.zoom.current;
+    const [screenX, top] = this.gamePositionToClient(x, y);
+    return [screenX, top + tile / 2];
   }
 
-  removeInteractingMarker(marker) {
-    this.interactingMarkers.delete(marker);
+  /**
+   * Groups screen points that are close together. `points` are
+   * `{x, y, plane, ...}`; returns `{x, y, plane, members}` with the members'
+   * average position. Only points on the same plane are grouped.
+   */
+  static clusterMarkers(points, cellPx = CLUSTER_CELL_PX) {
+    const cells = new Map();
+    for (const point of points) {
+      const key = `${point.plane}:${Math.floor(point.x / cellPx)}:${Math.floor(point.y / cellPx)}`;
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(point);
+    }
+    // Merge neighbouring cells whose groups are within one cell of each other.
+    const groups = [...cells.values()].map((members) => ({ members }));
+    const center = (members) => [
+      members.reduce((sum, m) => sum + m.x, 0) / members.length,
+      members.reduce((sum, m) => sum + m.y, 0) / members.length,
+    ];
+    let merged = true;
+    while (merged) {
+      merged = false;
+      outer: for (let i = 0; i < groups.length; i++) {
+        for (let j = i + 1; j < groups.length; j++) {
+          if (groups[i].members[0].plane !== groups[j].members[0].plane) continue;
+          const [ax, ay] = center(groups[i].members);
+          const [bx, by] = center(groups[j].members);
+          if (Math.abs(ax - bx) < cellPx && Math.abs(ay - by) < cellPx) {
+            groups[i].members.push(...groups[j].members);
+            groups.splice(j, 1);
+            merged = true;
+            break outer;
+          }
+        }
+      }
+    }
+    return groups.map(({ members }) => {
+      const [x, y] = center(members);
+      return { x, y, plane: members[0].plane, members };
+    });
+  }
+
+  /**
+   * Greedy label placement: `candidates` (highest priority first) are
+   * `{key, x, y, width, height}` rectangles (x, y the top left); a label is
+   * kept when it overlaps no kept label. Returns the keys kept.
+   */
+  static placeLabels(candidates) {
+    const kept = [];
+    const keys = new Set();
+    for (const candidate of candidates) {
+      const overlaps = kept.some(
+        (other) =>
+          candidate.x < other.x + other.width &&
+          candidate.x + candidate.width > other.x &&
+          candidate.y < other.y + other.height &&
+          candidate.y + candidate.height > other.y
+      );
+      if (!overlaps) {
+        kept.push(candidate);
+        keys.add(candidate.key);
+      }
+    }
+    return keys;
+  }
+
+  /** The players (and groups of players) to draw this frame, in screen space. */
+  layoutPlayers() {
+    const zoom = this.camera.zoom.current;
+    const points = [];
+    const pad = 40;
+    for (const marker of this.playerMarkers.values()) {
+      if (!this.isValidCoordinates(marker.coordinates)) continue;
+      const [x, y] = this.tileCenterOnScreen(marker.coordinates.x, marker.coordinates.y);
+      if (x < -pad || y < -pad || x > this.canvas.width + pad || y > this.canvas.height + pad) continue;
+      points.push({ ...marker, x, y, plane: marker.coordinates.plane });
+    }
+    if (zoom >= CLUSTER_BELOW_ZOOM) {
+      return points.map((point) => ({ x: point.x, y: point.y, plane: point.plane, members: [point] }));
+    }
+    return CanvasMap.clusterMarkers(points, CLUSTER_CELL_PX);
+  }
+
+  markerRadius() {
+    return Math.min(Math.max(this.pixelsPerGameTile * this.camera.zoom.current * 0.45, 5), 10);
+  }
+
+  drawPlayers() {
+    const ctx = this.ctx;
+    const zoom = this.camera.zoom.current;
+    const currentPlane = this.plane - 1;
+    const groups = this.layoutPlayers();
+    const radius = this.markerRadius();
+    const tile = this.pixelsPerGameTile * zoom;
+    this.renderedPlayers = [];
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Players on the plane shown are drawn last, on top.
+    groups.sort((a, b) => Number(a.plane === currentPlane) - Number(b.plane === currentPlane));
+    for (const group of groups) {
+      ctx.globalAlpha = Math.max(0.25, 1 - Math.abs(currentPlane - group.plane) * 0.3);
+      if (group.members.length === 1) {
+        const player = group.members[0];
+        const selected = player.name === this.selectedName;
+        if (tile >= 12) {
+          ctx.strokeStyle = player.light;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(Math.round(player.x - tile / 2) + 0.5, Math.round(player.y - tile / 2) + 0.5, tile, tile);
+        }
+        if (selected) {
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = "white";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = player.color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+        ctx.stroke();
+        this.renderedPlayers.push({
+          kind: "player",
+          name: player.name,
+          x: player.x,
+          y: player.y,
+          r: radius + 3,
+          player,
+        });
+      } else {
+        const count = group.members.length;
+        const r = Math.min(11 + Math.log2(count) * 2.5, 20);
+        const hasSelected = group.members.some((member) => member.name === this.selectedName);
+        ctx.beginPath();
+        ctx.arc(group.x, group.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(20, 20, 20, 0.85)";
+        ctx.fill();
+        ctx.lineWidth = hasSelected ? 3 : 2;
+        ctx.strokeStyle = hasSelected ? "white" : "#ff981f";
+        ctx.stroke();
+        ctx.font = `${LABEL_FONT_PX}px rssmall`;
+        ctx.fillStyle = "white";
+        ctx.fillText(String(count), group.x, group.y + 1);
+        this.renderedPlayers.push({ kind: "cluster", x: group.x, y: group.y, r: r + 2, members: group.members });
+      }
+    }
+
+    this.drawPlayerLabels(groups, radius);
+    ctx.restore();
+  }
+
+  drawPlayerLabels(groups, radius) {
+    const ctx = this.ctx;
+    const zoom = this.camera.zoom.current;
+    const currentPlane = this.plane - 1;
+    ctx.font = `${LABEL_FONT_PX}px rssmall`;
+    const singles = groups.filter((group) => group.members.length === 1).map((group) => group.members[0]);
+    const important = (player) =>
+      player.name === this.selectedName ||
+      player.name === this.hoveredPlayer ||
+      player.name === this.followingPlayer.name;
+    const priority = (player) => (player.name === this.selectedName ? 0 : important(player) ? 1 : 2);
+    const candidates = singles
+      .filter((player) => zoom >= LABEL_MIN_ZOOM || important(player))
+      .filter((player) => player.plane === currentPlane || important(player))
+      .sort((a, b) => priority(a) - priority(b) || a.name.localeCompare(b.name))
+      .map((player) => {
+        const width = ctx.measureText ? ctx.measureText(player.label).width + 6 : player.label.length * 7;
+        const height = LABEL_FONT_PX + 2;
+        return { key: player.name, player, width, height, x: player.x - width / 2, y: player.y - radius - 4 - height };
+      });
+    const kept = CanvasMap.placeLabels(candidates);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "black";
+    ctx.lineJoin = "round";
+    for (const candidate of candidates) {
+      if (!kept.has(candidate.key)) continue;
+      const { player } = candidate;
+      const x = player.x;
+      const y = candidate.y + candidate.height / 2;
+      ctx.globalAlpha = player.plane === currentPlane ? 1 : 0.6;
+      ctx.strokeText(player.label, x, y);
+      ctx.fillStyle = player.name === this.selectedName ? "white" : player.light;
+      ctx.fillText(player.label, x, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** The drawn player or group of players under a client position, if any. */
+  getPlayerAtClient(clientX, clientY) {
+    if (!this.renderedPlayers?.length) return null;
+    const canvasRect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
+    const x = clientX - canvasRect.left;
+    const y = clientY - canvasRect.top;
+    let best = null;
+    let bestDistance = Infinity;
+    for (const item of this.renderedPlayers) {
+      const distance = (item.x - x) ** 2 + (item.y - y) ** 2;
+      if (distance <= item.r * item.r && distance < bestDistance) {
+        best = item;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
+  playerTooltip(item) {
+    if (item.kind === "cluster") {
+      const names = item.members.map((member) => escapeHtml(member.name));
+      const shown = names.slice(0, 12).join("<br/>");
+      const more = names.length > 12 ? `<br/>and ${names.length - 12} more` : "";
+      return `<div class="canvas-map__tooltip">${shown}${more}<br/><em>Click to zoom in</em></div>`;
+    }
+    const player = item.player;
+    const hitpoints = player.hitpoints;
+    const parts = [`<strong>${escapeHtml(player.name)}</strong>`];
+    if (player.world) parts.push(`World ${player.world}`);
+    if (hitpoints?.max) parts.push(`HP ${hitpoints.current}/${hitpoints.max}`);
+    if (player.region) parts.push(escapeHtml(player.region));
+    return `<div class="canvas-map__tooltip">${parts.join("<br/>")}</div>`;
+  }
+
+  hidePlayerTooltip() {
+    if (this.playerTooltipShown) {
+      this.playerTooltipShown = false;
+      tooltipManager.hideTooltip();
+    }
+  }
+
+  /** What a click on a player or a group of players does. */
+  activatePlayerItem(item) {
+    if (item.kind === "player") {
+      selection.select(item.name, { follow: true });
+      return;
+    }
+    // A group: zoom in on it until it splits up.
+    this.stopFollowingPlayer();
+    this.zoomOntoPoint({
+      zoom: Math.min(this.camera.zoom.target * 2, this.camera.maxZoom),
+      x: item.x,
+      y: item.y,
+      animationTime: 300,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Event pings
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Shows an event on the map: an expanding ring, a label for a while (e.g. the
+   * value of a drop) and, for deaths, a marker that stays for ten minutes.
+   * `{x, y, plane, color, kind: "loot"|"death"|"level"|"other", label}`,
+   * coordinates in game tiles as the site stores them (after the +1 y offset).
+   */
+  addPing(ping) {
+    if (!this.isValidCoordinates(ping)) return;
+    this.pings.push({ ...ping, start: performance.now() });
+    // Keep the list small whatever happens.
+    if (this.pings.length > 200) this.pings.splice(0, this.pings.length - 200);
+    this.requestUpdate();
+  }
+
+  static pingAlive(ping, now) {
+    const age = now - ping.start;
+    if (ping.kind === "death") return age < DEATH_MARKER_MS;
+    if (ping.label) return age < PING_LABEL_MS;
+    return age < PING_RING_MS;
+  }
+
+  /** Draws the pings; returns whether any is still animating. */
+  drawPings(now) {
+    if (!this.pings?.length) return false;
+    this.pings = this.pings.filter((ping) => CanvasMap.pingAlive(ping, now));
+    if (!this.pings.length) return false;
+    const ctx = this.ctx;
+    const currentPlane = this.plane - 1;
+    let animating = false;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const ping of this.pings) {
+      if (ping.plane !== currentPlane) continue;
+      const [x, y] = this.tileCenterOnScreen(ping.x, ping.y);
+      if (x < -50 || y < -50 || x > this.canvas.width + 50 || y > this.canvas.height + 50) continue;
+      const age = now - ping.start;
+      if (age < PING_RING_MS) {
+        animating = true;
+        for (const offset of [0, 0.35]) {
+          const t = (age / PING_RING_MS + offset) % 1;
+          ctx.beginPath();
+          ctx.arc(x, y, 8 + t * 34, 0, Math.PI * 2);
+          ctx.strokeStyle = ping.color || "#ff981f";
+          ctx.globalAlpha = (1 - t) * 0.9;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+      }
+      if (ping.kind === "death") {
+        this.drawDeathMarker(x, y, age);
+      }
+      if (ping.label && age < PING_LABEL_MS) {
+        animating = true;
+        ctx.globalAlpha = Math.min(1, (PING_LABEL_MS - age) / 3000);
+        ctx.font = `${LABEL_FONT_PX}px rssmall`;
+        const labelY = y + 18 + Math.min(age / 400, 6);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "black";
+        ctx.strokeText(ping.label, x, labelY);
+        ctx.fillStyle = ping.kind === "loot" ? "#ffd700" : "white";
+        ctx.fillText(ping.label, x, labelY);
+      }
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    return animating;
+  }
+
+  drawDeathMarker(x, y, age) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = Math.max(0.35, 1 - age / DEATH_MARKER_MS);
+    const r = 7;
+    ctx.beginPath();
+    ctx.arc(x, y - 1, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#f2f2f2";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+    ctx.fillStyle = "black";
+    for (const dx of [-2.5, 2.5]) {
+      ctx.beginPath();
+      ctx.arc(x + dx, y - 2, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillRect(x - 2, y + 3, 4, 1.5);
   }
 
   drawGameTiles(positions, fillColor, strokeColor) {
@@ -835,6 +1228,11 @@ export class CanvasMap extends BaseElement {
 
         this.tilesInView.push(tile);
         tile.loaded = tile.loaded || tile.complete;
+        if (tile.loaded && !tile.animation) {
+          // A cached image can be complete before onload was attached, and then
+          // onload never fires.
+          tile.animation = new Animation({ current: 0, target: 1, time: 300 });
+        }
         if (tile.loaded && tile.animation) {
           const alpha = tile.animation.current;
           this.ctx.globalAlpha = alpha;
@@ -890,6 +1288,9 @@ export class CanvasMap extends BaseElement {
   }
 
   onMouseLeave() {
+    this.pendingPlayer = null;
+    this.hoveredPlayer = null;
+    this.hidePlayerTooltip();
     this.pendingMapLink = null;
     this.pointerDragged = false;
     this.hoveredMapLink = null;
@@ -925,7 +1326,33 @@ export class CanvasMap extends BaseElement {
       this.beginMapLinkPress(link, event.clientX, event.clientY);
       return;
     }
+    const player = this.getPlayerAtClient(event.clientX, event.clientY);
+    if (player) {
+      this.beginPlayerPress(player, event.clientX, event.clientY);
+      return;
+    }
     this.startDragging(event.clientX, event.clientY);
+  }
+
+  beginPlayerPress(item, clientX, clientY) {
+    this.pendingPlayer = item;
+    this.pointerDownX = clientX;
+    this.pointerDownY = clientY;
+    this.pointerDragged = false;
+  }
+
+  /** Once a press on a player moves far enough, it becomes a drag of the map. */
+  checkPlayerDragThreshold(clientX, clientY) {
+    const dx = clientX - this.pointerDownX;
+    const dy = clientY - this.pointerDownY;
+    if (dx * dx + dy * dy > 25) {
+      this.pendingPlayer = null;
+      this.pointerDragged = true;
+      this.hidePlayerTooltip();
+      this.startDragging(clientX, clientY);
+      return true;
+    }
+    return false;
   }
 
   pinchDistance(touches) {
@@ -950,6 +1377,12 @@ export class CanvasMap extends BaseElement {
       const link = this.getLinkAtClient(touch.clientX, touch.clientY);
       if (link) {
         this.beginMapLinkPress(link, touch.clientX, touch.clientY);
+        event.preventDefault();
+        return;
+      }
+      const player = this.getPlayerAtClient(touch.clientX, touch.clientY);
+      if (player) {
+        this.beginPlayerPress(player, touch.clientX, touch.clientY);
         event.preventDefault();
         return;
       }
@@ -978,6 +1411,14 @@ export class CanvasMap extends BaseElement {
   }
 
   stopDragging() {
+    if (this.pendingPlayer) {
+      const item = this.pendingPlayer;
+      this.pendingPlayer = null;
+      this.pointerDragged = false;
+      this.hidePlayerTooltip();
+      this.activatePlayerItem(item);
+      return;
+    }
     if (this.pendingMapLink) {
       if (!this.pointerDragged) {
         this.goToMapLink(this.pendingMapLink.destination);
@@ -1006,6 +1447,12 @@ export class CanvasMap extends BaseElement {
   }
 
   onPointerMove(event) {
+    if (this.pendingPlayer) {
+      if (this.checkPlayerDragThreshold(event.clientX, event.clientY)) {
+        this.processPointerMove(event.clientX, event.clientY);
+      }
+      return;
+    }
     if (this.pendingMapLink) {
       if (this.checkMapLinkDragThreshold(event.clientX, event.clientY)) {
         this.processPointerMove(event.clientX, event.clientY);
@@ -1027,6 +1474,23 @@ export class CanvasMap extends BaseElement {
       this.hoveredMapLink = null;
       this.hideMapLinkTooltip();
     }
+    const player = this.getPlayerAtClient(event.clientX, event.clientY);
+    if (player) {
+      const name = player.kind === "player" ? player.name : null;
+      if (this.hoveredPlayer !== name) {
+        this.hoveredPlayer = name;
+        this.requestUpdate();
+      }
+      this.playerTooltipShown = true;
+      tooltipManager.showTooltip(this.playerTooltip(player), event);
+      this.style.cursor = "pointer";
+      return;
+    }
+    if (this.hoveredPlayer) {
+      this.hoveredPlayer = null;
+      this.requestUpdate();
+    }
+    this.hidePlayerTooltip();
     this.style.cursor = "";
   }
 
@@ -1035,6 +1499,12 @@ export class CanvasMap extends BaseElement {
       const touch = event.touches[0];
       if (this.pendingMapLink) {
         if (this.checkMapLinkDragThreshold(touch.clientX, touch.clientY)) {
+          this.processPointerMove(touch.clientX, touch.clientY);
+        }
+        return;
+      }
+      if (this.pendingPlayer) {
+        if (this.checkPlayerDragThreshold(touch.clientX, touch.clientY)) {
           this.processPointerMove(touch.clientX, touch.clientY);
         }
         return;

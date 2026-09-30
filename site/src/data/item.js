@@ -70,10 +70,6 @@ export class Item {
     return this.id > 0;
   }
 
-  isRunePouch() {
-    return this.quantity === 1 && (this.id === 12791 || this.id === 27281);
-  }
-
   static parseItemData(data) {
     const result = [];
     for (let i = 0; i < data.length; ++i) {

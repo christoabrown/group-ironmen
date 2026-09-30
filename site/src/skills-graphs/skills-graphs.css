@@ -35,3 +35,59 @@ skills-graphs {
   background: rgba(0, 0, 0, 0.6);
   z-index: 10;
 }
+
+.skills-graphs__picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.skills-graphs__chips {
+  display: contents;
+}
+
+.skills-graphs__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.skills-graphs__chip-dot {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  box-shadow: 1px 1px var(--black);
+}
+
+.skills-graphs__chip-remove {
+  color: var(--orange);
+  font-family: "rsbold", ui-sans-serif, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  text-shadow: 1px 1px var(--black);
+}
+
+.skills-graphs__chip-remove:hover {
+  color: white;
+}
+
+.skills-graphs__player-search {
+  width: 160px;
+}
+
+.skills-graphs__player-search:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.skills-graphs__picker-hint {
+  font-size: 14px;
+  color: #999;
+}

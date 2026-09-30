@@ -225,3 +225,25 @@
   gap: 0.25rem;
   margin-right: 0.5rem;
 }
+
+.admin-portal__filter {
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-portal__user-row[hidden],
+.admin-portal__player-row[hidden],
+.admin-portal__linked-list[hidden] {
+  display: none;
+}
+
+.admin-portal__badge--hidden {
+  background: #555;
+  color: #fff;
+}
+
+.admin-portal__badge--online {
+  color: var(--green);
+}

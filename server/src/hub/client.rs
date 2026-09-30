@@ -75,6 +75,13 @@ pub struct HubClient {
     budget: Mutex<Budget>,
 }
 
+/// Requests per minute kept free for the sync loop: a quarter of the budget,
+/// at least 10, but never more than half, so interactive requests always get
+/// some share even of a tiny budget.
+fn interactive_reserve(budget_per_min: usize) -> usize {
+    (budget_per_min / 4).max(10).min(budget_per_min / 2)
+}
+
 impl HubClient {
     pub fn new(config: &HubConfig) -> Arc<Self> {
         let agent = ureq::Agent::config_builder()
@@ -126,17 +133,15 @@ impl HubClient {
             budget.sent.pop_front();
         }
         let budget_per_min = self.budget_per_min();
-        // Keep a quarter of the budget (at least 10) free for the sync loop.
-        let interactive_reserve = (budget_per_min / 4).max(10);
         let limit = match priority {
             Priority::Sync => budget_per_min,
-            Priority::Interactive => budget_per_min.saturating_sub(interactive_reserve),
+            Priority::Interactive => budget_per_min - interactive_reserve(budget_per_min),
         };
         if budget.sent.len() >= limit {
-            let oldest = *budget.sent.front().expect("budget window is not empty");
-            return Err(HubError::RateLimited(
-                BUDGET_WINDOW.saturating_sub(now.duration_since(oldest)),
-            ));
+            let wait = budget.sent.front().map_or(BUDGET_WINDOW, |oldest| {
+                BUDGET_WINDOW.saturating_sub(now.duration_since(*oldest))
+            });
+            return Err(HubError::RateLimited(wait));
         }
         budget.sent.push_back(now);
         Ok(())
@@ -284,6 +289,26 @@ mod tests {
             request_budget_per_min: Some(budget),
             ..HubConfig::default()
         })
+    }
+
+    #[test]
+    fn a_tiny_budget_still_allows_interactive_requests() {
+        // A personal key the hub limits to 12 a minute gives a budget of 9.
+        let client = client(20);
+        client.set_budget_per_min(9);
+        for _ in 0..5 {
+            client.acquire(Priority::Interactive).unwrap();
+        }
+        assert!(matches!(
+            client.acquire(Priority::Interactive),
+            Err(HubError::RateLimited(_))
+        ));
+        client.acquire(Priority::Sync).unwrap();
+        client.set_budget_per_min(1);
+        assert!(matches!(
+            client.acquire(Priority::Interactive),
+            Err(HubError::RateLimited(_))
+        ));
     }
 
     #[test]

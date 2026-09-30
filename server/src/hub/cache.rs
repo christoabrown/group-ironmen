@@ -8,7 +8,7 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-const MAX_ENTRIES: usize = 500;
+const MAX_ENTRIES: usize = 2000;
 /// How long an expired entry may still be served when the hub is unavailable.
 const MAX_STALE: Duration = Duration::from_secs(3600);
 

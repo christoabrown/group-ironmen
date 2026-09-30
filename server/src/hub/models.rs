@@ -46,6 +46,8 @@ pub struct HubLocation {
     pub plane: i32,
     #[serde(default)]
     pub stale: bool,
+    #[serde(default)]
+    pub is_on_boat: Option<bool>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -57,6 +59,10 @@ pub struct HubSkill {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct HubSkills {
+    #[serde(default)]
+    pub total_level: Option<i64>,
+    #[serde(default)]
+    pub overall_xp: Option<i64>,
     #[serde(default)]
     pub skills: Vec<HubSkill>,
 }
@@ -74,6 +80,9 @@ pub struct HubItem {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct HubItems {
+    /// The items' value at GE prices.
+    #[serde(default)]
+    pub value: Option<i64>,
     #[serde(default)]
     pub items: Vec<HubItem>,
 }
@@ -81,6 +90,8 @@ pub struct HubItems {
 /// The account owner, sent by hubs that support integration keys.
 #[derive(Deserialize, Debug, Clone)]
 pub struct HubOwner {
+    #[serde(default)]
+    pub name: Option<String>,
     #[serde(default)]
     pub discord_id: Option<String>,
 }
@@ -92,16 +103,29 @@ pub struct HubAccount {
     pub name: String,
     #[serde(default)]
     pub account_hash: Option<String>,
+    /// Ironman type (0 normal … 6); `type_label` is its display name.
+    #[serde(default, rename = "type")]
+    pub account_type: Option<i32>,
+    #[serde(default)]
+    pub type_label: Option<String>,
     #[serde(default)]
     pub owner: Option<HubOwner>,
+    /// The categories the key may read on this account.
+    #[serde(default)]
+    pub categories: Vec<String>,
     #[serde(default)]
     pub online: Option<bool>,
     #[serde(default)]
     pub world: Option<i32>,
     #[serde(default)]
     pub special_world: Option<bool>,
+    /// The last game state the plugin sent (hub D-94); `online` is the one to trust.
+    #[serde(default)]
+    pub game_state: Option<String>,
     #[serde(default)]
     pub last_seen: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub spellbook: Option<String>,
     #[serde(default)]
     pub hp: Option<Meter>,
     #[serde(default)]
@@ -203,7 +227,7 @@ pub struct HubLeaderboardEntry {
     pub gain: i64,
 }
 
-/// One event of `GET /events`.
+/// One event of `GET /events` (and of `/leaderboards/loot`).
 #[derive(Deserialize, Debug, Clone)]
 pub struct HubEvent {
     pub id: String,
@@ -216,11 +240,115 @@ pub struct HubEvent {
     #[serde(default)]
     pub item_id: Option<i32>,
     #[serde(default)]
+    pub npc_id: Option<i32>,
+    #[serde(default)]
     pub skill: Option<String>,
     #[serde(default)]
     pub level: Option<i32>,
     #[serde(default)]
+    pub tier: Option<String>,
+    #[serde(default)]
+    pub points: Option<i32>,
+    #[serde(default)]
+    pub special_world: Option<bool>,
+    #[serde(default)]
     pub title: Option<String>,
     #[serde(default)]
     pub line: Option<String>,
+    /// The plugin's event object, passed through by the hub.
+    #[serde(default)]
+    pub data: Option<serde_json::Value>,
+}
+
+/// `GET /leaderboards/loot` (hub D-94).
+#[derive(Deserialize, Debug)]
+pub struct HubLootLeaderboard {
+    pub period: String,
+    pub entries: Vec<HubLootEntry>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HubLootEntry {
+    pub rank: i32,
+    pub event: HubEvent,
+}
+
+/// `GET /accounts/{id}/gains`.
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HubAccountGains {
+    #[serde(default)]
+    pub period: Option<String>,
+    /// Passed through to the site as sent.
+    #[serde(default)]
+    pub from: Option<String>,
+    #[serde(default)]
+    pub to: Option<String>,
+    pub gains: Vec<HubSkillGain>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HubSkillGain {
+    pub skill: String,
+    pub xp: i64,
+}
+
+/// `GET /accounts/{id}/sessions`.
+#[derive(Deserialize, Debug)]
+pub struct HubSessions {
+    pub sessions: Vec<HubSession>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct HubSession {
+    pub started_at: DateTime<Utc>,
+    #[serde(default)]
+    pub ended_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub last_seen_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub duration_ms: Option<i64>,
+    #[serde(default)]
+    pub worlds: Vec<i32>,
+    #[serde(default)]
+    pub end_reason: Option<String>,
+}
+
+/// `GET /accounts/{id}/wealth`.
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HubWealth {
+    pub days: Vec<HubWealthDay>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct HubWealthDay {
+    pub day: String,
+    #[serde(default)]
+    pub last_value: Option<i64>,
+    #[serde(default)]
+    pub max_value: Option<i64>,
+}
+
+/// `GET /accounts/{id}/equipment-history`.
+#[derive(Deserialize, Debug)]
+pub struct HubEquipmentHistory {
+    pub changes: Vec<HubEquipmentChange>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HubEquipmentChange {
+    pub changed_at: DateTime<Utc>,
+    #[serde(default)]
+    pub items: Vec<HubItem>,
+}
+
+/// `GET /locations?accounts=`.
+#[derive(Deserialize, Debug)]
+pub struct HubLocationsMulti {
+    pub accounts: Vec<HubAccountLocations>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HubAccountLocations {
+    pub account: HubAccountRef,
+    pub points: Vec<HubLocationPoint>,
 }

@@ -1,0 +1,50 @@
+player-profile {
+  position: fixed;
+  top: 12px;
+  bottom: 12px;
+  right: 12px;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+player-profile[hidden] {
+  display: none;
+}
+
+player-profile.player-profile--left {
+  right: auto;
+  left: 12px;
+}
+
+.player-profile__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media only screen and (max-width: 700px) {
+  player-profile,
+  player-profile.player-profile--left {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media only screen and (min-width: 701px) {
+  body.profile-open .authed-section__main-content {
+    padding-right: 404px;
+  }
+
+  body.profile-open-left .authed-section__main-content {
+    padding-left: 404px;
+  }
+}

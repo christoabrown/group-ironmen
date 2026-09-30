@@ -1,0 +1,17 @@
+<div class="player-roster__header">
+  <div class="player-roster__title">
+    <h4>Players</h4>
+    <span class="player-roster__count"></span>
+  </div>
+  <input class="player-roster__search" type="search" placeholder="Search name, owner or place" aria-label="Search players" />
+  <div class="player-roster__controls">
+    <div class="player-roster__chips">
+      <button type="button" class="men-button small" data-status="all">All</button>
+      <button type="button" class="men-button small" data-status="online">Online</button>
+      <button type="button" class="men-button small" data-status="offline">Offline</button>
+    </div>
+    <select class="player-roster__sort" aria-label="Sort players"></select>
+  </div>
+</div>
+<ul class="player-roster__list"></ul>
+<div class="player-roster__empty" hidden>No players match.</div>
