@@ -6,6 +6,8 @@ import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { liveEvents } from "../data/live-events";
 import { selection } from "../data/selection";
+import { loadRegions } from "../data/regions";
+import { groupData } from "../data/group-data";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -39,6 +41,8 @@ export class AppInitializer extends BaseElement {
     this.cleanup();
     loadingScreenManager.showLoadingScreen();
     await Promise.all([Item.loadItems(), Item.loadGePrices()]);
+    // Place names aren't needed to show the map; fill them in when they arrive.
+    loadRegions().then(() => groupData.refreshRegions());
 
     const session = storage.getSession();
 

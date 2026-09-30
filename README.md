@@ -21,14 +21,24 @@ of Group Ironman teams:
 
 ## Features
 
-- **Live map** of every online player, with world, HP and prayer, and an optional location trail
-  (24 hours, 7 or 30 days).
-- **Players**: everyone the hub shares, with online status, inventory, equipment and skills.
-- **Graphs**: XP per skill over a day, week, month or year, from the hub's history (so it includes play
-  from before a player joined the map).
-- **Activity**: top XP gainers and a feed of loot, level ups, collection log slots, deaths, diaries and
-  combat tasks.
-- **Admin portal**: users and roles, players and who they belong to, the audit log, and the hub connection.
+- **Live map** of every online player in their own colour. Players close together merge into a counted
+  bubble when zoomed out, names never overlap, and a click opens the player. Loot, level ups and deaths
+  ping on the map where they happen, and deaths leave a marker for ten minutes.
+- **Player list** next to the map: search by name, owner or place, filter online/offline, sort by place,
+  total level, world or last seen. Each row shows the world, the place ("Lumbridge", "Wilderness (level
+  24)") and HP.
+- **Player profile**: vitals, total level and XP, carried value, gear and inventory, skills; XP gained
+  today, this week, month or year; play time and sessions with their worlds; carried value over 30 days;
+  gear changes; recent events. The map follows the player while it's open.
+- **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days).
+- **Clan page**: who's online and where (click a place to see it on the map), which worlds, the top XP
+  gainers, the biggest drops of the day, week or month, and the event feed.
+- **Players page**: a sortable table of everyone, with type, owner, totals and carried value.
+- **Graphs**: compare the XP of up to ten players over a day, week, month or year, from the hub's history.
+- **Admin portal**: users and roles, players (hide the ones the hub shares but the map shouldn't show),
+  who they belong to, the audit log, and the hub connection.
+
+A profile tab or trail says "not shared" when the player keeps that data private on the hub.
 
 ## Where player data comes from
 
@@ -46,14 +56,17 @@ RuneLite plugin ──pair/events──▶ osrs-data-hub ◀──GET /api/v1/sn
 
 - The backend polls the hub's `/api/v1/snapshot` with an API key that never leaves the server. It uses
   `ETag` and `since` for polling, and does a full refresh every two minutes.
-- Online players get fresh data. Offline players are imported once with the hub's `last_seen`, so they
-  show as offline instead of briefly appearing online.
+- Only what changed is stored, whether the player is online or not. Presence comes from the hub's
+  `online` and `last_seen`; if the sync stops for five minutes, everyone shows as offline.
+- The site polls the backend every 2 seconds and gets the roster plus only the players whose data
+  changed, so the cost stays small with 50+ players.
 - Accounts are matched by hub account id, then by the plugin's account hash (service keys only), then by name. Renames on
   the hub are followed. Accounts that disappear from the hub are marked "not shared" and never deleted.
 - When the hub reports an account owner's Discord id, the player is linked to the map user who logged
   in with that Discord account. Admins can also link players by hand.
-- XP graphs, trails, gains and the events feed are served by the backend from a short-lived cache, so
-  the hub sees the same number of requests however many people view the site.
+- XP graphs, trails, gains, profiles and the events feed are served by the backend from a short-lived
+  cache, so the hub sees the same number of requests however many people view the site. See
+  [docs/hub-integration](docs/hub-integration/HUB_INTEGRATION.md) for every endpoint the map calls.
 
 **What the hub shares is up to each player.** The hub only exposes what an account's owner shares with
 the guild, and the map shows exactly that. A player who keeps their location private stays off the map.
@@ -70,9 +83,12 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    A personal API key from the hub's **API keys** page also works, with limits: 120 requests a minute,
    10 accounts per request, no `account_hash` matching, and it dies with its creator's membership.
 2. Give the key at least these categories:
-   - `activity` and `location_live` for the map;
-   - `stats`, `equipment` and `inventory` for player panels, items and graphs;
-   - optionally `events` and `location_history` for the Activity page and trails.
+   - `activity` and `location_live` for the map and the player list;
+   - `stats`, `equipment` and `inventory` for profiles and graphs;
+   - `events` and `location_history` for the Clan page, map pings and trails.
+
+   The Clan page's "Biggest drops" and the profile's game state need a hub with D-94
+   (`/leaderboards/loot`, `game_state`); an older hub gets drops from recent events only.
 3. Set these for the backend (it refuses to start without them):
    ```env
    HUB_BASE_URL=https://hub.example.com # without /api/v1
@@ -135,10 +151,11 @@ npm install
 npm start
 ```
 
-To try the hub integration without a hub, run the mock and point the backend at it:
+To try the map without a hub, run the mock and point the backend at it. `MOCK_HUB_ACCOUNTS` sets how
+many players it serves (default 12); every fourth keeps its inventory, equipment and trail private.
 
 ```bash
-node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
+MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
 HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
 ```
 
@@ -174,7 +191,7 @@ server/            Rust backend (actix-web, tokio-postgres)
 site/              Frontend (web components bundled with esbuild) and its Express server
 tools/mock-hub/    Stand-in for the osrs-data-hub API
 backup/            Database backup script
-docs/              Integration notes
+docs/              Integration notes (docs/hub-integration: what the map uses from the hub)
 ```
 
 ## Credits and license
@@ -182,3 +199,6 @@ docs/              Integration notes
 - Original frontend and backend by [christoabrown](https://github.com/christoabrown/group-ironmen), BSD 2-Clause
   License (see [LICENSE](LICENSE)).
 - RuneLite companion plugin by [xXD4rkDragonXx](https://github.com/xXD4rkDragonXx).
+- Place names by map region from [RuneLite](https://github.com/runelite/runelite)'s Discord plugin,
+  BSD 2-Clause License (see `site/public/data/regions.NOTICE`). Regenerate them with
+  `node site/scripts/generate-regions.js path/to/DiscordGameEventType.java`.

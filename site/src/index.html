@@ -93,11 +93,12 @@
       route-wrapper=".authed-section"
       ></app-route>
     <app-route
-      route-path="/activity"
-      route-component="activity-page"
+      route-path="/clan"
+      route-component="clan-page"
       route-outlet=".authed-section__outlet"
       route-wrapper=".authed-section"
     ></app-route>
+    <app-route route-path="/activity" alias-for="/clan" route-wrapper=".authed-section"></app-route>
     <app-route
       route-path="/players"
       route-component="players-page"

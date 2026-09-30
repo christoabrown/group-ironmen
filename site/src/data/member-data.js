@@ -2,6 +2,7 @@ import { Item } from "./item";
 import { Skill, SkillName } from "./skill";
 import { pubsub } from "./pubsub";
 import { colorForName } from "./player-colors";
+import { regionForMember } from "./regions";
 
 export const memberInventoryFields = ["inventory", "equipment"];
 
@@ -80,6 +81,7 @@ export class MemberData {
 
     if (memberData.coordinates) {
       this.coordinates = memberData.coordinates;
+      this.updateRegion();
       pubsub.publish("coordinates", this);
       updatedAttributes.add("coordinates");
     }
@@ -99,6 +101,15 @@ export class MemberData {
     }
 
     return updatedAttributes;
+  }
+
+  /** Names the place the member is at. Returns whether it changed. */
+  updateRegion() {
+    const region = regionForMember(this);
+    if (region === this.region) return false;
+    this.region = region;
+    this.publishUpdate("region");
+    return true;
   }
 
   applyItemFieldUpdate(memberData, field, updatedAttributes) {

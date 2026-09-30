@@ -81,6 +81,15 @@ export class GroupData {
     return needsFullReload ? new Date(0) : new Date(cursor || 0);
   }
 
+  /** Renames every member's place, after the region names loaded. */
+  refreshRegions() {
+    const changed = new Set();
+    for (const member of this.members.values()) {
+      if (member.updateRegion()) changed.add(member.name);
+    }
+    if (changed.size > 0) pubsub.publish("roster-changed", changed);
+  }
+
   sortedMembers() {
     return [...this.members.values()].sort((a, b) => a.name.localeCompare(b.name));
   }

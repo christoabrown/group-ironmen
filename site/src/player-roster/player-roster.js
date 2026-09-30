@@ -96,7 +96,6 @@ export class PlayerRoster extends BaseElement {
     this.subscribe("roster-changed", this.handleRosterChanged.bind(this));
     this.subscribe("player-selected", this.handleSelected.bind(this));
     this.subscribe("trails-changed", this.handleTrailsChanged.bind(this));
-    this.subscribe("regions-loaded", () => this.handleRosterChanged(new Set(this.rows.keys())));
     this.timeInterval = window.setInterval(() => this.refreshTimes(), TIME_REFRESH_MS);
   }
 
