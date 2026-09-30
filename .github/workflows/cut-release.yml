@@ -1,0 +1,110 @@
+name: Cut release
+
+# The release button: Actions → Cut release → Run workflow (on master) → patch, minor or major.
+# It computes the next version from the latest `v*` tag, creates the tag on master's head and a GitHub
+# Release with generated notes (the PRs merged since the previous tag), then publishes both images
+# through release.yml. Nothing is automatic on merge: one release per feature, when you say so.
+#
+# Guards: refuses to run from any branch but master, a head that is already tagged, or a head whose CI
+# run on master did not succeed. A tag pushed by hand still works and needs none of this.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise
+        type: choice
+        required: true
+        default: patch
+        options: [patch, minor, major]
+
+# One release at a time; a second click queues.
+concurrency:
+  group: cut-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    name: Tag the next ${{ inputs.bump }} version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the tag, create the release
+      actions: read # look up the CI run for this commit
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - name: Only from master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Run this workflow on master, not ${{ github.ref_name }}."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # all tags, to find the latest version
+
+      - name: CI passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok=$(gh run list --workflow ci.yml --branch master --commit "$GITHUB_SHA" \
+                 --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
+          if [ "${ok:-0}" -lt 1 ]; then
+            echo "::error::No successful CI run for $GITHUB_SHA on master yet. Wait for it, or fix it."
+            exit 1
+          fi
+
+      - name: Next version
+        id: next
+        run: |
+          set -eu
+          if [ -n "$(git tag --points-at HEAD 'v*')" ]; then
+            echo "::error::$(git tag --points-at HEAD 'v*' | tr '\n' ' ')already points at this commit; nothing to release."
+            exit 1
+          fi
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          latest=${latest:-v0.0.0}
+          IFS=. read -r major minor patch <<<"${latest#v}"
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          tag="v$major.$minor.$patch"
+          echo "Latest $latest, ${{ inputs.bump }} bump: $tag"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "previous=$latest" >>"$GITHUB_OUTPUT"
+
+      # The tag is annotated so `git describe` and the Releases page show who cut it and when. Pushed
+      # with the workflow token, so it does not trigger release.yml itself: the publish job below does.
+      - name: Create and push the tag
+        env:
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" -m "$TAG (${{ inputs.bump }} release cut by ${{ github.actor }})"
+          git push origin "refs/tags/$TAG"
+
+      - name: GitHub Release with generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.next.outputs.tag }}
+          PREVIOUS: ${{ steps.next.outputs.previous }}
+        run: |
+          notes_from=()
+          [ "$PREVIOUS" != v0.0.0 ] && notes_from=(--notes-start-tag "$PREVIOUS")
+          gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes "${notes_from[@]}"
+
+  publish:
+    name: Publish
+    needs: tag
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      tag: ${{ needs.tag.outputs.tag }}

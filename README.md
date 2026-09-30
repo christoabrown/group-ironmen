@@ -112,7 +112,9 @@ docker compose up -d
 ```
 
 The site listens on http://localhost:4000. The first visit asks you to create the admin account. Images
-are published to `ghcr.io/redfirebreak/ha-osrs-map-{frontend,backend}` on every push to `master`.
+are published to `ghcr.io/redfirebreak/ha-osrs-map-{frontend,backend}` when a release is cut (Actions →
+Cut release), tagged with the version (`1.2.3`, `1.2`) and `latest`. Nothing is published on a push to
+`master`.
 
 To build the images from source instead, run `docker compose -f docker-compose-local.yml up --build`. For
 plain `http://localhost` also set `COOKIE_SECURE=false`, or the browser will drop the login cookie.
