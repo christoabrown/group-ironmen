@@ -1,7 +1,7 @@
 use server::auth_middleware::{LastSeenThrottle, SessionMiddlewareFactory};
 use server::config::Config;
 use server::hub::{self, HubContext, HubStatus};
-use server::{admin_routes, auth_routes, authed, db, models, unauthed, update_batcher};
+use server::{admin_routes, auth_routes, authed, db, health, models, unauthed, update_batcher};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -138,7 +138,9 @@ async fn main() -> std::io::Result<()> {
             .service(hub::profile::get_player_events);
 
         // Public endpoints
-        let unauthed_scope = web::scope("/api").service(unauthed::get_ge_prices);
+        let unauthed_scope = web::scope("/api")
+            .service(health::health)
+            .service(unauthed::get_ge_prices);
 
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
@@ -160,7 +162,9 @@ async fn main() -> std::io::Result<()> {
             .wrap(
                 middleware::Logger::new("\"%r\" %s %b \"%{User-Agent}i\" %D")
                     // Every open page polls this every couple of seconds.
-                    .exclude("/api/group/get-group-data"),
+                    .exclude("/api/group/get-group-data")
+                    // Kubernetes probes hit this every 10 seconds.
+                    .exclude("/api/health"),
             )
             .wrap(middleware::Compress::default())
             .wrap(cors)

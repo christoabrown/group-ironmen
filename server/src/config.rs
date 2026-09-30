@@ -37,11 +37,16 @@ pub struct ServerConfig {
     /// Mark session cookies `Secure`. Disable only for plain-HTTP local development.
     #[serde(default = "default_true")]
     pub secure_cookies: bool,
+    /// When set, creating the first admin (`POST /api/auth/setup`) requires this
+    /// token, so a freshly deployed public site can't be claimed by a stranger.
+    #[serde(default)]
+    pub setup_token: Option<String>,
 }
 impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
             secure_cookies: true,
+            setup_token: None,
         }
     }
 }
@@ -135,6 +140,13 @@ fn default_discord_config() -> DiscordConfig {
 impl Config {
     /// Normalises the hub URL and clamps intervals to sane values.
     fn validate(&mut self) {
+        // An empty token in config.toml means no token, as an unset SETUP_TOKEN does.
+        self.server.setup_token = self
+            .server
+            .setup_token
+            .take()
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty());
         self.hub.base_url = self.hub.base_url.trim_end_matches('/').to_string();
         if let Some(stripped) = self.hub.base_url.strip_suffix("/api/v1") {
             self.hub.base_url = stripped.to_string();
@@ -228,6 +240,9 @@ impl Config {
         if let Some(secure_cookies) = env_bool("COOKIE_SECURE") {
             self.server.secure_cookies = secure_cookies;
         }
+        if let Some(setup_token) = env_string("SETUP_TOKEN") {
+            self.server.setup_token = Some(setup_token);
+        }
 
         if let Some(data_source) = env_string("DATA_SOURCE") {
             if !data_source.eq_ignore_ascii_case("hub") {
@@ -285,5 +300,25 @@ impl Config {
                     .collect();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parsed(toml: &str) -> Config {
+        let mut config: Config = basic_toml::from_str(toml).unwrap();
+        config.validate();
+        config
+    }
+
+    #[test]
+    fn a_blank_setup_token_means_no_token() {
+        assert_eq!(parsed("").server.setup_token, None);
+        let blank = parsed("[server]\nsetup_token = \"  \"");
+        assert_eq!(blank.server.setup_token, None);
+        let set = parsed("[server]\nsetup_token = \" abc \"");
+        assert_eq!(set.server.setup_token.as_deref(), Some("abc"));
     }
 }

@@ -29,6 +29,7 @@ futures-util = "0.3.31"
 rand = "0.9"
 bcrypt = "0.18.0"
 dotenvy = "0.15.7"
+subtle = "2.6.1"
 
 [profile.dev]
 opt-level = 0

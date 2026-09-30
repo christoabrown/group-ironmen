@@ -5,11 +5,15 @@ use crate::error::ApiError;
 use crate::models::{
     ChangePasswordRequest, LoginRequest, LoginResponse, SetupRequest, SetupStatusResponse,
 };
-use actix_web::{cookie, get, post, web, Error, HttpResponse};
+use actix_web::{cookie, get, post, web, Error, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::Pool;
+use subtle::ConstantTimeEq;
 
 pub const SESSION_DURATION_HOURS: i64 = 72;
+
+/// Header that carries the `SETUP_TOKEN`, as an alternative to the body's `setup_token`.
+pub const SETUP_TOKEN_HEADER: &str = "X-Setup-Token";
 
 /// Mounts `/api/auth`. Actix matches the first scope with a matching prefix
 /// and never falls through to a second one with the same prefix, so the
@@ -89,21 +93,48 @@ fn validate_username(username: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// Whether the setup request carries the configured `SETUP_TOKEN`, from the
+/// header or the body. Always true when no token is configured.
+fn setup_token_matches(expected: Option<&str>, req: &HttpRequest, body: &SetupRequest) -> bool {
+    let Some(expected) = expected else {
+        return true;
+    };
+    let given = req
+        .headers()
+        .get(SETUP_TOKEN_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .or(body.setup_token.as_deref())
+        .map(str::trim)
+        .unwrap_or("");
+    // Constant time, so the comparison doesn't reveal how much of a guess was right.
+    bool::from(given.as_bytes().ct_eq(expected.as_bytes()))
+}
+
 #[get("/setup-status")]
-pub async fn setup_status(db_pool: web::Data<Pool>) -> Result<HttpResponse, Error> {
+pub async fn setup_status(
+    db_pool: web::Data<Pool>,
+    config: web::Data<Config>,
+) -> Result<HttpResponse, Error> {
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let count = db::user_count(&client).await?;
     Ok(HttpResponse::Ok().json(SetupStatusResponse {
         needs_setup: count == 0,
+        token_required: config.server.setup_token.is_some(),
     }))
 }
 
 #[post("/setup")]
 pub async fn setup(
+    req: HttpRequest,
     body: web::Json<SetupRequest>,
     db_pool: web::Data<Pool>,
     config: web::Data<Config>,
 ) -> Result<HttpResponse, Error> {
+    if !setup_token_matches(config.server.setup_token.as_deref(), &req, &body) {
+        log::warn!("Rejected an initial setup request without a valid setup token");
+        return Ok(HttpResponse::Forbidden().body("Invalid setup token"));
+    }
+
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
 
     // Only allow setup if no users exist
