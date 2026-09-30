@@ -1,7 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { storage } from "../data/storage";
 import { api } from "../data/api";
-import { exampleData } from "../data/example-data";
 
 export class LogoutPage extends BaseElement {
   constructor() {
@@ -14,8 +13,6 @@ export class LogoutPage extends BaseElement {
 
   async connectedCallback() {
     super.connectedCallback();
-    exampleData.disable();
-
     // Attempt server-side logout
     try {
       await api.logout();
@@ -25,7 +22,6 @@ export class LogoutPage extends BaseElement {
 
     api.disable();
     storage.clearSession();
-    storage.clearGroup();
     window.history.pushState("", "", "/");
   }
 

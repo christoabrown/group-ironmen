@@ -22,7 +22,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - 5000:8080
+      - 5080:8080 # Windows often reserves port 5000
     extra_hosts:
       - host.docker.internal:host-gateway # lets HUB_BASE_URL point at a hub or mock hub on the host
   postgres:
@@ -33,6 +33,6 @@ services:
       POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
       POSTGRES_DB: ${PG_DB:-osrs_tracker}
     ports:
-      - 5432:5432
+      - 55432:5432 # a local osrs-data-hub database usually has 5432
     volumes:
       - ./pg-data:/var/lib/postgresql/data

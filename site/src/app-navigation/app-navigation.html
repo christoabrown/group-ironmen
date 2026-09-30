@@ -1,15 +1,9 @@
 <h4 class="app-navigation__group-name">${this.displayName}</h4>
 <nav class="app-navigation__nav">
-  <men-link link-href="/group/map">
+  <men-link link-href="/group">
     <button class="men-button" type="button" route-component="map-page">
       <span class="desktop">Map</span>
       <span class="mobile"><img loading="lazy" src="/ui/1698-0.png" /></span>
-    </button>
-  </men-link>
-  <men-link link-href="/group/items">
-    <button class="men-button" type="button" route-component="items-page">
-      <span class="desktop">Items</span>
-      <span class="mobile"><img loading="lazy" src="/ui/777-0.png" /></span>
     </button>
   </men-link>
   <men-link link-href="/group/graphs">
@@ -47,17 +41,10 @@
   ` : ''}
 
   <div class="app-navigation__separator desktop"></div>
-  <men-link link-href="/setup-instructions">
-    <button class="men-button" type="button">
-      <span class="desktop">Setup</span>
-      <span class="mobile"><img loading="lazy" src="/ui/1094-0.png" /></span>
-    </button>
-  </men-link>
   <men-link link-href="/logout">
     <button class="men-button" type="button">
       <span class="desktop">Logout</span>
       <span class="mobile"><img loading="lazy" src="/ui/225-0.png" /></span>
     </button>
   </men-link>
-  <donate-button></donate-button>
 </nav>

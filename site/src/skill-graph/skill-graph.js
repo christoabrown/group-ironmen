@@ -226,7 +226,7 @@ export class SkillGraph extends BaseElement {
       summaryParts.push(`<span>Top: ${topContributor} (+${topXpGain.toLocaleString()})</span>`);
     }
     if (groupTotalLevel > 0) {
-      summaryParts.push(`<span>Group total level: ${groupTotalLevel.toLocaleString()}</span>`);
+      summaryParts.push(`<span>Combined total level: ${groupTotalLevel.toLocaleString()}</span>`);
     }
 
     this.tableContainer.innerHTML = `

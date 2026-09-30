@@ -16,16 +16,14 @@ player-stats {
 }
 
 .player-stats__prayer,
-.player-stats__hitpoints,
-.player-stats__energy {
+.player-stats__hitpoints {
   box-sizing: border-box;
   position: relative;
   padding: 2px 0;
 }
 
 .player-stats__prayer-bar,
-.player-stats__hitpoints-bar,
-.player-stats__energy-bar {
+.player-stats__hitpoints-bar {
   position: absolute;
   left: 0;
   top: 0;
@@ -33,19 +31,6 @@ player-stats {
   z-index: 0;
 }
 
-.player-stats__energy {
-  height: 3px;
-}
-
 .player-stats__inactive stat-bar {
   filter: grayscale(100%);
-}
-
-player-stats player-interacting {
-  height: 45%;
-  width: 40%;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -10%);
 }

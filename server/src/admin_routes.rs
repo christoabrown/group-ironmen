@@ -196,10 +196,6 @@ pub async fn kick_user(
 
     let target_user = db::get_user_by_id(&client, target_user_id).await?;
 
-    // Revoke all tokens and devices
-    let devices_revoked = db::revoke_user_devices(&client, target_user_id).await?;
-    let codes_revoked = db::revoke_user_pairing_codes(&client, target_user_id).await?;
-
     // Delete sessions
     db::delete_user_sessions(&client, target_user_id).await?;
 
@@ -212,8 +208,8 @@ pub async fn kick_user(
         "user_kicked",
         None, // user already deleted
         Some(&format!(
-            "Admin '{}' kicked/deleted user '{}' (devices revoked: {}, codes revoked: {})",
-            admin.user.username, target_user.username, devices_revoked, codes_revoked
+            "Admin '{}' kicked/deleted user '{}'",
+            admin.user.username, target_user.username
         )),
     )
     .await?;

@@ -29,10 +29,6 @@ const GAINS_TTL: Duration = Duration::from_secs(300);
 const LOCATIONS_TTL: Duration = Duration::from_secs(60);
 const MAX_TRAIL_POINTS: usize = 3000;
 
-fn hub_client(context: &HubContext) -> Result<&Arc<HubClient>, HubError> {
-    context.client.as_ref().ok_or(HubError::NotFound)
-}
-
 fn hub_error_response(err: HubError) -> HttpResponse {
     match err {
         HubError::NotFound => HttpResponse::NotFound().json(serde_json::json!({
@@ -175,7 +171,7 @@ async fn fetch_xp_chunk(
     ids: &[String],
     period: &SkillDataPeriod,
 ) -> Result<Arc<Value>, HubError> {
-    let client = hub_client(context)?;
+    let client = &context.client;
     let key = format!("xp:{}:{}", period_key(period), ids.join(","));
     let (from, resolution) = xp_window(period, Utc::now());
     context
@@ -325,10 +321,7 @@ pub async fn get_gains(
         period @ ("day" | "week" | "month") => period.to_owned(),
         _ => return Ok(HttpResponse::BadRequest().body("period must be day, week or month")),
     };
-    let client = match hub_client(&context) {
-        Ok(client) => Arc::clone(client),
-        Err(err) => return Ok(hub_error_response(err)),
-    };
+    let client = Arc::clone(&context.client);
     let value = context
         .cache
         .get_or_fetch(&format!("gains:{}", period), GAINS_TTL, || async {
@@ -438,10 +431,7 @@ pub async fn get_locations(
     let Some(hub_id) = hub_id else {
         return Ok(hub_error_response(HubError::NotFound));
     };
-    let client = match hub_client(&context) {
-        Ok(client) => Arc::clone(client),
-        Err(err) => return Ok(hub_error_response(err)),
-    };
+    let client = Arc::clone(&context.client);
 
     let from = (Utc::now() - ChronoDuration::days(days)).to_rfc3339();
     let path = format!("/accounts/{}/locations", urlencoding::encode(&hub_id));

@@ -1,9 +1,8 @@
-use server::auth_middleware::SessionMiddlewareFactory;
+use server::auth_middleware::{LastSeenThrottle, SessionMiddlewareFactory};
 use server::config::Config;
 use server::hub::{self, HubContext, HubStatus};
 use server::{
-    admin_routes, auth_routes, authed, db, device, discord_routes, models, token_lockout, unauthed,
-    update_batcher,
+    admin_routes, auth_routes, authed, db, discord_routes, models, unauthed, update_batcher,
 };
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -22,6 +21,10 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config = Config::from_env().unwrap();
+    if let Err(err) = config.require_hub() {
+        eprintln!("{}", err);
+        std::process::exit(1);
+    }
     let pool = config.pg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
     env_logger::init_from_env(
         env_logger::Env::new().default_filter_or(config.logger.level.to_string()),
@@ -45,55 +48,39 @@ async fn main() -> std::io::Result<()> {
         update_batcher::background_worker(update_batcher_pool, rx, None).await;
     });
 
-    let token_lockout = web::Data::new(token_lockout::TokenLockout::new(
-        std::time::Duration::from_secs(15 * 60),
-    ));
-
-    log::info!("Data source: {:?}", config.data_source);
-    let direct_seen = hub::DirectSeen::default();
     let hub_status = Arc::new(RwLock::new(HubStatus {
-        data_source: format!("{:?}", config.data_source).to_lowercase(),
         history_enabled: config.hub_history_enabled(),
         base_url: config.hub.base_url.clone(),
         ..Default::default()
     }));
-    let hub_client = config
-        .data_source
-        .uses_hub()
-        .then(|| hub::client::HubClient::new(&config.hub));
+    let hub_client = hub::client::HubClient::new(&config.hub);
     let hub_events = hub::events::EventBuffer::default();
     let hub_capabilities = hub::SharedKeyCapabilities::default();
     if let Some(status) = hub_status.write().ok().as_mut() {
-        status.request_budget_per_min = hub_client
-            .as_ref()
-            .map_or(0, |client| client.budget_per_min());
+        status.request_budget_per_min = hub_client.budget_per_min();
         status.bulk_accounts = hub::USER_KEY_BULK_ACCOUNTS;
     }
-    if let Some(client) = &hub_client {
-        hub::start_key_discovery(
-            Arc::clone(client),
-            config.hub.request_budget_per_min,
-            Arc::clone(&hub_capabilities),
+    hub::start_key_discovery(
+        Arc::clone(&hub_client),
+        config.hub.request_budget_per_min,
+        Arc::clone(&hub_capabilities),
+        Arc::clone(&hub_status),
+    );
+    hub::sync::start(hub::sync::SyncContext {
+        pool: pool.clone(),
+        client: Arc::clone(&hub_client),
+        sender: tx.clone(),
+        group_id,
+        config: config.hub.clone(),
+        status: Arc::clone(&hub_status),
+    });
+    if config.hub_history_enabled() {
+        hub::events::start(
+            Arc::clone(&hub_client),
+            hub_events.clone(),
+            Duration::from_secs(config.hub.events_poll_secs),
             Arc::clone(&hub_status),
         );
-        hub::sync::start(hub::sync::SyncContext {
-            pool: pool.clone(),
-            client: Arc::clone(client),
-            sender: tx.clone(),
-            group_id,
-            config: config.hub.clone(),
-            data_source: config.data_source,
-            status: Arc::clone(&hub_status),
-            direct_seen: direct_seen.clone(),
-        });
-        if config.hub_history_enabled() {
-            hub::events::start(
-                Arc::clone(client),
-                hub_events.clone(),
-                Duration::from_secs(config.hub.events_poll_secs),
-                Arc::clone(&hub_status),
-            );
-        }
     }
     let hub_context = web::Data::new(HubContext {
         client: hub_client,
@@ -102,8 +89,8 @@ async fn main() -> std::io::Result<()> {
         events: hub_events,
         capabilities: hub_capabilities,
     });
-    let direct_seen = web::Data::new(direct_seen);
-    let accepts_direct = config.data_source.accepts_direct();
+
+    let last_seen = LastSeenThrottle::default();
 
     HttpServer::new(move || {
         // Public auth endpoints (no session required)
@@ -116,14 +103,14 @@ async fn main() -> std::io::Result<()> {
 
         // Session-protected auth endpoints
         let session_auth_scope = web::scope("/api/auth")
-            .wrap(SessionMiddlewareFactory::new())
+            .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
             .service(auth_routes::logout)
             .service(auth_routes::me)
             .service(auth_routes::change_password);
 
         // Admin routes (session + admin role required)
         let admin_scope = web::scope("/api/admin")
-            .wrap(SessionMiddlewareFactory::new())
+            .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
             .service(admin_routes::list_users)
             .service(admin_routes::create_user)
             .service(admin_routes::change_user_role)
@@ -143,38 +130,16 @@ async fn main() -> std::io::Result<()> {
 
         // Session-protected group data routes
         let session_group_scope = web::scope("/api/group")
-            .wrap(SessionMiddlewareFactory::new())
+            .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
             .service(authed::get_group_data)
-            .service(authed::add_group_member)
-            .service(authed::delete_group_member)
-            .service(authed::rename_group_member)
-            .service(authed::update_group_member)
-            .service(authed::am_i_logged_in)
-            .service(authed::am_i_in_group)
             .service(authed::get_skill_data)
-            .service(authed::get_collection_log)
             .service(hub::routes::get_features)
             .service(hub::proxy::get_gains)
             .service(hub::proxy::get_locations)
             .service(hub::proxy::get_events);
-        let session_group_scope = if accepts_direct {
-            session_group_scope.service(device::create_pairing_code)
-        } else {
-            session_group_scope
-        };
 
         // Public endpoints
-        let unauthed_scope = web::scope("/api")
-            .service(unauthed::get_ge_prices)
-            .service(unauthed::captcha_enabled);
-        // Direct plugin pairing and ingest, unless data only comes from the hub.
-        let unauthed_scope = if accepts_direct {
-            unauthed_scope
-                .service(device::pair_device)
-                .service(device::ingest)
-        } else {
-            unauthed_scope
-        };
+        let unauthed_scope = web::scope("/api").service(unauthed::get_ge_prices);
 
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
@@ -189,7 +154,6 @@ async fn main() -> std::io::Result<()> {
                 header::CONTENT_TYPE,
                 header::CONTENT_LENGTH,
                 header::COOKIE,
-                header::HeaderName::from_static("x-osrs-token"),
             ])
             .supports_credentials()
             .max_age(3600);
@@ -205,9 +169,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(config.clone()))
             .app_data(web::Data::new(tx.clone()))
             .app_data(web::Data::new(group_id))
-            .app_data(token_lockout.clone())
             .app_data(hub_context.clone())
-            .app_data(direct_seen.clone())
             .service(auth_scope)
             .service(session_auth_scope)
             .service(admin_scope)

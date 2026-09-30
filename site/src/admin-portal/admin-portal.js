@@ -282,21 +282,17 @@ export class AdminPortal extends BaseElement {
 
   renderHubStatus(container, status) {
     container.hidden = false;
-    const usesHub = status.data_source === "hub" || status.data_source === "both";
-    const rows = [["Data source", status.data_source || "direct"]];
-    if (usesHub) {
-      rows.push(
-        ["Hub", status.base_url],
-        ["Last sync", relativeTime(status.last_success)],
-        ["Accounts", `${status.accounts_visible} visible, ${status.accounts_online} online`],
-        ["Key", describeHubKey(status)],
-        ["Orphaned", String(status.members_orphaned)],
-        ["History", status.history_enabled ? `on (${status.events_buffered} events buffered)` : "off"]
-      );
-    }
+    const rows = [
+      ["Hub", status.base_url],
+      ["Last sync", relativeTime(status.last_success)],
+      ["Accounts", `${status.accounts_visible} visible, ${status.accounts_online} online`],
+      ["Key", describeHubKey(status)],
+      ["Orphaned", String(status.members_orphaned)],
+      ["History", status.history_enabled ? `on (${status.events_buffered} events buffered)` : "off"],
+    ];
 
     const heading = document.createElement("h4");
-    heading.textContent = "Data source";
+    heading.textContent = "osrs-data-hub";
     const list = document.createElement("dl");
     for (const [label, value] of rows) {
       const dt = document.createElement("dt");
@@ -307,43 +303,41 @@ export class AdminPortal extends BaseElement {
     }
     const children = [heading, list];
 
-    if (usesHub && status.last_error && status.consecutive_failures > 0) {
+    if (status.last_error && status.consecutive_failures > 0) {
       const error = document.createElement("div");
       error.className = "admin-portal__hub-error";
       error.textContent = `Last error (${relativeTime(status.last_error_at)}): ${status.last_error}`;
       children.push(error);
     }
 
-    if (usesHub) {
-      const button = document.createElement("button");
-      button.className = "men-button";
-      button.textContent = "Test connection";
-      const result = document.createElement("div");
-      button.addEventListener("click", async () => {
-        button.disabled = true;
-        result.textContent = "Testing...";
-        try {
-          const response = await api.adminTestHub();
-          const test = await response.json();
-          if (!test.ok) {
-            result.textContent = test.message;
-          } else {
-            const kind = test.key.kind === "service" ? "service key" : "personal key";
-            const limit = test.key.rate_limit_per_minute ? `, ${test.key.rate_limit_per_minute}/min` : "";
-            result.textContent =
-              `OK: ${kind} "${test.key.name}"${limit} (${test.key.categories.join(", ")}), ` +
-              `${test.visible_accounts ?? "?"} accounts visible` +
-              (test.key.kind === "service"
-                ? ""
-                : ". A personal key stops working when its creator leaves the guild; ask a hub admin for a service key.");
-          }
-        } catch (e) {
-          result.textContent = "The test request failed.";
+    const button = document.createElement("button");
+    button.className = "men-button";
+    button.textContent = "Test connection";
+    const result = document.createElement("div");
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      result.textContent = "Testing...";
+      try {
+        const response = await api.adminTestHub();
+        const test = await response.json();
+        if (!test.ok) {
+          result.textContent = test.message;
+        } else {
+          const kind = test.key.kind === "service" ? "service key" : "personal key";
+          const limit = test.key.rate_limit_per_minute ? `, ${test.key.rate_limit_per_minute}/min` : "";
+          result.textContent =
+            `OK: ${kind} "${test.key.name}"${limit} (${test.key.categories.join(", ")}), ` +
+            `${test.visible_accounts ?? "?"} accounts visible` +
+            (test.key.kind === "service"
+              ? ""
+              : ". A personal key stops working when its creator leaves the guild; ask a hub admin for a service key.");
         }
-        button.disabled = false;
-      });
-      children.push(button, result);
-    }
+      } catch (e) {
+        result.textContent = "The test request failed.";
+      }
+      button.disabled = false;
+    });
+    children.push(button, result);
     container.replaceChildren(...children);
   }
 

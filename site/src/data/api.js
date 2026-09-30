@@ -1,14 +1,11 @@
 import { pubsub } from "./pubsub";
 import { utility } from "../utility";
 import { groupData } from "./group-data";
-import { exampleData } from "./example-data";
 import { storage } from "./storage";
 
 class Api {
   constructor() {
     this.baseUrl = "/api";
-    this.createGroupUrl = `${this.baseUrl}/create-group`;
-    this.exampleDataEnabled = false;
     this.enabled = false;
     this.sessionToken = null;
     this.username = null;
@@ -17,18 +14,6 @@ class Api {
 
   get getGroupDataUrl() {
     return `${this.baseUrl}/group/get-group-data`;
-  }
-
-  get addMemberUrl() {
-    return `${this.baseUrl}/group/add-group-member`;
-  }
-
-  get deleteMemberUrl() {
-    return `${this.baseUrl}/group/delete-group-member`;
-  }
-
-  get renameMemberUrl() {
-    return `${this.baseUrl}/group/rename-group-member`;
   }
 
   get amILoggedInUrl() {
@@ -41,10 +26,6 @@ class Api {
 
   get skillDataUrl() {
     return `${this.baseUrl}/group/get-skill-data`;
-  }
-
-  get captchaEnabledUrl() {
-    return `${this.baseUrl}/captcha-enabled`;
   }
 
   get setupStatusUrl() {
@@ -92,28 +73,17 @@ class Api {
     this.role = role;
   }
 
-  // Legacy compat
-  setCredentials(groupName, groupToken) {
-    this.groupName = groupName;
-    this.groupToken = groupToken;
-  }
-
   async restart() {
     await this.enable();
   }
 
-  async enable(groupName, groupToken) {
+  async enable() {
     await this.disable();
     this.nextCheck = new Date(0).toISOString();
 
-    // Legacy compat
-    if (groupName) {
-      this.setCredentials(groupName, groupToken);
-    }
-
     if (!this.enabled) {
       this.enabled = true;
-      this.getGroupInterval = pubsub.waitForAllEvents("item-data-loaded", "quest-data-loaded").then(() => {
+      this.getGroupInterval = pubsub.waitForAllEvents("item-data-loaded").then(() => {
         return utility.callOnInterval(this.getGroupData.bind(this), 1000);
       });
     }
@@ -123,11 +93,7 @@ class Api {
 
   async disable() {
     this.enabled = false;
-    this.groupName = undefined;
-    this.groupToken = undefined;
     groupData.members = new Map();
-    groupData.groupItems = {};
-    groupData.filters = [""];
     if (this.getGroupInterval) {
       window.clearInterval(await this.getGroupInterval);
     }
@@ -135,83 +101,22 @@ class Api {
 
   async getGroupData() {
     const nextCheck = this.nextCheck;
-
-    if (this.exampleDataEnabled) {
-      const newGroupData = exampleData.getGroupData();
-      groupData.update(newGroupData);
-      pubsub.publish("get-group-data", groupData);
-    } else {
-      const response = await fetch(`${this.getGroupDataUrl}?from_time=${nextCheck}`, {
-        headers: this.authHeaders(),
-        credentials: "same-origin",
-      });
-      if (!response.ok) {
-        if (response.status === 401) {
-          await this.disable();
-          window.history.pushState("", "", "/login");
-          pubsub.publish("get-group-data");
-        }
-        return;
+    const response = await fetch(`${this.getGroupDataUrl}?from_time=${nextCheck}`, {
+      headers: this.authHeaders(),
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        await this.disable();
+        window.history.pushState("", "", "/login");
+        pubsub.publish("get-group-data");
       }
-
-      const newGroupData = await response.json();
-      this.nextCheck = groupData.update(newGroupData).toISOString();
-      pubsub.publish("get-group-data", groupData);
+      return;
     }
-  }
 
-  async createGroup(groupName, memberNames, captchaResponse) {
-    const response = await fetch(this.createGroupUrl, {
-      body: JSON.stringify({ name: groupName, member_names: memberNames, captcha_response: captchaResponse }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
-
-    return response;
-  }
-
-  async addMember(memberName) {
-    const response = await fetch(this.addMemberUrl, {
-      body: JSON.stringify({ name: memberName }),
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      method: "POST",
-    });
-
-    return response;
-  }
-
-  async removeMember(memberName) {
-    const response = await fetch(this.deleteMemberUrl, {
-      body: JSON.stringify({ name: memberName }),
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      method: "DELETE",
-    });
-
-    return response;
-  }
-
-  async renameMember(originalName, newName) {
-    const response = await fetch(this.renameMemberUrl, {
-      body: JSON.stringify({ original_name: originalName, new_name: newName }),
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      method: "PUT",
-    });
-
-    return response;
+    const newGroupData = await response.json();
+    this.nextCheck = groupData.update(newGroupData).toISOString();
+    pubsub.publish("get-group-data", groupData);
   }
 
   async amILoggedIn() {
@@ -229,30 +134,11 @@ class Api {
   }
 
   async getSkillData(period) {
-    if (this.exampleDataEnabled) {
-      const skillData = exampleData.getSkillData(period, groupData);
-      return skillData;
-    } else {
-      const response = await fetch(`${this.skillDataUrl}?period=${period}`, {
-        headers: this.authHeaders(),
-        credentials: "same-origin",
-      });
-      return response.json();
-    }
-  }
-
-  async getCaptchaEnabled() {
-    const response = await fetch(this.captchaEnabledUrl);
-    return response.json();
-  }
-
-  async generatePairingCode() {
-    const response = await fetch(`${this.baseUrl}/group/pair/code`, {
-      method: "POST",
+    const response = await fetch(`${this.skillDataUrl}?period=${period}`, {
       headers: this.authHeaders(),
       credentials: "same-origin",
     });
-    return response;
+    return response.json();
   }
 
   // --- User management API methods ---
@@ -482,27 +368,25 @@ class Api {
     return response;
   }
 
-  // --- Data source features and hub history ---
+  // --- Hub history ---
 
   /**
-   * Loads which data source this server uses and whether hub history is
-   * available, and publishes it as "features". Defaults to direct pairing
-   * without hub history when the server does not answer.
+   * Loads whether the hub-backed history (graphs, trails, events) is
+   * available, and publishes it as "features". Defaults to no history when
+   * the server does not answer.
    */
   async loadFeatures() {
-    let features = { data_source: "direct", direct_pairing: true, hub_history: false };
-    if (!this.exampleDataEnabled) {
-      try {
-        const response = await fetch(`${this.baseUrl}/group/features`, {
-          headers: this.authHeaders(),
-          credentials: "same-origin",
-        });
-        if (response.ok) {
-          features = await response.json();
-        }
-      } catch {
-        // Keep the defaults.
+    let features = { hub_history: false };
+    try {
+      const response = await fetch(`${this.baseUrl}/group/features`, {
+        headers: this.authHeaders(),
+        credentials: "same-origin",
+      });
+      if (response.ok) {
+        features = await response.json();
       }
+    } catch {
+      // Keep the defaults.
     }
     pubsub.publish("features", features);
     return features;

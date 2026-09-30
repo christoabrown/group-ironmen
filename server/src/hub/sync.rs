@@ -9,13 +9,13 @@
 //!   stamped with the hub's `last_seen`, so the player shows up as offline.
 //! - Offline accounts already imported: nothing is sent, and the site's
 //!   inactivity rule takes the player offline.
-use crate::config::{DataSource, HubConfig};
+use crate::config::HubConfig;
 use crate::db;
 use crate::error::ApiError;
 use crate::hub::client::{Fetched, HubClient, HubError, Priority};
 use crate::hub::convert::{section_changed, MemberSections, Section};
 use crate::hub::models::HubAccount;
-use crate::hub::{record_error, DirectSeen, SharedHubStatus};
+use crate::hub::{record_error, SharedHubStatus};
 use crate::models::GroupMember;
 use crate::validators::valid_name;
 use chrono::{DateTime, Utc};
@@ -34,9 +34,7 @@ pub struct SyncContext {
     pub sender: mpsc::Sender<GroupMember>,
     pub group_id: i64,
     pub config: HubConfig,
-    pub data_source: DataSource,
     pub status: SharedHubStatus,
-    pub direct_seen: DirectSeen,
 }
 
 /// What the sync remembers about a hub account between polls.
@@ -192,15 +190,6 @@ impl HubSync {
                     account.name
                 );
             }
-            return Ok(());
-        }
-
-        if self.context.data_source == DataSource::Both
-            && self.context.direct_seen.seen_within(
-                &account.name,
-                Duration::from_secs(self.context.config.both_direct_grace_secs),
-            )
-        {
             return Ok(());
         }
 

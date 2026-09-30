@@ -21,13 +21,6 @@ pub struct LoggerConfig {
     pub level: LogLevel,
 }
 #[derive(Serialize, Deserialize, Clone)]
-pub struct CaptchaConfig {
-    pub enabled: bool,
-    pub sitekey: String,
-    #[serde(skip_serializing)]
-    pub secret: String,
-}
-#[derive(Serialize, Deserialize, Clone)]
 pub struct DiscordConfig {
     pub enabled: bool,
     #[serde(skip_serializing)]
@@ -55,35 +48,6 @@ impl Default for ServerConfig {
 fn default_true() -> bool {
     true
 }
-/// Where player data comes from.
-#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum DataSource {
-    /// Players pair the RuneLite data exporter with this server.
-    #[default]
-    Direct,
-    /// Players are imported from osrs-data-hub; direct pairing is disabled.
-    Hub,
-    /// Both; recent direct data wins over hub data for the same player.
-    Both,
-}
-impl DataSource {
-    pub fn uses_hub(self) -> bool {
-        matches!(self, DataSource::Hub | DataSource::Both)
-    }
-    pub fn accepts_direct(self) -> bool {
-        matches!(self, DataSource::Direct | DataSource::Both)
-    }
-    fn parse(value: &str) -> Option<Self> {
-        match value.to_lowercase().as_str() {
-            "direct" => Some(DataSource::Direct),
-            "hub" => Some(DataSource::Hub),
-            "both" => Some(DataSource::Both),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Deserialize, Clone)]
 pub struct HubConfig {
     /// Base URL of the hub, without `/api/v1`.
@@ -100,14 +64,10 @@ pub struct HubConfig {
     /// Serve XP graphs, location trails and the events feed from the hub.
     #[serde(default = "default_true")]
     pub history_enabled: bool,
-    /// Requests per minute this server allows itself (the hub allows 120 per key by default).
     /// Requests per minute this server allows itself. When unset it follows the
     /// key's rate limit reported by the hub's `/me` (80 % of it).
     #[serde(default)]
     pub request_budget_per_min: Option<u32>,
-    /// In `both` mode, hub data for a player is ignored for this long after direct data arrived.
-    #[serde(default = "default_both_direct_grace_secs")]
-    pub both_direct_grace_secs: u64,
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
 }
@@ -121,7 +81,6 @@ impl Default for HubConfig {
             events_poll_secs: default_events_poll_secs(),
             history_enabled: true,
             request_budget_per_min: None,
-            both_direct_grace_secs: default_both_direct_grace_secs(),
             timeout_secs: default_timeout_secs(),
         }
     }
@@ -140,9 +99,6 @@ fn default_full_refresh_secs() -> u64 {
 fn default_events_poll_secs() -> u64 {
     15
 }
-fn default_both_direct_grace_secs() -> u64 {
-    120
-}
 fn default_timeout_secs() -> u64 {
     10
 }
@@ -153,27 +109,16 @@ pub struct Config {
     pub pg: deadpool_postgres::Config,
     #[serde(default = "default_logger_config")]
     pub logger: LoggerConfig,
-    #[serde(default = "default_captcha_config")]
-    pub hcaptcha: CaptchaConfig,
     #[serde(default = "default_discord_config")]
     pub discord: DiscordConfig,
     #[serde(default)]
     pub server: ServerConfig,
-    #[serde(default)]
-    pub data_source: DataSource,
     #[serde(default)]
     pub hub: HubConfig,
 }
 fn default_logger_config() -> LoggerConfig {
     LoggerConfig {
         level: LogLevel::Info,
-    }
-}
-fn default_captcha_config() -> CaptchaConfig {
-    CaptchaConfig {
-        enabled: false,
-        sitekey: "".to_string(),
-        secret: "".to_string(),
     }
 }
 fn default_discord_config() -> DiscordConfig {
@@ -188,7 +133,7 @@ fn default_discord_config() -> DiscordConfig {
 }
 
 impl Config {
-    /// Clamps values and falls back to `direct` when the hub is not usable.
+    /// Normalises the hub URL and clamps intervals to sane values.
     fn validate(&mut self) {
         self.hub.base_url = self.hub.base_url.trim_end_matches('/').to_string();
         if let Some(stripped) = self.hub.base_url.strip_suffix("/api/v1") {
@@ -202,20 +147,20 @@ impl Config {
             .request_budget_per_min
             .map(|budget| budget.clamp(20, 10_000));
         self.hub.timeout_secs = self.hub.timeout_secs.clamp(2, 120);
-
-        if self.data_source.uses_hub() && !self.hub.is_configured() {
-            // Runs before the logger is initialised.
-            eprintln!(
-                "DATA_SOURCE is {:?} but HUB_BASE_URL or HUB_API_KEY is missing; falling back to direct",
-                self.data_source
-            );
-            self.data_source = DataSource::Direct;
-        }
     }
 
     /// Whether the hub-backed history endpoints (XP graphs, trails, events) are active.
     pub fn hub_history_enabled(&self) -> bool {
-        self.data_source.uses_hub() && self.hub.history_enabled
+        self.hub.history_enabled
+    }
+
+    /// Player data only comes from osrs-data-hub, so the server can't run without it.
+    pub fn require_hub(&self) -> Result<(), String> {
+        if self.hub.is_configured() {
+            Ok(())
+        } else {
+            Err("HUB_BASE_URL and HUB_API_KEY are required".to_string())
+        }
     }
 }
 
@@ -285,12 +230,12 @@ impl Config {
         }
 
         if let Some(data_source) = env_string("DATA_SOURCE") {
-            match DataSource::parse(&data_source) {
-                Some(data_source) => self.data_source = data_source,
-                None => eprintln!(
-                    "Ignoring unknown DATA_SOURCE '{}' (expected direct, hub or both)",
+            if !data_source.eq_ignore_ascii_case("hub") {
+                // Runs before the logger is initialised.
+                eprintln!(
+                    "Ignoring DATA_SOURCE '{}': player data only comes from osrs-data-hub now",
                     data_source
-                ),
+                );
             }
         }
         if let Some(base_url) = env_string("HUB_BASE_URL") {
@@ -311,9 +256,6 @@ impl Config {
         }
         if let Some(value) = env_u64("HUB_REQUEST_BUDGET") {
             self.hub.request_budget_per_min = Some(value as u32);
-        }
-        if let Some(value) = env_u64("HUB_BOTH_DIRECT_GRACE_SECS") {
-            self.hub.both_direct_grace_secs = value;
         }
         if let Some(value) = env_u64("HUB_TIMEOUT_SECS") {
             self.hub.timeout_secs = value;

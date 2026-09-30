@@ -9,32 +9,15 @@ pub enum ApiError {
     PGError(tokio_postgres::error::Error),
     SerdeJsonError(serde_json::Error),
     #[from(ignore)]
-    GroupCreationError(tokio_postgres::error::Error),
-    #[from(ignore)]
-    UpdateGroupMemberError(tokio_postgres::error::Error),
-    #[from(ignore)]
-    GetGroupError(tokio_postgres::error::Error),
-    #[from(ignore)]
-    AddMemberError(tokio_postgres::error::Error),
-    #[from(ignore)]
     GetGroupDataError(tokio_postgres::error::Error),
     #[from(ignore)]
     DeleteGroupMemberError(tokio_postgres::error::Error),
     #[from(ignore)]
-    RenameGroupMemberError(tokio_postgres::error::Error),
-    #[from(ignore)]
-    IsMemberInGroupError(tokio_postgres::error::Error),
-    #[from(ignore)]
     GetSkillsDataError(tokio_postgres::error::Error),
-    #[from(ignore)]
-    PairingCodeError(tokio_postgres::error::Error),
-    #[from(ignore)]
-    DeviceAuthError(tokio_postgres::error::Error),
     UreqError(ureq::Error),
     #[display("Hub error: {}", _0)]
     #[from(ignore)]
     HubError(String),
-    GroupMemberValidationError(String),
     #[display("Unauthorized")]
     #[from(ignore)]
     Unauthorized,
@@ -62,31 +45,15 @@ impl ResponseError for ApiError {
                 log::error!("PoolError: {}", err);
                 HttpResponse::InternalServerError().body(format!("PoolError: {}", err))
             }
-            ApiError::GroupCreationError(ref err) => handle_pg_error(err, "GroupCreationError"),
-            ApiError::UpdateGroupMemberError(ref err) => {
-                handle_pg_error(err, "UpdateGroupMemberError")
-            }
             ApiError::PGError(ref err) => handle_pg_error(err, "PGError"),
-            ApiError::GetGroupError(ref err) => handle_pg_error(err, "GetGroupError"),
-            ApiError::AddMemberError(ref err) => handle_pg_error(err, "AddMemberError"),
             ApiError::GetGroupDataError(ref err) => handle_pg_error(err, "GetGroupDataError"),
-            ApiError::IsMemberInGroupError(ref err) => handle_pg_error(err, "IsMemberInGroupError"),
             ApiError::GetSkillsDataError(ref err) => handle_pg_error(err, "GetSkillsDataError"),
             ApiError::DeleteGroupMemberError(ref err) => {
                 handle_pg_error(err, "DeleteGroupMemberError")
             }
-            ApiError::RenameGroupMemberError(ref err) => {
-                handle_pg_error(err, "RenameGroupMemberError")
-            }
             ApiError::SerdeJsonError(ref err) => {
                 log::error!("SerdeJsonError: {}", err);
                 HttpResponse::InternalServerError().body(format!("SerdeJsonError: {}", err))
-            }
-            ApiError::PairingCodeError(ref _err) => {
-                HttpResponse::BadRequest().body("Invalid or expired pairing code")
-            }
-            ApiError::DeviceAuthError(ref _err) => {
-                HttpResponse::Unauthorized().body("Invalid device token")
             }
             ApiError::UreqError(ref err) => {
                 log::error!("UreqError: {}", err);
@@ -97,10 +64,6 @@ impl ResponseError for ApiError {
                 HttpResponse::ServiceUnavailable()
                     .insert_header(("Retry-After", "10"))
                     .body("The data hub is currently unavailable")
-            }
-            ApiError::GroupMemberValidationError(ref reason) => {
-                log::error!("Validation error: {}", reason);
-                HttpResponse::BadRequest().body(reason.clone())
             }
             ApiError::Unauthorized => HttpResponse::Unauthorized().body("Unauthorized"),
             ApiError::Forbidden => HttpResponse::Forbidden().body("Forbidden"),

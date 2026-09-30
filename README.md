@@ -11,33 +11,30 @@ wear, their skills and XP history, and what the guild has been up to.
 It is a fork of [group-ironmen](https://github.com/christoabrown/group-ironmen), reworked for guilds instead
 of Group Ironman teams:
 
-- Player data comes from the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter)
-  plugin, either directly or through [osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub).
+- Player data comes from [osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub), which collects it
+  from the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter)
+  plugin. Players pair the plugin with the hub and choose there what the guild may see.
 - Users log in with an account or with Discord (optionally limited to members of your Discord server), and
   an admin portal manages users and players.
-- There is no member limit and no shared group bank.
+- There is no member limit, and the Group Ironman features (shared bank, combined items, quests, diaries,
+  collection log) are gone: neither the hub nor the plugin sends that data.
 
 ## Features
 
 - **Live map** of every online player, with world, HP and prayer, and an optional location trail
-  (24 hours, 7 or 30 days) when the hub is connected.
-- **Items**: combined inventory and equipment of everyone online, searchable.
-- **Players**: everyone who ever reported, with online status.
-- **Graphs**: XP per skill over a day, week, month or year. With the hub connected the history comes from
-  the hub, so it includes play from before a player joined the map.
-- **Activity** (hub only): top XP gainers and a feed of loot, level ups, collection log slots, deaths,
-  diaries and combat tasks.
+  (24 hours, 7 or 30 days).
+- **Players**: everyone the hub shares, with online status, inventory, equipment and skills.
+- **Graphs**: XP per skill over a day, week, month or year, from the hub's history (so it includes play
+  from before a player joined the map).
+- **Activity**: top XP gainers and a feed of loot, level ups, collection log slots, deaths, diaries and
+  combat tasks.
 - **Admin portal**: users and roles, players and who they belong to, the audit log, and the hub connection.
 
 ## Where player data comes from
 
-The backend's `DATA_SOURCE` setting picks one of three modes:
-
-| Mode | How players get on the map |
-|---|---|
-| `direct` (default) | Each player pairs the RuneLite plugin with this site using a 5-digit code from the Setup page. |
-| `hub` | The backend mirrors players from an osrs-data-hub. Players only pair with the hub; direct pairing is off. |
-| `both` | Both. When a player sends data directly, that data wins over the hub copy for the next two minutes. |
+Every player on the map comes from an osrs-data-hub. The backend mirrors the hub's accounts; players only
+pair the RuneLite plugin with the hub. (Earlier versions could also pair the plugin with the map directly;
+that is gone, and old direct pairings now get a 404.)
 
 ### How the hub integration works
 
@@ -76,9 +73,8 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    - `activity` and `location_live` for the map;
    - `stats`, `equipment` and `inventory` for player panels, items and graphs;
    - optionally `events` and `location_history` for the Activity page and trails.
-3. Set these for the backend:
+3. Set these for the backend (it refuses to start without them):
    ```env
-   DATA_SOURCE=hub                      # or both
    HUB_BASE_URL=https://hub.example.com # without /api/v1
    HUB_API_KEY=ohub_xxxxxxxxxx_xxxxxxxx
    ```
@@ -95,7 +91,7 @@ don't show up on the map should share them in the hub's sharing settings.
 ### Docker (recommended)
 
 ```bash
-cp .env.example .env   # set BACKEND_SECRET, database credentials and the data source
+cp .env.example .env   # set the database credentials and the hub URL and key
 docker compose up -d
 ```
 
@@ -114,10 +110,8 @@ a file for local development.
 |---|---|---|
 | `PG_USER`, `PG_PASSWORD`, `PG_HOST`, `PG_PORT`, `PG_DB` | | PostgreSQL connection. The schema is created on first start. |
 | `PG_POOL_MAX_SIZE` | `16` | Database connection pool size. |
-| `BACKEND_SECRET` | | Secret used to hash tokens. Changing it unpairs every device. |
 | `COOKIE_SECURE` | `true` | Mark session cookies `Secure`. Set to `false` only for plain HTTP. |
-| `DATA_SOURCE` | `direct` | `direct`, `hub` or `both`. |
-| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. |
+| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. Required. |
 | `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
 | `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails and the Activity page from the hub. |
 | `HUB_REQUEST_BUDGET` | 80 % of the key's limit | Hub requests per minute this server allows itself (the hub allows 120 per personal key, 600 per service key). |
@@ -126,23 +120,14 @@ a file for local development.
 | `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |
 | `HOST_URL`, `SITE_TITLE`, `SITE_NAME` | | Frontend: backend URL for its `/api` proxy, and branding. |
 
-### Pairing directly (`direct` or `both`)
-
-1. Install the RuneLite HomeAssistant Data Exporter from the Plugin Hub.
-2. Log in to the site and open **Setup**, then click **Generate Pairing Code**.
-3. Enter the code in the plugin. The player appears on the map with the next update.
-
-The plugin can pair with several endpoints at once, for example this site and the hub.
-
 ## Development
 
 Prerequisites: Rust (stable), Node.js 22+ and PostgreSQL 16+.
 
 ```bash
-# Backend (reads server/.env or environment variables; needs a secret)
+# Backend (reads the repository's .env, server/config.toml or environment variables)
 cd server
-echo "dev-secret" > secret
-PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false cargo run
+PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false   HUB_BASE_URL=http://localhost:3000 HUB_API_KEY=ohub_... cargo run
 
 # Frontend (http://localhost:4000, proxies /api to 127.0.0.1:8080)
 cd site
@@ -154,7 +139,7 @@ To try the hub integration without a hub, run the mock and point the backend at 
 
 ```bash
 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
-DATA_SOURCE=hub HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
+HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
 ```
 
 Tests:
@@ -177,9 +162,9 @@ git fetch upstream
 git merge upstream/master
 ```
 
-Generated data under `site/public/` merges without conflicts. Server changes may need porting, because
-this fork replaced group tokens with sessions, removed the shared bank, and relies on
-`*_last_update` timestamps being refreshed on every update.
+Generated data under `site/public/` merges without conflicts (the quest, diary and collection log files
+are kept for that reason, although the site no longer loads them). Server changes rarely apply: this fork
+replaced group tokens with sessions, reads every player from the hub, and dropped the Group Ironman data.
 
 ## Project structure
 

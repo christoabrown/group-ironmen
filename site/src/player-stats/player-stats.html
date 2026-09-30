@@ -1,6 +1,5 @@
 <div class="player-stats__hitpoints">
   <stat-bar class="player-stats__hitpoints-bar" bar-color="#157145"></stat-bar>
-  <player-interacting player-name="${this.playerName}"></player-interacting>
   <div class="player-stats__name">
     <player-icon player-name="${this.playerName}"></player-icon> ${this.playerName} -
     <span class="player-stats__world"></span>
@@ -10,8 +9,5 @@
 <div class="player-stats__prayer">
   <stat-bar class="player-stats__prayer-bar" bar-color="#336699"></stat-bar>
   <div class="player-stats__prayer-numbers">${this.prayer.current} / ${this.prayer.max}</div>
-</div>
-<div class="player-stats__energy">
-  <stat-bar class="player-stats__energy-bar" bar-color="#a9a9a9"></stat-bar>
 </div>
 <xp-dropper player-name="${this.playerName}"></xp-dropper>

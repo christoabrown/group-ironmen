@@ -1,11 +1,9 @@
-<social-links></social-links>
-
 <div class="men-homepage__container">
-  <h1>${window.siteConfig?.title || 'OSRS Group Tracker'}</h1>
+  <h1>${window.siteConfig?.title || 'OSRS Guild Map'}</h1>
   <div class="men-homepage__links">
     ${ this.hasLogin ? `
     <men-link link-href="/group">
-      <button class="men-button">Go to group</button>
+      <button class="men-button">Open map</button>
     </men-link>
     ` : `
     <men-link link-href="/login">

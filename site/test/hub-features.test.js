@@ -24,13 +24,9 @@ describe("hub features", () => {
     expect(publishSpy).toHaveBeenCalledWith("features", features);
   });
 
-  it("falls back to direct pairing without hub history", async () => {
+  it("falls back to no hub history when the server does not answer", async () => {
     globalThis.fetch.mockRejectedValue(new Error("offline"));
-    await expect(api.loadFeatures()).resolves.toEqual({
-      data_source: "direct",
-      direct_pairing: true,
-      hub_history: false,
-    });
+    await expect(api.loadFeatures()).resolves.toEqual({ hub_history: false });
   });
 
   it("builds hub history requests", async () => {

@@ -15,9 +15,9 @@ use chrono::{DateTime, Utc};
 use client::{HubClient, HubError, Priority};
 use models::HubMe;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::collections::HashSet;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 /// Accounts per bulk history request (`/xp?accounts=`): the hub allows 10 for
 /// a personal key and 50 for a service key (hub D-92).
@@ -26,33 +26,9 @@ pub const SERVICE_KEY_BULK_ACCOUNTS: usize = 50;
 /// Share of the key's hub rate limit this server uses when no budget is configured.
 const BUDGET_SHARE_OF_HUB_LIMIT: f64 = 0.8;
 
-/// Remembers when each player last sent data directly, so that in `both`
-/// mode the (slower) hub copy does not overwrite fresher direct data.
-#[derive(Clone, Default)]
-pub struct DirectSeen(Arc<Mutex<HashMap<String, Instant>>>);
-
-impl DirectSeen {
-    pub fn record(&self, member_name: &str) {
-        let mut seen = self.0.lock().expect("direct seen lock poisoned");
-        if seen.len() > 10_000 {
-            seen.retain(|_, at| at.elapsed() < Duration::from_secs(3600));
-        }
-        seen.insert(member_name.to_lowercase(), Instant::now());
-    }
-
-    pub fn seen_within(&self, member_name: &str, window: Duration) -> bool {
-        self.0
-            .lock()
-            .expect("direct seen lock poisoned")
-            .get(&member_name.to_lowercase())
-            .is_some_and(|at| at.elapsed() < window)
-    }
-}
-
 /// What the admin portal shows about the hub connection.
 #[derive(Serialize, Clone, Default)]
 pub struct HubStatus {
-    pub data_source: String,
     pub history_enabled: bool,
     pub base_url: String,
     pub last_success: Option<DateTime<Utc>>,
@@ -104,7 +80,7 @@ pub type SharedKeyCapabilities = Arc<RwLock<KeyCapabilities>>;
 /// Everything the hub endpoints need, registered as app data.
 #[derive(Clone)]
 pub struct HubContext {
-    pub client: Option<Arc<client::HubClient>>,
+    pub client: Arc<client::HubClient>,
     pub status: SharedHubStatus,
     pub cache: Arc<cache::TtlCache>,
     pub events: events::EventBuffer,
@@ -232,14 +208,5 @@ mod tests {
         apply_key_info(&me, None, &client, &capabilities, &status);
         assert_eq!(capabilities.read().unwrap().bulk_accounts, 10);
         assert_eq!(client.budget_per_min(), 96);
-    }
-
-    #[test]
-    fn direct_seen_is_case_insensitive() {
-        let seen = DirectSeen::default();
-        seen.record("Zezima");
-        assert!(seen.seen_within("zezima", Duration::from_secs(60)));
-        assert!(!seen.seen_within("other", Duration::from_secs(60)));
-        assert!(!seen.seen_within("zezima", Duration::ZERO));
     }
 }

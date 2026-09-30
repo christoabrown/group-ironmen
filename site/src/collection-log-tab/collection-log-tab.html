@@ -1,7 +1,0 @@
-<div class="collection-log__tab-list">
-  ${this.pages.map((page) => `
-  <button class="${collectionLog.isLogComplete(this.playerName, page.name) ? "collection-log__complete" : ""}" page-name="${page.name}">
-    ${page.name} <span class="${collectionLog.completionStateClass(this.playerName, page.name)}">${collectionLog.completionCountForPage(this.playerName, page.name) || 0}/${collectionLog.pageSize(page.name)}</span>
-  </button>`).join('')}
-</div>
-<div class="collection-log__page-container"></div>

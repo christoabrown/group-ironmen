@@ -10,11 +10,11 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_postgres::NoTls;
 
-use server::config::{Config, DataSource, HubConfig};
+use server::config::{Config, HubConfig};
 use server::db;
 use server::hub::client::{HubClient, HubError};
 use server::hub::sync::{HubSync, SyncContext};
-use server::hub::{DirectSeen, HubStatus};
+use server::hub::HubStatus;
 use server::models::GroupMember;
 use server::update_batcher;
 
@@ -171,11 +171,10 @@ struct Harness {
     hub: Arc<Mutex<MockHub>>,
     sync: HubSync,
     notify: mpsc::Receiver<()>,
-    direct_seen: DirectSeen,
     sent: Arc<Mutex<usize>>,
 }
 
-async fn harness(data_source: DataSource) -> Harness {
+async fn harness() -> Harness {
     let pool = create_test_pool().await;
     let group_id = setup_database(&pool).await;
     let hub = Arc::new(Mutex::new(MockHub::default()));
@@ -205,16 +204,13 @@ async fn harness(data_source: DataSource) -> Harness {
         update_batcher::background_worker(batcher_pool, batch_rx, Some(notify_tx)).await;
     });
 
-    let direct_seen = DirectSeen::default();
     let sync = HubSync::new(SyncContext {
         pool: pool.clone(),
         client: HubClient::new(&hub_config),
         sender: tx,
         group_id,
         config: hub_config,
-        data_source,
         status: Arc::new(RwLock::new(HubStatus::default())),
-        direct_seen: direct_seen.clone(),
     });
 
     Harness {
@@ -223,7 +219,6 @@ async fn harness(data_source: DataSource) -> Harness {
         hub,
         sync,
         notify,
-        direct_seen,
         sent,
     }
 }
@@ -269,7 +264,7 @@ impl Harness {
 #[tokio::test]
 async fn imports_online_and_offline_accounts() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
 
     // A map user whose Discord account owns the online hub account.
     {
@@ -322,7 +317,7 @@ async fn imports_online_and_offline_accounts() {
 #[tokio::test]
 async fn unchanged_snapshot_sends_nothing_and_offline_members_are_not_refreshed() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().accounts = vec![offline_account(
         "acc-bravo",
         "Bravo",
@@ -349,7 +344,7 @@ async fn unchanged_snapshot_sends_nothing_and_offline_members_are_not_refreshed(
 #[tokio::test]
 async fn online_accounts_send_a_heartbeat_and_only_changed_sections() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
     h.poll().await.unwrap();
     let first = h.member("Alpha").await.unwrap();
@@ -383,7 +378,7 @@ async fn online_accounts_send_a_heartbeat_and_only_changed_sections() {
 #[tokio::test]
 async fn follows_renames() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
     h.poll().await.unwrap();
     {
@@ -411,20 +406,9 @@ async fn follows_renames() {
 }
 
 #[tokio::test]
-async fn both_mode_prefers_recent_direct_data() {
-    let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Both).await;
-    h.direct_seen.record("Alpha");
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
-    h.poll().await.unwrap();
-    assert_eq!(h.sent(), 0);
-    assert!(h.member("Alpha").await.is_none());
-}
-
-#[tokio::test]
 async fn rate_limits_are_reported_with_retry_after() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     h.hub.lock().unwrap().fail_with = Some(429);
     match h.poll().await {
         Err(HubError::RateLimited(after)) => assert_eq!(after, Duration::from_secs(7)),
@@ -439,7 +423,7 @@ async fn rate_limits_are_reported_with_retry_after() {
 #[tokio::test]
 async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Hub).await;
+    let mut h = harness().await;
     let mut account = online_account("acc-alpha", "Alpha", None);
     // Shape of osrs-data-hub PR #8: `owner` is null without an active owner and
     // inventory items carry `inventory_slot` (D-86, D-90).
@@ -463,17 +447,21 @@ async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
 }
 
 #[tokio::test]
-async fn matches_a_directly_paired_player_by_account_hash() {
+async fn matches_existing_member_by_account_hash() {
     let _guard = TEST_MUTEX.lock().await;
-    let mut h = harness(DataSource::Both).await;
-    // The player first paired with the map directly; direct ingest stored the
-    // plugin's accountHash. On the hub the account goes by a newer name.
+    let mut h = harness().await;
+    // An existing member carries the plugin's accountHash (from an earlier
+    // import); on the hub the account goes by a newer name.
     {
         let client = h.pool.get().await.unwrap();
         db::ensure_member_exists(&client, h.group_id, "Old Name")
             .await
             .unwrap();
-        db::set_direct_source(&client, h.group_id, "Old Name", Some("hash-123"))
+        client
+            .execute(
+                "UPDATE groupironman.members SET account_hash='hash-123' WHERE member_name='Old Name'",
+                &[],
+            )
             .await
             .unwrap();
     }

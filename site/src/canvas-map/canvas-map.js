@@ -34,7 +34,6 @@ export class CanvasMap extends BaseElement {
     this.eventListener(this, "touchcancel", this.stopDragging.bind(this));
     this.eventListener(window, "resize", this.onResize.bind(this));
     this.playerMarkers = new Map();
-    this.interactingMarkers = new Set();
     this.trails = new Map();
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.subscribe("coordinates", this.handleUpdatedCoordinates.bind(this));
@@ -496,13 +495,6 @@ export class CanvasMap extends BaseElement {
         labelFill: "yellow",
         labelStroke: "black",
       });
-      this.drawTileMarkers(this.interactingMarkers.values(), {
-        fillColor: "#a832a8",
-        strokeColor: "#cc2ed1",
-        labelPosition: "bottom",
-        labelFill: "red",
-        labelStroke: "black",
-      });
       this.drawCursorTile();
     }
 
@@ -593,19 +585,6 @@ export class CanvasMap extends BaseElement {
       }
     }
     this.ctx.globalAlpha = 1;
-  }
-
-  addInteractingMarker(x, y, label) {
-    const marker = {
-      label,
-      coordinates: { x, y, plane: 0 },
-    };
-    this.interactingMarkers.add(marker);
-    return marker;
-  }
-
-  removeInteractingMarker(marker) {
-    this.interactingMarkers.delete(marker);
   }
 
   drawGameTiles(positions, fillColor, strokeColor) {

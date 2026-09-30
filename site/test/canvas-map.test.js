@@ -78,7 +78,6 @@ function createMapInstance() {
   };
   map.touch = {};
   map.playerMarkers = new Map();
-  map.interactingMarkers = new Set();
   map.trails = new Map();
   map.followingPlayer = {};
   map.tiles = [new Map(), new Map(), new Map(), new Map()];
@@ -311,18 +310,6 @@ describe("CanvasMap.pinchCenter", () => {
     const [x, y] = map.pinchCenter(touches);
     expect(x).toBe(5);
     expect(y).toBe(10);
-  });
-});
-
-describe("CanvasMap.addInteractingMarker / removeInteractingMarker", () => {
-  it("adds and removes markers from the set", () => {
-    const map = createMapInstance();
-    const marker = map.addInteractingMarker(100, 200, "test");
-    expect(map.interactingMarkers.size).toBe(1);
-    expect(marker.label).toBe("test");
-    expect(marker.coordinates).toEqual({ x: 100, y: 200, plane: 0 });
-    map.removeInteractingMarker(marker);
-    expect(map.interactingMarkers.size).toBe(0);
   });
 });
 

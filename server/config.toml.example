@@ -27,7 +27,9 @@ redirect_uri = "http://localhost:4000/login/discord"
 auto_registration = false
 autoreg_servers = []
 
-[hcaptcha]
-enabled = false
-sitekey = ""
-secret = ""
+# osrs-data-hub, where every player's data comes from (required).
+# (HUB_BASE_URL, HUB_API_KEY, HUB_POLL_INTERVAL_SECS, HUB_HISTORY_ENABLED,
+# HUB_REQUEST_BUDGET, HUB_EVENTS_POLL_SECS, HUB_FULL_REFRESH_SECS, HUB_TIMEOUT_SECS)
+[hub]
+base_url = "http://localhost:3000"
+api_key = ""

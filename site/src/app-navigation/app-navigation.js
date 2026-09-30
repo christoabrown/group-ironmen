@@ -15,9 +15,7 @@ export class AppNavigation extends BaseElement {
   get displayName() {
     const session = storage.getSession();
     if (session && session.username) return session.username;
-    const group = storage.getGroup();
-    if (group && group.groupName) return group.groupName;
-    return "Group";
+    return window.siteConfig?.title || "Guild";
   }
 
   get isAdmin() {

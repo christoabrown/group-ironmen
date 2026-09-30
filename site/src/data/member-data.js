@@ -1,9 +1,7 @@
-import { Quest, QuestState } from "./quest";
 import { Item } from "./item";
 import { Skill, SkillName } from "./skill";
 import { pubsub } from "./pubsub";
 import { utility } from "../utility";
-import { AchievementDiary } from "./diaries";
 
 const playerColors = [
   "hsl(41, 100%, 40%)", // yellow
@@ -14,9 +12,7 @@ const playerColors = [
 ];
 let currentColor = 0;
 
-export const memberInventoryFields = ["bank", "inventory", "equipment", "runePouch", "seedVault"];
-
-const allItemSourceFields = [...memberInventoryFields, "potionStorage"];
+export const memberInventoryFields = ["inventory", "equipment"];
 
 const parsedFieldMappings = [
   {
@@ -25,28 +21,6 @@ const parsedFieldMappings = [
     parser: (value) => value,
     publishKey: "stats",
     updatedAttribute: "stats",
-  },
-  {
-    sourceKey: "quests",
-    targetKey: "quests",
-    parser: Quest.parseQuestData,
-    publishKey: "quests",
-    updatedAttribute: "quests",
-  },
-  {
-    sourceKey: "diary_vars",
-    targetKey: "diaries",
-    parser: AchievementDiary.parseDiaryData,
-    publishKey: "diaries",
-    updatedAttribute: "diaries",
-  },
-  {
-    sourceKey: "collection_log_v2",
-    targetKey: "collectionLog",
-    parser: Item.parseItemData,
-    publishKey: "collection_log_v2",
-    publishValueKey: "collectionLog",
-    updatedAttribute: "collection_log_v2",
   },
 ];
 
@@ -65,41 +39,13 @@ const itemFieldMappings = [
     publishKey: "equipment",
     updatedAttribute: "equipment",
   },
-  {
-    sourceKey: "bank",
-    targetKey: "bank",
-    inventoryName: "bank",
-    publishKey: "bank",
-    updatedAttribute: "bank",
-  },
-  {
-    sourceKey: "rune_pouch",
-    targetKey: "runePouch",
-    inventoryName: "runePouch",
-    publishKey: "runePouch",
-    updatedAttribute: "runePouch",
-  },
-  {
-    sourceKey: "seed_vault",
-    targetKey: "seedVault",
-    inventoryName: "seedVault",
-    publishKey: "seedVault",
-    updatedAttribute: "seedVault",
-  },
-  {
-    sourceKey: "potion_storage",
-    targetKey: "potionStorage",
-    inventoryName: "potionStorage",
-    publishKey: "potionStorage",
-    updatedAttribute: "potion_storage",
-  },
 ];
 
 export class MemberData {
   constructor(name) {
     this.name = name;
     this.itemQuantities = {};
-    for (const inventoryField of allItemSourceFields) {
+    for (const inventoryField of memberInventoryFields) {
       this.itemQuantities[inventoryField] = new Map();
     }
     this.inactive = false;
@@ -151,8 +97,6 @@ export class MemberData {
       this.applyItemFieldUpdate(memberData, field, updatedAttributes);
     }
 
-    this.applyInteractingUpdate(memberData, updatedAttributes);
-
     return updatedAttributes;
   }
 
@@ -169,18 +113,6 @@ export class MemberData {
     this.updateItemQuantitiesIn(field.inventoryName);
     this.publishUpdate(field.publishKey);
     updatedAttributes.add(field.updatedAttribute);
-  }
-
-  applyInteractingUpdate(memberData, updatedAttributes) {
-    if (!Object.hasOwn(memberData, "interacting")) return;
-
-    if (memberData.interacting) {
-      memberData.interacting.name = utility.removeTags(memberData.interacting.name);
-    }
-
-    this.interacting = memberData.interacting;
-    this.publishUpdate("interacting");
-    updatedAttributes.add("interacting");
   }
 
   publishUpdate(attributeName, publishValueKey = attributeName) {
@@ -268,20 +200,5 @@ export class MemberData {
       this.combatLevel = combatLevel;
       this.publishUpdate("combatLevel");
     }
-  }
-
-  hasQuestComplete(questName) {
-    if (!Quest.lookupByName || !this.quests) return false;
-
-    const questId = Quest.lookupByName.get(questName);
-
-    if (!questId) {
-      console.warn(`Unknown quest ${questName}`);
-      return false;
-    }
-
-    const questComplete = this.quests[questId]?.state === QuestState.FINISHED;
-
-    return questComplete;
   }
 }

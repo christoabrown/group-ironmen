@@ -1,60 +1,11 @@
-use crate::crypto::token_hash;
 use crate::error::ApiError;
 use crate::models::{
-    AggregateSkillData, AuditLogEntry, CreateGroup, GroupMember, GroupSkillData, MemberSkillData,
-    PlayerInfo, PlayerUserLink, SessionUser, UserInfo,
+    AggregateSkillData, AuditLogEntry, GroupMember, GroupSkillData, MemberSkillData, PlayerInfo,
+    PlayerUserLink, SessionUser, UserInfo,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
-use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{HashMap, HashSet};
-use tokio_postgres::{error::SqlState, Row};
-
-const CURRENT_GROUP_VERSION: i32 = 2;
-pub async fn create_group(client: &mut Client, create_group: &CreateGroup) -> Result<(), ApiError> {
-    let create_group_stmt = client.prepare_cached("INSERT INTO groupironman.groups (group_name, group_token_hash, version) VALUES($1, $2, $3) RETURNING group_id").await?;
-    let create_member_stmt = client
-        .prepare_cached("INSERT INTO groupironman.members (group_id, member_name) VALUES($1, $2)")
-        .await?;
-    let transaction = client.transaction().await?;
-
-    let hashed_token = token_hash(&create_group.token, &create_group.name);
-    let group_id: i64 = transaction
-        .query_one(
-            &create_group_stmt,
-            &[&create_group.name, &hashed_token, &CURRENT_GROUP_VERSION],
-        )
-        .await?
-        .try_get(0)
-        .map_err(ApiError::GroupCreationError)?;
-
-    for member_name in &create_group.member_names {
-        transaction
-            .execute(&create_member_stmt, &[&group_id, &member_name])
-            .await
-            .map_err(ApiError::GroupCreationError)?;
-    }
-
-    transaction
-        .commit()
-        .await
-        .map_err(ApiError::GroupCreationError)
-}
-
-pub async fn add_group_member(
-    client: &Client,
-    group_id: i64,
-    member_name: &str,
-) -> Result<(), ApiError> {
-    let create_member_stmt = client
-        .prepare_cached("INSERT INTO groupironman.members (group_id, member_name) VALUES($1, $2)")
-        .await?;
-    client
-        .execute(&create_member_stmt, &[&group_id, &member_name])
-        .await
-        .map_err(ApiError::AddMemberError)?;
-    Ok(())
-}
 
 pub async fn delete_skills_data_for_member(
     transaction: &Transaction<'_>,
@@ -75,48 +26,6 @@ DELETE FROM groupironman.skills_{} WHERE member_id=$1
     transaction
         .execute(&delete_skills_data_stmt, &[&member_id])
         .await?;
-
-    Ok(())
-}
-
-pub async fn delete_collection_log_data_for_member(
-    transaction: &Transaction<'_>,
-    member_id: i64,
-) -> Result<(), ApiError> {
-    let delete_queries = [
-        "DELETE FROM groupironman.collection_log WHERE member_id=$1",
-        "DELETE FROM groupironman.collection_log_new WHERE member_id=$1",
-    ];
-
-    for (idx, query) in delete_queries.iter().enumerate() {
-        let savepoint = format!("sp_collection_log_{}", idx);
-        transaction
-            .execute(&format!("SAVEPOINT {}", savepoint), &[])
-            .await?;
-
-        match transaction.execute(*query, &[&member_id]).await {
-            Ok(_) => {
-                transaction
-                    .execute(&format!("RELEASE SAVEPOINT {}", savepoint), &[])
-                    .await?;
-            }
-            Err(err) if err.code() == Some(&SqlState::UNDEFINED_TABLE) => {
-                log::debug!(
-                    "Skipping collection-log cleanup for missing table: {}",
-                    query
-                );
-                transaction
-                    .execute(&format!("ROLLBACK TO SAVEPOINT {}", savepoint), &[])
-                    .await?;
-            }
-            Err(err) => {
-                transaction
-                    .execute(&format!("ROLLBACK TO SAVEPOINT {}", savepoint), &[])
-                    .await?;
-                return Err(err.into());
-            }
-        }
-    }
 
     Ok(())
 }
@@ -149,7 +58,12 @@ pub async fn delete_group_member(
     delete_skills_data_for_member(&transaction, AggregatePeriod::Day, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Month, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Year, member_id).await?;
-    delete_collection_log_data_for_member(&transaction, member_id).await?;
+    transaction
+        .execute(
+            "DELETE FROM groupironman.user_player_links WHERE group_id=$1 AND member_name=$2",
+            &[&group_id, &member_name],
+        )
+        .await?;
 
     let stmt = transaction
         .prepare_cached("DELETE FROM groupironman.members WHERE group_id=$1 AND member_name=$2")
@@ -167,73 +81,20 @@ pub async fn delete_group_member(
     Ok(())
 }
 
-pub async fn rename_group_member(
-    client: &Client,
-    group_id: i64,
-    original_name: &str,
-    new_name: &str,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "UPDATE groupironman.members SET member_name=$1 WHERE group_id=$2 AND member_name=$3",
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&new_name, &group_id, &original_name])
-        .await
-        .map_err(ApiError::RenameGroupMemberError)?;
-    Ok(())
-}
-
 pub async fn is_member_in_group(
     client: &Client,
     group_id: i64,
     member_name: &str,
 ) -> Result<bool, ApiError> {
-    let stmt = client.prepare_cached("SELECT COUNT(member_name) FROM groupironman.members WHERE group_id=$1 AND member_name=$2").await?;
-    let member_count: i64 = client
-        .query_one(&stmt, &[&group_id, &member_name])
-        .await?
-        .try_get(0)
-        .map_err(ApiError::IsMemberInGroupError)?;
-    Ok(member_count > 0)
-}
-
-pub fn serialize_serde<T>(value: &Option<T>) -> Result<Option<String>, ApiError>
-where
-    T: Serialize,
-{
-    match value {
-        Some(v) => {
-            let result = serde_json::to_string(&v)?;
-            Ok(Some(result))
-        }
-        None => Ok(None),
-    }
-}
-
-pub async fn get_group(client: &Client, group_name: &str, token: &str) -> Result<i64, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT group_id FROM groupironman.groups WHERE group_token_hash=$1 AND group_name=$2",
+            "SELECT EXISTS(SELECT 1 FROM groupironman.members WHERE group_id=$1 AND member_name=$2)",
         )
         .await?;
-    let hashed_token = token_hash(token, group_name);
-    let group: Row = client
-        .query_one(&stmt, &[&hashed_token, &group_name])
-        .await
-        .map_err(ApiError::GetGroupError)?;
-    Ok(group.try_get(0)?)
-}
-
-fn try_deserialize_json_column<T>(row: &Row, column: &str) -> Result<Option<T>, ApiError>
-where
-    T: DeserializeOwned,
-{
-    match row.try_get(column) {
-        Ok(column_data) => Ok(serde_json::from_str(column_data).ok()),
-        Err(_) => Ok(None),
-    }
+    Ok(client
+        .query_one(&stmt, &[&group_id, &member_name])
+        .await?
+        .try_get(0)?)
 }
 
 pub async fn get_group_data(
@@ -246,22 +107,12 @@ pub async fn get_group_data(
             r#"
 SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
-quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
-rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update,
-collection_log_last_update, potion_storage_last_update) as last_updated,
+inventory_last_update, equipment_last_update) as last_updated,
 CASE WHEN stats_last_update >= $1::TIMESTAMPTZ THEN stats ELSE NULL END as stats,
 CASE WHEN coordinates_last_update >= $1::TIMESTAMPTZ THEN coordinates ELSE NULL END as coordinates,
 CASE WHEN skills_last_update >= $1::TIMESTAMPTZ THEN skills ELSE NULL END as skills,
-CASE WHEN quests_last_update >= $1::TIMESTAMPTZ THEN quests ELSE NULL END as quests,
 CASE WHEN inventory_last_update >= $1::TIMESTAMPTZ THEN inventory ELSE NULL END as inventory,
-CASE WHEN equipment_last_update >= $1::TIMESTAMPTZ THEN equipment ELSE NULL END as equipment,
-CASE WHEN bank_last_update >= $1::TIMESTAMPTZ THEN bank ELSE NULL END as bank,
-CASE WHEN rune_pouch_last_update >= $1::TIMESTAMPTZ THEN rune_pouch ELSE NULL END as rune_pouch,
-CASE WHEN interacting_last_update >= $1::TIMESTAMPTZ THEN interacting ELSE NULL END as interacting,
-CASE WHEN seed_vault_last_update >= $1::TIMESTAMPTZ THEN seed_vault ELSE NULL END as seed_vault,
-CASE WHEN diary_vars_last_update >= $1::TIMESTAMPTZ THEN diary_vars ELSE NULL END as diary_vars,
-CASE WHEN collection_log_last_update >= $1::TIMESTAMPTZ THEN collection_log ELSE NULL END as collection_log,
-CASE WHEN potion_storage_last_update >= $1::TIMESTAMPTZ THEN potion_storage ELSE NULL END as potion_storage
+CASE WHEN equipment_last_update >= $1::TIMESTAMPTZ THEN equipment ELSE NULL END as equipment
 FROM groupironman.members WHERE group_id=$2
 "#,
         )
@@ -282,17 +133,8 @@ FROM groupironman.members WHERE group_id=$2
             stats: row.try_get("stats").ok(),
             coordinates: row.try_get("coordinates").ok(),
             skills: row.try_get("skills").ok(),
-            quests: row.try_get("quests")?,
             inventory: row.try_get("inventory").ok(),
             equipment: row.try_get("equipment").ok(),
-            bank: row.try_get("bank").ok(),
-            rune_pouch: row.try_get("rune_pouch").ok(),
-            seed_vault: row.try_get("seed_vault").ok(),
-            interacting: try_deserialize_json_column(&row, "interacting")?,
-            diary_vars: row.try_get("diary_vars").ok(),
-            deposited: Option::None,
-            collection_log_v2: row.try_get("collection_log").ok(),
-            potion_storage: row.try_get("potion_storage").ok(),
             source_time: None,
         };
         result.push(group_member);
@@ -492,76 +334,6 @@ pub async fn commit_migration(transaction: &Transaction<'_>, name: &str) -> Resu
     Ok(())
 }
 
-pub async fn store_pairing_code(
-    client: &Client,
-    code: &str,
-    group_id: i64,
-    expires_at: &DateTime<Utc>,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.pairing_codes (code, group_id, expires_at) VALUES($1, $2, $3)",
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&code, &group_id, &expires_at])
-        .await?;
-    Ok(())
-}
-
-pub async fn consume_pairing_code(client: &Client, code: &str) -> Result<i64, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "DELETE FROM groupironman.pairing_codes WHERE code=$1 AND expires_at > NOW() RETURNING group_id",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&code])
-        .await
-        .map_err(ApiError::PairingCodeError)?;
-    Ok(row.try_get(0)?)
-}
-
-pub async fn store_device(
-    client: &Client,
-    device_id: &str,
-    group_id: i64,
-    token_hash: &str,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.devices (device_id, group_id, token_hash) VALUES($1, $2, $3)",
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&device_id, &group_id, &token_hash])
-        .await?;
-    Ok(())
-}
-
-pub async fn get_device_group(client: &Client, token_hash: &str) -> Result<i64, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT d.group_id FROM groupironman.devices d \
-             JOIN groupironman.users u ON d.user_id = u.user_id \
-             WHERE d.token_hash=$1 AND u.enabled = TRUE",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&token_hash])
-        .await
-        .map_err(ApiError::DeviceAuthError)?;
-    Ok(row.try_get(0)?)
-}
-
-pub async fn cleanup_expired_pairing_codes(client: &Client) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("DELETE FROM groupironman.pairing_codes WHERE expires_at <= NOW()")
-        .await?;
-    client.execute(&stmt, &[]).await?;
-    Ok(())
-}
-
 pub async fn ensure_member_exists(
     client: &Client,
     group_id: i64,
@@ -582,10 +354,8 @@ pub async fn list_players(client: &Client, group_id: i64) -> Result<Vec<PlayerIn
             r#"
 SELECT member_id, member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
-quests_last_update, inventory_last_update, equipment_last_update, bank_last_update,
-rune_pouch_last_update, interacting_last_update, seed_vault_last_update, diary_vars_last_update,
-collection_log_last_update, potion_storage_last_update) as last_updated,
-last_source, hub_account_id IS NOT NULL as hub_linked, hub_orphaned_at
+inventory_last_update, equipment_last_update) as last_updated,
+hub_account_id IS NOT NULL as hub_linked, hub_orphaned_at
 FROM groupironman.members WHERE group_id=$1
 ORDER BY member_name
 "#,
@@ -598,7 +368,6 @@ ORDER BY member_name
             member_id: row.try_get("member_id")?,
             member_name: row.try_get("member_name")?,
             last_updated: row.try_get("last_updated").ok(),
-            last_source: row.try_get("last_source")?,
             hub_linked: row.try_get("hub_linked")?,
             hub_orphaned_at: row.try_get("hub_orphaned_at")?,
         });
@@ -607,13 +376,13 @@ ORDER BY member_name
 }
 
 /// Member data columns that carry a `<column>_last_update` timestamp.
-pub const TIMESTAMPED_MEMBER_COLUMNS: [&str; 13] = [
-    "stats",
-    "coordinates",
-    "skills",
+pub const TIMESTAMPED_MEMBER_COLUMNS: [&str; 5] =
+    ["stats", "coordinates", "skills", "inventory", "equipment"];
+
+/// Group Ironman data the guild map never receives (neither the hub nor the
+/// plugin sends it), dropped by the `drop_group_ironman_data` migration.
+pub const DROPPED_MEMBER_COLUMNS: [&str; 8] = [
     "quests",
-    "inventory",
-    "equipment",
     "bank",
     "rune_pouch",
     "interacting",
@@ -928,86 +697,6 @@ ADD COLUMN IF NOT EXISTS collection_log INTEGER[]
         transaction.commit().await?;
     }
 
-    if !has_migration_run(client, "migrate_collection_log_v2").await?
-        && has_migration_run(client, "add_collection_log").await?
-    {
-        println!("beginning migration migrate_collection_log_v2");
-        let transaction = client.transaction().await?;
-
-        // collect the data to migrate
-        let rows = transaction
-            .query("SELECT member_id, items FROM groupironman.collection_log WHERE cardinality(items) > 0", &[])
-            .await
-            .unwrap();
-        let mut member_data: HashMap<i64, Vec<i32>> = HashMap::new();
-        for row in rows {
-            let member_id: i64 = row.try_get("member_id")?;
-            let items: Vec<i32> = row.try_get("items")?;
-
-            match member_data.get_mut(&member_id) {
-                Some(collection_log) => {
-                    collection_log.extend(items.iter());
-                }
-                None => {
-                    member_data.insert(member_id, items);
-                }
-            };
-        }
-        println!("need to migrate {} members", member_data.len());
-
-        // breakup into chunks
-        let chunk_size = 100;
-        let member_data_list: Vec<(i64, Vec<i32>)> = member_data.into_iter().collect();
-        let mut chunks = Vec::new();
-        for chunk_slice in member_data_list.chunks(chunk_size) {
-            let chunk_map: HashMap<i64, Vec<i32>> = chunk_slice.iter().cloned().collect();
-            chunks.push(chunk_map);
-        }
-        println!("split into {} chunks of size {}", chunks.len(), chunk_size);
-
-        // update new collection log column
-        for (i, chunk) in chunks.iter().enumerate() {
-            println!(
-                "migrating chunk {}/{} size {}",
-                i + 1,
-                chunks.len(),
-                chunk.len()
-            );
-            let mut values_clause = String::new();
-            for i in 0..chunk.len() {
-                values_clause.push_str(&format!(
-                    "(${}::BIGINT, ${}::INTEGER[])",
-                    i * 2 + 1,
-                    i * 2 + 2
-                ));
-                if i < chunk.len() - 1 {
-                    values_clause.push_str(", ");
-                }
-            }
-            let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = Vec::new();
-            for (member_id, items) in chunk.iter() {
-                params.push(member_id);
-                params.push(items);
-            }
-
-            // timestamp is set to value that will return on the initial frontend request, but does not show the player as online
-            let update_query = format!(
-                r#"
-UPDATE groupironman.members as a SET collection_log=b.collection_log, collection_log_last_update='epoch'::timestamptz + INTERVAL '5 days'
-FROM (VALUES {}) AS b(member_id, collection_log)
-WHERE a.member_id=b.member_id
-"#,
-                values_clause
-            );
-
-            transaction.execute(&update_query, &params).await?;
-        }
-
-        commit_migration(&transaction, "migrate_collection_log_v2").await?;
-        transaction.commit().await?;
-        println!("finished migration migrate_collection_log_v2");
-    }
-
     if !has_migration_run(client, "update_timestamp_triggers").await? {
         let transaction = client.transaction().await?;
 
@@ -1240,6 +929,40 @@ ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'device';
             )
             .await?;
         commit_migration(&transaction, "add_hub_columns").await?;
+        transaction.commit().await?;
+    }
+
+    if !has_migration_run(client, "drop_group_ironman_data").await? {
+        let transaction = client.transaction().await?;
+        // The triggers' WHEN clauses depend on the columns, so they go first.
+        for name in DROPPED_MEMBER_COLUMNS {
+            transaction
+                .batch_execute(&format!(
+                    r#"
+DROP TRIGGER IF EXISTS set_{0}_timestamp ON groupironman.members;
+DROP FUNCTION IF EXISTS groupironman.update_{0}_timestamp();
+ALTER TABLE groupironman.members
+DROP COLUMN IF EXISTS {0},
+DROP COLUMN IF EXISTS {0}_last_update;
+"#,
+                    name
+                ))
+                .await?;
+        }
+        transaction
+            .batch_execute(
+                r#"
+ALTER TABLE groupironman.members DROP COLUMN IF EXISTS last_source;
+DROP TABLE IF EXISTS groupironman.devices;
+DROP TABLE IF EXISTS groupironman.pairing_codes;
+DROP TABLE IF EXISTS groupironman.collection_log;
+DROP TABLE IF EXISTS groupironman.collection_log_new;
+UPDATE groupironman.user_player_links SET source='manual' WHERE source='device';
+ALTER TABLE groupironman.user_player_links ALTER COLUMN source SET DEFAULT 'manual';
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "drop_group_ironman_data").await?;
         transaction.commit().await?;
     }
 
@@ -1493,79 +1216,6 @@ pub async fn get_audit_log(client: &Client, limit: i64) -> Result<Vec<AuditLogEn
     Ok(entries)
 }
 
-// Per-user pairing code management
-
-pub async fn store_pairing_code_for_user(
-    client: &Client,
-    code: &str,
-    group_id: i64,
-    user_id: i64,
-    expires_at: &DateTime<Utc>,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.pairing_codes (code, group_id, user_id, expires_at) VALUES($1, $2, $3, $4)",
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&code, &group_id, &user_id, &expires_at])
-        .await?;
-    Ok(())
-}
-
-pub async fn consume_pairing_code_with_user(
-    client: &Client,
-    code: &str,
-) -> Result<(i64, Option<i64>), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "DELETE FROM groupironman.pairing_codes WHERE code=$1 AND expires_at > NOW() RETURNING group_id, user_id",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&code])
-        .await
-        .map_err(ApiError::PairingCodeError)?;
-    let group_id: i64 = row.try_get(0)?;
-    let user_id: Option<i64> = row.try_get(1).ok();
-    Ok((group_id, user_id))
-}
-
-pub async fn store_device_for_user(
-    client: &Client,
-    device_id: &str,
-    group_id: i64,
-    user_id: Option<i64>,
-    token_hash: &str,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.devices (device_id, group_id, user_id, token_hash) VALUES($1, $2, $3, $4)",
-        )
-        .await?;
-    let user_id_ref: Option<&i64> = user_id.as_ref();
-    client
-        .execute(&stmt, &[&device_id, &group_id, &user_id_ref, &token_hash])
-        .await?;
-    Ok(())
-}
-
-pub async fn revoke_user_devices(client: &Client, user_id: i64) -> Result<u64, ApiError> {
-    let stmt = client
-        .prepare_cached("DELETE FROM groupironman.devices WHERE user_id=$1")
-        .await?;
-    let count = client.execute(&stmt, &[&user_id]).await?;
-    Ok(count)
-}
-
-pub async fn revoke_user_pairing_codes(client: &Client, user_id: i64) -> Result<u64, ApiError> {
-    let stmt = client
-        .prepare_cached("DELETE FROM groupironman.pairing_codes WHERE user_id=$1")
-        .await?;
-    let count = client.execute(&stmt, &[&user_id]).await?;
-    Ok(count)
-}
-
 // Singleton group: get or create the single group for this instance
 pub async fn get_or_create_singleton_group(client: &mut Client) -> Result<i64, ApiError> {
     // Try to find the first group
@@ -1582,7 +1232,8 @@ pub async fn get_or_create_singleton_group(client: &mut Client) -> Result<i64, A
             "INSERT INTO groupironman.groups (group_name, group_token_hash) VALUES($1, $2) RETURNING group_id",
         )
         .await?;
-    let placeholder_hash = token_hash("singleton", "singleton");
+    // Left over from group tokens; nothing authenticates against it.
+    let placeholder_hash = "0".repeat(64);
     let row = client
         .query_one(&create_stmt, &[&"clan", &placeholder_hash])
         .await?;
@@ -1590,20 +1241,6 @@ pub async fn get_or_create_singleton_group(client: &mut Client) -> Result<i64, A
 }
 
 // User-player link tracking
-
-pub async fn get_device_user_id(
-    client: &Client,
-    token_hash: &str,
-) -> Result<Option<i64>, ApiError> {
-    let stmt = client
-        .prepare_cached("SELECT user_id FROM groupironman.devices WHERE token_hash=$1")
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&token_hash])
-        .await
-        .map_err(ApiError::DeviceAuthError)?;
-    Ok(row.try_get::<_, Option<i64>>(0)?)
-}
 
 pub async fn upsert_user_player_link(
     client: &Client,
@@ -1841,31 +1478,12 @@ pub async fn set_hub_seen(
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "UPDATE groupironman.members SET hub_last_seen=COALESCE($3, hub_last_seen, NOW()), \
-             last_source='hub' WHERE group_id=$1 AND member_name=$2",
+            "UPDATE groupironman.members SET hub_last_seen=COALESCE($3, hub_last_seen, NOW()) \
+             WHERE group_id=$1 AND member_name=$2",
         )
         .await?;
     client
         .execute(&stmt, &[&group_id, &member_name, &hub_last_seen])
-        .await?;
-    Ok(())
-}
-
-/// Records that a member was last updated by direct plugin ingest.
-pub async fn set_direct_source(
-    client: &Client,
-    group_id: i64,
-    member_name: &str,
-    account_hash: Option<&str>,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "UPDATE groupironman.members SET last_source='direct', \
-             account_hash=COALESCE($3, account_hash) WHERE group_id=$1 AND member_name=$2",
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&group_id, &member_name, &account_hash])
         .await?;
     Ok(())
 }
@@ -1961,7 +1579,7 @@ pub async fn get_user_id_by_discord_id(
 }
 
 /// Links a user to a player, recording where the link came from
-/// (`device`, `hub` or `manual`). An existing link keeps its source.
+/// (`hub` or `manual`). An existing link keeps its source.
 pub async fn upsert_user_player_link_with_source(
     client: &Client,
     user_id: i64,

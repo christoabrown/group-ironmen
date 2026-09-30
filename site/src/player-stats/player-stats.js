@@ -5,7 +5,6 @@ export class PlayerStats extends BaseElement {
     super();
     this.hitpoints = { current: 1, max: 1 };
     this.prayer = { current: 1, max: 1 };
-    this.energy = { current: 1, max: 1 };
     this.world = 301;
   }
 
@@ -21,7 +20,6 @@ export class PlayerStats extends BaseElement {
 
     this.hitpointsBar = this.querySelector(".player-stats__hitpoints-bar");
     this.prayerBar = this.querySelector(".player-stats__prayer-bar");
-    this.energyBar = this.querySelector(".player-stats__energy-bar");
 
     this.subscribe(`stats:${this.playerName}`, this.handleUpdatedStats.bind(this));
     this.subscribe(`inactive:${this.playerName}`, this.handleWentInactive.bind(this));
@@ -63,7 +61,7 @@ export class PlayerStats extends BaseElement {
   }
 
   updateStatBars(stats) {
-    if (stats.hitpoints === undefined || stats.prayer === undefined || stats.energy === undefined) {
+    if (stats.hitpoints === undefined || stats.prayer === undefined) {
       return;
     }
 
@@ -74,7 +72,6 @@ export class PlayerStats extends BaseElement {
       if (!this.isConnected) return;
       this.hitpointsBar.update(stats.hitpoints.current / stats.hitpoints.max);
       this.prayerBar.update(stats.prayer.current / stats.prayer.max);
-      this.energyBar.update(stats.energy.current / stats.energy.max);
     });
   }
 
