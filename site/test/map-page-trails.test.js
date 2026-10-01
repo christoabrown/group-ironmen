@@ -20,6 +20,7 @@ function fakeWorldMap() {
     trailNames: () => [...drawn],
     setTrailDeaths: vi.fn(),
     setEventFilters: vi.fn(),
+    focusEvent: vi.fn(() => true),
     setReplayTime: vi.fn(),
     trailNextChange: vi.fn(() => null),
     trailNextHop: vi.fn(() => null),
@@ -297,12 +298,10 @@ describe("map page trails", () => {
     });
 
     it("show the map where it happened when clicked", () => {
-      const focused = [];
-      pubsub.subscribe("map-focus", (focus) => focused.push(focus));
       mount();
-      arrive({ ...drop("d", 5), type: "death", location: { x: 3142, y: 9958, plane: 0 } });
+      arrive(drop("d", 5));
       page.querySelector(".event-toasts__toast").click();
-      expect(focused).toEqual([{ x: 3142, y: 9959, plane: 0, zoom: undefined }]);
+      expect(worldMap.focusEvent).toHaveBeenCalledWith("d");
       expect(shown()).toEqual([]);
     });
 

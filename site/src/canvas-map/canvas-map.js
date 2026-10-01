@@ -6,7 +6,8 @@ import { selection } from "../data/selection";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
 import { colorForName } from "../data/player-colors";
-import { escapeHtml, eventPlace, loadEventFilters } from "../data/event-view";
+import { groupData } from "../data/group-data";
+import { escapeHtml, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
 import { EventMarkers, clusterPoints, layoutMarkers } from "./event-markers";
 import { drawEventMarkers } from "./event-marker-renderer";
 import { IconCache } from "./icon-cache";
@@ -126,6 +127,7 @@ export class CanvasMap extends BaseElement {
     this.eventFrameTimer = null;
     this.hideMapLinkTooltip();
     this.hidePlayerTooltip();
+    this.hideEventTooltip();
     this.hideTrailTooltip();
     super.disconnectedCallback();
   }
@@ -950,8 +952,14 @@ export class CanvasMap extends BaseElement {
     }
   }
 
-  /** What a click on a player or a group of players does. */
+  /** What a click on a player, a group of players or an event does. */
   activatePlayerItem(item) {
+    if (item.kind === "event") {
+      const { event } = item.marker.top;
+      if (groupData.members.has(event.member)) selection.select(event.member, { follow: false });
+      this.focusEvent(event.id);
+      return;
+    }
     if (item.kind === "player") {
       selection.select(item.name, { follow: true });
       return;
@@ -1055,6 +1063,45 @@ export class CanvasMap extends BaseElement {
     drawEventMarkers(this.ctx, items, { icons: this.eventIcons });
     this.renderedEvents = items;
     if (nextMs !== null) this.requestEventFrame(nextMs);
+  }
+
+  /** The drawn event (or stack of events) under a client position, if any; see layoutMarkers. */
+  getEventAtClient(clientX, clientY) {
+    if (!this.renderedEvents?.length) return null;
+    const canvasRect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
+    const x = clientX - canvasRect.left;
+    const y = clientY - canvasRect.top;
+    // The last drawn is on top.
+    for (let i = this.renderedEvents.length - 1; i >= 0; i--) {
+      const marker = this.renderedEvents[i];
+      const reach = marker.r + 3;
+      if ((marker.x - x) ** 2 + (marker.y - y) ** 2 <= reach * reach) return marker;
+    }
+    return null;
+  }
+
+  eventTooltip(marker) {
+    const { tileX, tileY } = marker.top;
+    return eventTooltipHtml(
+      marker.members.map((member) => member.event),
+      { now: api.serverNow(), place: regionName(tileX, tileY - 1), approximate: marker.approximate }
+    );
+  }
+
+  hideEventTooltip() {
+    this.hoveredEvent = null;
+    if (this.eventTooltipShown) {
+      this.eventTooltipShown = false;
+      tooltipManager.hideTooltip();
+    }
+  }
+
+  /** Brings an event's marker to the middle of the map. Returns whether the event is on the map. */
+  focusEvent(id) {
+    const marker = this.eventMarkersInstance?.find(id);
+    if (!marker) return false;
+    this.handleMapFocus({ x: marker.x, y: marker.y, plane: marker.plane });
+    return true;
   }
 
   /** Asks for the map to be drawn again in a while, for the sake of the events on it. */
@@ -1359,6 +1406,7 @@ export class CanvasMap extends BaseElement {
     this.pendingPlayer = null;
     this.hoveredPlayer = null;
     this.hidePlayerTooltip();
+    this.hideEventTooltip();
     this.hideTrailTooltip();
     this.pendingMapLink = null;
     this.pointerDragged = false;
@@ -1400,6 +1448,11 @@ export class CanvasMap extends BaseElement {
       this.beginPlayerPress(player, event.clientX, event.clientY);
       return;
     }
+    const marker = this.getEventAtClient(event.clientX, event.clientY);
+    if (marker) {
+      this.beginPlayerPress({ kind: "event", marker }, event.clientX, event.clientY);
+      return;
+    }
     this.startDragging(event.clientX, event.clientY);
   }
 
@@ -1418,6 +1471,7 @@ export class CanvasMap extends BaseElement {
       this.pendingPlayer = null;
       this.pointerDragged = true;
       this.hidePlayerTooltip();
+      this.hideEventTooltip();
       this.startDragging(clientX, clientY);
       return true;
     }
@@ -1455,6 +1509,12 @@ export class CanvasMap extends BaseElement {
         event.preventDefault();
         return;
       }
+      const marker = this.getEventAtClient(touch.clientX, touch.clientY);
+      if (marker) {
+        this.beginPlayerPress({ kind: "event", marker }, touch.clientX, touch.clientY);
+        event.preventDefault();
+        return;
+      }
     } else if (event.touches.length === 2) {
       this.pendingMapLink = null;
       this.touch.startDistance = this.pinchDistance(event.touches);
@@ -1464,6 +1524,7 @@ export class CanvasMap extends BaseElement {
 
   startDragging(x, y) {
     this.hideTrailTooltip();
+    this.hideEventTooltip();
     // Whoever was moving the camera for the user (the replay) should let go.
     this.dispatchEvent(new CustomEvent("map-dragged"));
     this.classList.add("dragging");
@@ -1488,6 +1549,7 @@ export class CanvasMap extends BaseElement {
       this.pendingPlayer = null;
       this.pointerDragged = false;
       this.hidePlayerTooltip();
+      this.hideEventTooltip();
       this.activatePlayerItem(item);
       return;
     }
@@ -1536,6 +1598,7 @@ export class CanvasMap extends BaseElement {
     const link = this.getLinkAtClient(event.clientX, event.clientY);
     if (link) {
       this.hideTrailTooltip();
+      this.hideEventTooltip();
       if (this.hoveredMapLink?.key !== link.key) {
         this.hoveredMapLink = link;
         this.showMapLinkTooltip(link, event);
@@ -1555,6 +1618,7 @@ export class CanvasMap extends BaseElement {
         this.requestUpdate();
       }
       this.hideTrailTooltip();
+      this.hideEventTooltip();
       this.playerTooltipShown = true;
       tooltipManager.showTooltip(this.playerTooltip(player), event);
       this.style.cursor = "pointer";
@@ -1565,6 +1629,21 @@ export class CanvasMap extends BaseElement {
       this.requestUpdate();
     }
     this.hidePlayerTooltip();
+    const marker = this.getEventAtClient(event.clientX, event.clientY);
+    if (marker) {
+      this.hideTrailTooltip();
+      // Shown once per marker, not on every move: the tooltip holds an image,
+      // and follows the pointer by itself.
+      const key = marker.members.map((member) => member.id).join();
+      if (this.hoveredEvent !== key) {
+        this.hoveredEvent = key;
+        this.eventTooltipShown = true;
+        tooltipManager.showTooltip(this.eventTooltip(marker), event);
+      }
+      this.style.cursor = "pointer";
+      return;
+    }
+    this.hideEventTooltip();
     this.style.cursor = "";
     // A trail is only looked at, so hovering it leaves the cursor alone.
     const trail = this.getTrailAtClient(event.clientX, event.clientY);

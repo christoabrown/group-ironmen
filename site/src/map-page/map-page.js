@@ -9,7 +9,6 @@ import {
   MIN_LOOT_OPTIONS,
   eventIsFresh,
   eventPasses,
-  eventPlace,
   loadEventFilters,
 } from "../data/event-view";
 import { deathMarks } from "../canvas-map/trail-model";
@@ -352,11 +351,13 @@ export class MapPage extends BaseElement {
     }
   }
 
-  /** Brings an event into view and selects its player, as a click on its toast asks. */
+  /**
+   * Brings an event into view and selects its player, as a click on its toast
+   * asks. An event that isn't on the map shows where its player is now.
+   */
   focusEvent(event) {
-    const place = eventPlace(event);
-    if (place) selection.focusMap(place.x, place.y, place.plane);
-    if (groupData.members.has(event.member)) selection.select(event.member, { follow: !place });
+    const shown = this.worldMap.focusEvent(event.id);
+    if (groupData.members.has(event.member)) selection.select(event.member, { follow: !shown });
   }
 }
 customElements.define("map-page", MapPage);

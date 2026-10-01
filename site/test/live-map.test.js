@@ -9,6 +9,8 @@ import { CanvasMap } from "../src/canvas-map/canvas-map";
 import { EVENT_FRAME_MS, EVENT_MARKER_MS, EVENT_WAKE_MS } from "../src/canvas-map/event-markers";
 import { api } from "../src/data/api";
 import { defaultEventFilters } from "../src/data/event-view";
+import { groupData } from "../src/data/group-data";
+import { tooltipManager } from "../src/rs-tooltip/tooltip-manager";
 import { LiveEvents } from "../src/data/live-events";
 import { pubsub } from "../src/data/pubsub";
 import { selection } from "../src/data/selection";
@@ -250,6 +252,83 @@ describe("events on the map", () => {
     map.drawEvents();
     expect(map.renderedEvents).toEqual([]);
     expect(map.eventMarkers.find("a")).toBeNull();
+  });
+
+  describe("under the pointer", () => {
+    let x, y;
+
+    beforeEach(() => {
+      map.processPointerMove = vi.fn();
+      map.handleLiveEvents({
+        events: [
+          drop("a", MINUTE, { line: "Alice received a whip" }),
+          drop("b", 2 * MINUTE, { line: "Alice got more" }),
+        ],
+        added: [],
+        initial: true,
+      });
+      map.drawEvents();
+      ({ x, y } = map.renderedEvents[0]);
+    });
+
+    it("say what happened, once for as long as the pointer stays", () => {
+      map.onPointerMove({ clientX: x, clientY: y });
+      map.onPointerMove({ clientX: x + 2, clientY: y });
+      expect(tooltipManager.showTooltip).toHaveBeenCalledTimes(1);
+      const [html] = tooltipManager.showTooltip.mock.calls[0];
+      expect(html).toContain("Alice received a whip");
+      expect(html).toContain("Alice got more");
+      expect(html).toContain("Position approximate");
+      expect(map.style.cursor).toBe("pointer");
+
+      map.onPointerMove({ clientX: x + 200, clientY: y });
+      expect(tooltipManager.hideTooltip).toHaveBeenCalledTimes(1);
+      expect(map.style.cursor).toBe("");
+    });
+
+    it("come after a player who is in the same spot", () => {
+      map.renderedPlayers = [{ kind: "player", name: "Alice", x, y, r: 8, player: alice }];
+      map.onPointerMove({ clientX: x, clientY: y });
+      const [html] = tooltipManager.showTooltip.mock.calls[0];
+      expect(html).toContain("<strong>Alice</strong>");
+      expect(html).not.toContain("whip");
+    });
+
+    it("select their player and come to the middle of the map when clicked", () => {
+      groupData.members = new Map([["Alice", {}]]);
+      const selected = [];
+      pubsub.subscribe("player-selected", (value) => selected.push(value));
+      // Off to one side, but in view.
+      centerOn(map, 3020, 3010);
+      map.drawEvents();
+      ({ x, y } = map.renderedEvents[0]);
+
+      map.onPointerDown({ clientX: x, clientY: y });
+      map.stopDragging();
+      expect(selected).toEqual([{ name: "Alice", follow: false }]);
+      const [cx, cy] = map.gamePositionToCameraCenter(3000, 3001);
+      expect(map.camera.x.target).toBe(cx);
+      expect(map.camera.y.target).toBe(cy);
+    });
+
+    it("leave the selection alone when the press turns into a drag", () => {
+      groupData.members = new Map([["Alice", {}]]);
+      const selected = [];
+      pubsub.subscribe("player-selected", (value) => selected.push(value));
+      map.startDragging = vi.fn();
+      map.onPointerDown({ clientX: x, clientY: y });
+      map.onPointerMove({ clientX: x + 40, clientY: y });
+      expect(map.startDragging).toHaveBeenCalled();
+      map.stopDragging();
+      expect(selected).toEqual([]);
+    });
+
+    it("can be brought into view by their event", () => {
+      centerOn(map, 3100, 3100);
+      expect(map.focusEvent("a")).toBe(true);
+      expect(map.camera.x.target).toBe(map.gamePositionToCameraCenter(3000, 3001)[0]);
+      expect(map.focusEvent("nope")).toBe(false);
+    });
   });
 
   it("draw nothing on a map no event has reached", () => {
