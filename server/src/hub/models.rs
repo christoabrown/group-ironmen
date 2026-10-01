@@ -205,6 +205,10 @@ pub struct HubLocationPoint {
     pub x: i32,
     pub y: i32,
     pub plane: i32,
+    #[serde(default)]
+    pub world: Option<i32>,
+    #[serde(default)]
+    pub is_on_boat: Option<bool>,
 }
 
 /// `GET /leaderboards/gains`.
