@@ -22,8 +22,14 @@ of Group Ironman teams:
 ## Features
 
 - **Live map** of every online player in their own colour. Players close together merge into a counted
-  bubble when zoomed out, names never overlap, and a click opens the player. Loot, level ups and deaths
-  ping on the map where they happen, and deaths leave a marker for ten minutes.
+  bubble when zoomed out, names never overlap, and a click opens the player.
+- **Events on the map**: loot, level ups, deaths, collection log slots, diaries, combat tasks and
+  superior spawns each get a marker with their icon where they happened, which stays for half an hour;
+  drops of a million and up get a gold ring, ten million and up a bigger one. Markers on the same spot
+  stack with a count. Hover one for what happened and when, click it to go there and open the player.
+  A toast in the corner of the map page announces each event as it happens. Checkboxes above the map
+  choose the kinds, the smallest drop worth showing and whether toasts appear. The events of the last
+  half hour are back on the map after a reload.
 - **Player list** next to the map: search by name, owner or place, filter online/offline, sort by place,
   total level, world or last seen. Each row shows the world, the place ("Lumbridge", "Wilderness (level
   24)") and HP.
@@ -32,9 +38,12 @@ of Group Ironman teams:
   gear changes; recent events. The map follows the player while it's open.
 - **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days). A
   trail ends on the player's marker and grows as they move, fading with age. Teleports are drawn as arcs,
-  boat trips as waves, deaths as a red cross, and parts on another floor faintly. Hover a trail to see
-  when the player was where, or press Replay to play the routes back on a timeline; the map follows the
-  player while it plays, until you drag it, and waits a moment wherever they teleport or go underground. The trails you had on are still there after a reload.
+  boat trips as waves, and parts on another floor faintly. The player's events are marked along it
+  (their newest 200; an event that doesn't say where it happened goes where the trail has the player at
+  the time). Hover a trail to see when the player was where, or press Replay to play the routes back on
+  a timeline with a tick for every event; the map follows the player while it plays, until you drag it,
+  waits a moment wherever they teleport or go underground, and each event rings as the replay passes
+  it. The trails you had on are still there after a reload.
 - **Clan page**: who's online and where (click a place to see it on the map), which worlds, the top XP
   gainers, the biggest drops of the day, week or month, and the event feed.
 - **Players page**: a sortable table of everyone, with type, owner, totals and carried value.
@@ -89,7 +98,7 @@ the guild, and the map shows exactly that. A player who keeps their location pri
 2. Give the key at least these categories:
    - `activity` and `location_live` for the map and the player list;
    - `stats`, `equipment` and `inventory` for profiles and graphs;
-   - `events` and `location_history` for the Clan page, map pings and trails.
+   - `events` and `location_history` for the Clan page, the events on the map and trails.
 
    The Clan page's "Biggest drops" and the profile's game state need a hub with D-94
    (`/leaderboards/loot`, `game_state`); an older hub gets drops from recent events only.
@@ -182,7 +191,9 @@ npm start
 To try the map without a hub, run the mock and point the backend at it. `MOCK_HUB_ACCOUNTS` sets how
 many players it serves (default 12); every fourth keeps its inventory, equipment and trail private. The
 first player walks a fixed 40-minute route with everything a trail can show (teleports, a boat trip,
-stairs, a dungeon, a death, a logout); `MOCK_HUB_TRAIL_HOURS` sets how far back trails go (default 6).
+stairs, a dungeon, a death, a logout) and the same events every lap (a level, a 14.5M drop, a collection
+log slot); `MOCK_HUB_TRAIL_HOURS` sets how far back trails go (default 6). The other players get an
+event of every type at random, one every `MOCK_HUB_EVENT_MS` (default 4000).
 
 ```bash
 MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key

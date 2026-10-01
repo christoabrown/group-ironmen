@@ -10,7 +10,7 @@ for local development.
 |---|---|---|
 | `GET /me` | Key kind, rate limit and bulk size at start-up; admin "Test connection" | – |
 | `GET /snapshot?since=` (ETag) | Mirrored into the members table every 5 s, full refresh every 2 min | – |
-| `GET /events?cursor=` | One follower every 5 s into a 1000-event buffer: the Clan feed, map pings, deaths | – |
+| `GET /events?cursor=` | One follower every 5 s into a 1000-event buffer: the Clan feed, the events on the map and its toasts | – |
 | `GET /xp?accounts=` (≤50) | Graphs | 5 min |
 | `GET /leaderboards/gains` | Clan page, the graphs' default players | 5 min |
 | `GET /leaderboards/loot` | Clan page "Biggest drops" (falls back to the event buffer on older hubs) | 1 min |
@@ -19,7 +19,7 @@ for local development.
 | `GET /accounts/{id}/sessions` | Profile → Activity (play time) | 1 min |
 | `GET /accounts/{id}/wealth` | Profile → Wealth | 5 min |
 | `GET /accounts/{id}/equipment-history` | Profile → Gear | 2 min |
-| `GET /events?accounts=` | Profile → Activity (a player's recent events) | 30 s |
+| `GET /events?accounts=` | Profile → Activity (a player's recent events); the events marked on a trail (the newest 200, asked for once per trail and again every 10 min) | 30 s |
 
 ## Snapshot fields
 

@@ -133,6 +133,21 @@ Branch `red/map-events`, one commit per step, tests first in each. Each step lea
 8. Switch on the routed account's trail: events sit on the path with no duplicate at the head. Replay with Skip idle: marks ahead are dim, pop as the ghost passes, and match the ticks.
 9. `ICONS_BASE_URL=""`: the skull still draws, other kinds fall back to discs.
 
+## As built
+Where the implementation differs from the plan above:
+- **The marker's disc is the brown of the game's inventory**, not dark blue: item sprites were drawn against it, and dark ones (a draconic visage) vanished on the dark disc.
+- **A clicked event comes to the middle of what the profile drawer leaves of the map.** The click selects the player, which opens the drawer over the middle of a narrow window.
+- **A marker has a short stem** from the tile it belongs to down to its badge.
+- **The feed starting over clears the live markers.** That is a backend restart or a log-in to another group; remembered places put them back where they were.
+- **An event whose player isn't on the map yet is placed when they turn up**, on the next roster update, as a guess unless it only just happened.
+- **`trail-layer` keeps the raw events and places them itself** (`setEvents`, `marksOn`), so marks follow the trail as it grows; `canvas-map` copies them into the marker store whenever the trails change. The map page hands over events with `setTrailEvents(Map)`.
+- **The scrubber's tick classes** are `--loot`, `--level`, `--other`, `--death` and `--notable`.
+- **`event-places.js`** holds the remembered places (localStorage `map-event-places`).
+- **The replay doesn't hold on an event.** It rings (at most three at once) and goes on.
+- **The filter checkboxes had no visible state**, as suspected: the input sat inside its label. Fixed here and for the replay's Follow and Skip idle.
+
+Checked in a browser against the mock hub: markers, stacks, the tooltip, click and toast click, the Toasts toggle, toasts beside the profile drawer and beside a roster docked right, a reload, another page and back, events on a trail, and the replay's ticks, dimming and rings. Not checked in a browser, only in tests: expiry after half an hour and `ICONS_BASE_URL=""`.
+
 ## Risks and limits
 - Whether `occurred_at` and the browser clock agree well enough for the 90 s freshness test is unverified.
 - Which `item_id` a real `collection_log` event carries, and the hub's `tier` strings, are unverified; the mock invents both.
