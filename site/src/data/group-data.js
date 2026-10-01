@@ -94,6 +94,11 @@ export class GroupData {
     return [...this.members.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** How many of an item one member has in their inventory or their equipment. */
+  inventoryQuantityForItem(itemId, memberName, inventoryType) {
+    return this.members.get(memberName)?.itemQuantities?.[inventoryType]?.get(itemId) || 0;
+  }
+
   static transformItemsFromStorage(items) {
     if (items === undefined || items === null) return;
 
