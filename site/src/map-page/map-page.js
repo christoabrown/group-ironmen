@@ -27,6 +27,12 @@ function staleNotice(asOf) {
   return `Hub data from ${time}`;
 }
 
+/** The day a trail (as the server sends it) starts, e.g. "26 Sep". */
+function trailStartDay(trail) {
+  const [, , , time, dwell = 0] = trail.points[0];
+  return new Date((time - dwell) * 1000).toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
 /** The trail length chosen last time, when the select still offers it. */
 function storedTrailDays(select) {
   let stored = null;
@@ -308,9 +314,12 @@ export class MapPage extends BaseElement {
         const trail = this.trailData.get(name);
         const notShared = trail && !trail.shared;
         const empty = trail?.shared && trail.points.length === 0;
-        chip.textContent = `${name}${notShared ? " (not shared)" : empty ? " (no points)" : ""}`;
+        // The server cuts a trail with more than it can send down to its newest part.
+        const since = trail?.shared && trail.truncated && !empty ? trailStartDay(trail) : null;
+        const note = notShared ? " (not shared)" : empty ? " (no points)" : since ? ` (since ${since})` : "";
+        chip.textContent = `${name}${note}`;
         chip.classList.toggle("map-page__trail-chip--off", Boolean(notShared || empty));
-        chip.title = "Remove this trail";
+        chip.title = since ? "Too much to show for the whole period. Remove this trail" : "Remove this trail";
         return chip;
       })
     );

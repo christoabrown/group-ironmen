@@ -162,6 +162,23 @@ describe("map page trails", () => {
     expect(page.querySelector('[data-name="Bob"]').textContent).toContain("not shared");
   });
 
+  it("says from when a trail runs that was too long to show whole", async () => {
+    const response = trailsResponse(["Alice", "Bob"]);
+    response.trails[0].truncated = true;
+    response.trails[0].points = [
+      [3200, 3200, 0, NOW_S - 5 * 86400],
+      [3201, 3200, 0, NOW_S - 60],
+    ];
+    vi.spyOn(api, "getTrails").mockResolvedValue(response);
+    mount();
+    selection.toggleTrail("Alice");
+    selection.toggleTrail("Bob");
+    await settle();
+    const since = new Date((NOW_S - 5 * 86400) * 1000).toLocaleDateString([], { day: "numeric", month: "short" });
+    expect(page.querySelector('[data-name="Alice"]').textContent).toBe(`Alice (since ${since})`);
+    expect(page.querySelector('[data-name="Bob"]').textContent).toBe("Bob");
+  });
+
   describe("deaths", () => {
     const death = (id, member, secondsAgo) => ({
       id,
