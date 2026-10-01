@@ -5,6 +5,11 @@
   "internalChecksFilter": "strict",
   "packageRules": [
     {
+      "description": "Everything below a major merges itself once CI is green, after the 7 days above. A major is left out of the list, so it stays an open PR for a person to read and merge.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+      "automerge": true
+    },
+    {
       "description": "docker-compose.yml, docker-compose-local.yml and ci.yml pin the same Postgres image, and the Kubernetes deployment mirrors it (docs/DEPLOYMENT.md): bump all three in one PR so they cannot drift.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["postgres"],
