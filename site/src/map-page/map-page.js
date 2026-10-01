@@ -387,8 +387,11 @@ export class MapPage extends BaseElement {
    * asks. An event that isn't on the map shows where its player is now.
    */
   focusEvent(event) {
+    const known = groupData.members.has(event.member);
+    // Selected first: the map keeps the event clear of the drawer that opens.
+    if (known) selection.select(event.member, { follow: false });
     const shown = this.worldMap.focusEvent(event.id);
-    if (groupData.members.has(event.member)) selection.select(event.member, { follow: !shown });
+    if (known && !shown) selection.select(event.member, { follow: true });
   }
 }
 customElements.define("map-page", MapPage);

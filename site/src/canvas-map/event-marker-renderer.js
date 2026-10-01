@@ -1,7 +1,8 @@
 import { eventIconUrl } from "../data/event-view";
 import { EVENT_RING_MS } from "./event-markers";
 
-const DISC = "rgba(10, 15, 30, 0.9)";
+// The brown of the game's inventory, which its item sprites were drawn to stand out against.
+const DISC = "rgba(62, 53, 41, 0.95)";
 const OUTLINE = "#0a0f1e";
 const GOLD = "#ffd700";
 const COUNT = "#ff981f";

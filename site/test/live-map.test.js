@@ -373,6 +373,22 @@ describe("events on the map", () => {
       expect(selected).toEqual([]);
     });
 
+    it("come to the middle of what the profile drawer leaves of the map", () => {
+      document.body.classList.add("profile-open");
+      map.focusEvent("a");
+      expect(map.camera.x.target).toBe(map.gamePositionToCameraCenter(3000, 3001)[0] + 202);
+
+      document.body.classList.replace("profile-open", "profile-open-left");
+      map.focusEvent("a");
+      expect(map.camera.x.target).toBe(map.gamePositionToCameraCenter(3000, 3001)[0] - 202);
+
+      // On a narrow screen the drawer takes all of it.
+      map.canvas.width = 600;
+      map.focusEvent("a");
+      expect(map.camera.x.target).toBe(map.gamePositionToCameraCenter(3000, 3001)[0]);
+      document.body.classList.remove("profile-open-left");
+    });
+
     it("can be brought into view by their event", () => {
       centerOn(map, 3100, 3100);
       expect(map.focusEvent("a")).toBe(true);

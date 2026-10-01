@@ -21,6 +21,10 @@ export const ICON_SPRITE_SIZE = 15;
 const TRAIL_HOVER_PX = 8;
 // Moving parts of a trail are redrawn about 25 times a second, not every frame.
 const TRAIL_FRAME_MS = 40;
+// The profile drawer and its margins (see player-profile.css): it covers this
+// much of one side of the map, on screens wide enough for it to be a drawer.
+const DRAWER_PX = 404;
+const DRAWER_MIN_SCREEN_PX = 701;
 // How long the camera takes to catch up with the replay's ghost.
 const REPLAY_FOLLOW_MS = 100;
 
@@ -1134,11 +1138,20 @@ export class CanvasMap extends BaseElement {
     }
   }
 
-  /** Brings an event's marker to the middle of the map. Returns whether the event is on the map. */
+  /**
+   * Brings an event's marker to the middle of what can be seen of the map:
+   * the profile drawer of its player may be open over one side. Returns
+   * whether the event is on the map.
+   */
   focusEvent(id) {
     const marker = this.eventMarkersInstance?.find(id);
     if (!marker) return false;
     this.handleMapFocus({ x: marker.x, y: marker.y, plane: marker.plane });
+    if (this.canvas.width >= DRAWER_MIN_SCREEN_PX) {
+      const drawer = document.body.classList;
+      const shift = drawer.contains("profile-open") ? 1 : drawer.contains("profile-open-left") ? -1 : 0;
+      if (shift) this.camera.x.goTo(this.camera.x.target + (shift * DRAWER_PX) / 2, 400);
+    }
     return true;
   }
 
