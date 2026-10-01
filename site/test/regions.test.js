@@ -30,6 +30,55 @@ describe("regions", () => {
     expect(regionName(1000, 1000)).toBeNull();
   });
 
+  it("starts the wilderness north of the ditch", () => {
+    // The ditch runs along y 3522.
+    expect(String(regionName(3100, 3521))).not.toMatch(/Wilderness/);
+    expect(regionName(3100, 3523)).toBe("Wilderness (level 1)");
+    expect(regionName(3100, 3528)).toBe("Wilderness (level 2)");
+  });
+
+  it("names the safe Ferox Enclave instead of a wilderness level", () => {
+    expect(regionName(3137, 3623)).toBe("Ferox Enclave");
+    expect(regionName(3130, 3632)).toBe("Ferox Enclave");
+    // The obelisk east of the enclave.
+    expect(regionName(3160, 3623)).toBe("Wilderness (level 13)");
+  });
+
+  it("gives the wilderness dungeons the level of the surface above them", () => {
+    // Edgeville Dungeon past the gate, the Revenant Caves, both halves of the
+    // Wilderness Slayer Cave and the Deep Wilderness Dungeon.
+    expect(regionName(3110, 9952)).toBe("Wilderness (level 5)");
+    expect(String(regionName(3110, 9921))).not.toMatch(/Wilderness/);
+    expect(regionName(3200, 10100)).toBe("Wilderness (level 23)");
+    expect(regionName(3340, 10160)).toBe("Wilderness (level 31)");
+    expect(regionName(3410, 10065)).toBe("Wilderness (level 19)");
+    expect(regionName(3040, 10330)).toBe("Wilderness (level 52)");
+  });
+
+  it("gives the wilderness boss lairs their own level", () => {
+    expect(regionName(3359, 10329)).toBe("Wilderness (level 40)"); // Callisto's Den
+    expect(regionName(3295, 10203)).toBe("Wilderness (level 35)"); // Vet'ion's Rest
+    expect(regionName(3423, 10204)).toBe("Wilderness (level 35)"); // Silk Chasm
+    expect(regionName(3360, 10270)).toBe("Wilderness (level 30-42)"); // Escape Caves
+    expect(regionName(1760, 11550)).toBe("Wilderness (level 21)"); // Hunter's End
+    expect(regionName(1888, 11550)).toBe("Wilderness (level 21)"); // Skeletal Tomb
+    expect(regionName(1632, 11550)).toBe("Wilderness (level 29)"); // Web Chasm
+  });
+
+  it("does not call the dungeons beside the wilderness dungeons wilderness", () => {
+    setRegionNames({ 13723: "Slayer Tower", 12700: "Ferox Enclave Dungeon" });
+    expect(regionName(3420, 9945)).toBe("Slayer Tower");
+    expect(regionName(3168, 10016)).toBe("Ferox Enclave Dungeon");
+    // Under Asgarnia and Misthalin, without a name of their own.
+    for (const [x, y] of [
+      [2970, 9950],
+      [3050, 9950],
+      [3220, 9935],
+    ]) {
+      expect(String(regionName(x, y))).not.toMatch(/Wilderness/);
+    }
+  });
+
   it("uses the plugin's coordinates for a member", () => {
     // The site stores y one tile north.
     expect(regionForMember({ coordinates: { x: 3222, y: 3219, plane: 0 } })).toBe("Lumbridge");
@@ -80,5 +129,11 @@ describe("regions.json", () => {
     }
     expect(data.regions[12850]).toBe("Lumbridge");
     expect(fs.existsSync(path.join(__dirname, "../public/data/regions.NOTICE"))).toBe(true);
+  });
+
+  it("names the Slayer Tower basement", () => {
+    setRegionNames(JSON.parse(fs.readFileSync(file, "utf8")).regions);
+    expect(regionName(3420, 9945)).toBe("Slayer Tower");
+    expect(regionName(3428, 3537)).toBe("Slayer Tower");
   });
 });
