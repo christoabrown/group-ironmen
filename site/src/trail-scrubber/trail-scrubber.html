@@ -12,10 +12,10 @@
   <option value="3600">1 h/s</option>
   <option value="7200">2 h/s</option>
 </select>
-<label class="trail-scrubber__follow" title="Keep the player in view; dragging the map lets go"
-  ><input type="checkbox" checked />Follow</label
->
-<label class="trail-scrubber__skip" title="Jump over the time in which nobody moved"
-  ><input type="checkbox" checked />Skip idle</label
->
+<span class="trail-scrubber__follow" title="Keep the player in view; dragging the map lets go">
+  <input type="checkbox" id="trail-scrubber-follow" checked /><label for="trail-scrubber-follow">Follow</label>
+</span>
+<span class="trail-scrubber__skip" title="Jump over the time in which nobody moved">
+  <input type="checkbox" id="trail-scrubber-skip" checked /><label for="trail-scrubber-skip">Skip idle</label>
+</span>
 <button type="button" class="men-button small trail-scrubber__close" aria-label="Close replay">×</button>

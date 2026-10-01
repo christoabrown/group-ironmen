@@ -16,6 +16,15 @@ function history(minutes = 3) {
 
 const tile = (x, y = 3201, plane = 0) => ({ x, y, plane });
 
+/** A hub event of Alice's, so many seconds after T. */
+const event = (id, seconds, extra = {}) => ({
+  id,
+  type: "death",
+  member: "Alice",
+  occurred_at: new Date((T + seconds) * 1000).toISOString(),
+  ...extra,
+});
+
 describe("TrailLayer", () => {
   let now, layer;
 
@@ -110,12 +119,12 @@ describe("TrailLayer", () => {
       },
       COLORS
     );
-    layer.setDeaths("Alice", [{ id: "d", x: 3205, y: 3201, plane: 0, t: T + 30 }]);
+    layer.setEvents("Alice", [event("d", 30)]);
     const timeline = layer.timeline();
     expect([timeline.tMin, timeline.tMax]).toEqual([T - 600, T + 120]);
     expect(timeline.ticks).toEqual([
       { t: T - 540, kind: "teleport", color: COLORS.color },
-      { t: T + 30, kind: "death", color: COLORS.color },
+      { t: T + 30, kind: "death", tier: 0, color: COLORS.color },
     ]);
     expect(new TrailLayer().timeline()).toEqual({ tMin: null, tMax: null, ticks: [] });
   });
@@ -141,10 +150,60 @@ describe("TrailLayer", () => {
     expect(new TrailLayer().nextChangeAfter(T)).toBeNull();
   });
 
-  it("leaves out deaths from before the trail starts", () => {
+  it("leaves out events from before the trail starts", () => {
     layer.setHistory("Alice", history(), COLORS);
-    layer.setDeaths("Alice", [{ id: "old", x: 3205, y: 3201, plane: 0, t: T - 5000 }]);
+    layer.setEvents("Alice", [event("old", -5000)]);
     expect(layer.timeline().ticks).toEqual([]);
+    expect(layer.marksOn("Alice")).toEqual([]);
+  });
+
+  it("marks a player's events on their trail, whichever comes first", () => {
+    layer.setEvents("Alice", [event("d", 30, { type: "level_up" })]);
+    expect(layer.marksOn("Alice")).toEqual([]);
+    layer.setHistory("Alice", history(), COLORS);
+    expect(layer.marksOn("Alice")).toMatchObject([{ id: "d", x: 3205, y: 3201, t: T + 30 }]);
+    expect(layer.colorOf("Alice")).toBe(COLORS.color);
+
+    layer.setEvents("Alice", [event("d", 30, { type: "level_up" }), event("e", 90)]);
+    expect(layer.marksOn("Alice").map((mark) => mark.id)).toEqual(["d", "e"]);
+  });
+
+  it("marks a new event at the end of a trail that has grown to it", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    layer.setEvents("Alice", [event("late", 600, { type: "level_up" })]);
+    expect(layer.marksOn("Alice")).toEqual([]);
+    now = T + 600;
+    layer.observe("Alice", tile(3260), true);
+    expect(layer.marksOn("Alice")).toMatchObject([{ id: "late", x: 3260 }]);
+  });
+
+  it("keeps the events the map hides off the timeline", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    layer.setEvents("Alice", [event("d", 30), event("l", 60, { type: "level_up" })]);
+    layer.setEventFilter((candidate) => candidate.type !== "death");
+    expect(layer.timeline().ticks.map((tick) => tick.kind)).toEqual(["level"]);
+    // On the map they are still to be had: the map filters for itself.
+    expect(layer.marksOn("Alice")).toHaveLength(2);
+  });
+
+  it("counts an event as something that happens, so a replay doesn't skip it", () => {
+    layer.setHistory(
+      "Alice",
+      {
+        step: 60,
+        points: [
+          [3200, 3200, 0, T + 3600, 3600],
+          [3210, 3200, 0, T + 3660],
+        ],
+      },
+      COLORS
+    );
+    // An hour on one tile: nothing happens until it ends.
+    expect(layer.nextChangeAfter(T + 10)).toBe(T + 3600);
+    layer.setEvents("Alice", [event("l", 1200, { type: "level_up" })]);
+    expect(layer.nextChangeAfter(T + 10)).toBe(T + 1200);
+    expect(layer.nextChangeAfter(T + 1200)).toBe(T + 1200);
+    expect(layer.nextChangeAfter(T + 1201)).toBe(T + 3600);
   });
 
   it("finds the point of a trail under the pointer", () => {

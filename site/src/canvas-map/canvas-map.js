@@ -5,6 +5,13 @@ import { Animation } from "./animation";
 import { selection } from "../data/selection";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
+import { colorForName } from "../data/player-colors";
+import { groupData } from "../data/group-data";
+import { escapeHtml, eventPasses, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
+import { EventMarkers, REPLAY_POP_MAX, clusterPoints, layoutMarkers } from "./event-markers";
+import { drawEventMarkers } from "./event-marker-renderer";
+import { IconCache } from "./icon-cache";
+import { EventPlaces } from "./event-places";
 import { TrailLayer } from "./trail-layer";
 import { formatTrailTime } from "./trail-model";
 
@@ -14,6 +21,10 @@ export const ICON_SPRITE_SIZE = 15;
 const TRAIL_HOVER_PX = 8;
 // Moving parts of a trail are redrawn about 25 times a second, not every frame.
 const TRAIL_FRAME_MS = 40;
+// The profile drawer and its margins (see player-profile.css): it covers this
+// much of one side of the map, on screens wide enough for it to be a drawer.
+const DRAWER_PX = 404;
+const DRAWER_MIN_SCREEN_PX = 701;
 // How long the camera takes to catch up with the replay's ghost.
 const REPLAY_FOLLOW_MS = 100;
 
@@ -26,17 +37,6 @@ export const CLUSTER_CELL_PX = 34;
 // Player names are shown from this zoom on (and always for the selected one).
 export const LABEL_MIN_ZOOM = 1;
 const LABEL_FONT_PX = 16;
-
-// How long the parts of an event ping last, in ms.
-export const PING_RING_MS = 2400;
-
-export const PING_LABEL_MS = 20000;
-
-export const DEATH_MARKER_MS = 10 * 60 * 1000;
-
-function escapeHtml(text) {
-  return String(text).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
 
 export class CanvasMap extends BaseElement {
   html() {
@@ -62,13 +62,14 @@ export class CanvasMap extends BaseElement {
     this.eventListener(this, "touchcancel", this.stopDragging.bind(this));
     this.eventListener(window, "resize", this.onResize.bind(this));
     this.playerMarkers = new Map();
-    this.pings = [];
     this.renderedPlayers = [];
+    this.renderedEvents = [];
     this.selectedName = null;
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.subscribe("coordinates", this.handleUpdatedCoordinates.bind(this));
     this.subscribe("player-selected", this.handleSelected.bind(this));
     this.subscribe("map-focus", this.handleMapFocus.bind(this));
+    this.subscribe("live-events", this.handleLiveEvents.bind(this));
 
     this.plane = 1;
     this.tileSize = 256;
@@ -127,8 +128,11 @@ export class CanvasMap extends BaseElement {
     }
     window.clearTimeout(this.trailFrameTimer);
     this.trailFrameTimer = null;
+    window.clearTimeout(this.eventFrameTimer);
+    this.eventFrameTimer = null;
     this.hideMapLinkTooltip();
     this.hidePlayerTooltip();
+    this.hideEventTooltip();
     this.hideTrailTooltip();
     super.disconnectedCallback();
   }
@@ -216,6 +220,8 @@ export class CanvasMap extends BaseElement {
         this.observeForTrail(member);
       }
     }
+    // An event whose player wasn't on the map yet may have a place now.
+    this.placeLiveEvents();
   }
 
   isValidCoordinates(coordinates) {
@@ -569,7 +575,7 @@ export class CanvasMap extends BaseElement {
       if (this.drawTrails()) this.requestTrailFrame();
       this.drawCursorTile();
       this.drawPlayers();
-      doAnotherUpdate = this.drawPings(performance.now()) || doAnotherUpdate;
+      this.drawEvents();
     }
 
     this.updateRequested = doAnotherUpdate ? Math.max(1, this.updateRequested) : this.updateRequested;
@@ -589,6 +595,8 @@ export class CanvasMap extends BaseElement {
   get trailLayer() {
     if (!this.trailLayerInstance) {
       this.trailLayerInstance = new TrailLayer({ now: () => api.serverNow() / 1000 });
+      // The events the map hides aren't on the replay's timeline either.
+      this.trailLayerInstance.setEventFilter((event) => eventPasses(event, this.eventFilters));
     }
     return this.trailLayerInstance;
   }
@@ -621,9 +629,13 @@ export class CanvasMap extends BaseElement {
     return this.trailLayer.names();
   }
 
-  /** Marks a player's deaths on their trail: `[{id, x, y, plane, t}]`. */
-  setTrailDeaths(name, deaths) {
-    this.trailLayer.setDeaths(name, deaths);
+  /**
+   * Marks the hub's events on the trails: `eventsByName` maps a player to
+   * their events. They go where they say they happened, or where the trail
+   * has the player at the time.
+   */
+  setTrailEvents(eventsByName) {
+    for (const [name, events] of eventsByName) this.trailLayer.setEvents(name, events);
     this.trailsChanged();
   }
 
@@ -632,7 +644,18 @@ export class CanvasMap extends BaseElement {
    * null. With `follow` the camera goes along with the player's ghost.
    */
   setReplayTime(time, { follow = false } = {}) {
+    const before = this.trailLayer.replayTime;
     this.trailLayer.setReplay(time);
+    // What the replay passes on its way forward rings as it did when it happened.
+    if (time !== null && before !== null && time > before && this.eventMarkersInstance) {
+      const passed = this.eventMarkers.trailMarksBetween(before, time, this.eventFilters);
+      if (passed.length) {
+        this.eventMarkers.pop(
+          passed.slice(-REPLAY_POP_MAX).map((mark) => mark.id),
+          api.serverNow()
+        );
+      }
+    }
     if (follow && time !== null) this.followReplay(time);
     this.requestUpdate();
   }
@@ -680,6 +703,14 @@ export class CanvasMap extends BaseElement {
   trailsChanged() {
     // The hovered point is forgotten when its trail is rebuilt or taken off.
     if (!this.trailLayer.hover) this.hideTrailTooltip();
+    // A trail's events move with it, and go when it does.
+    const names = this.trailLayer.names();
+    if (names.length || this.eventMarkersInstance) {
+      for (const name of names) {
+        this.eventMarkers.setTrailMarks(name, this.trailLayer.marksOn(name), this.trailLayer.colorOf(name));
+      }
+      this.eventMarkers.keepTrails(names);
+    }
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
   }
@@ -753,45 +784,9 @@ export class CanvasMap extends BaseElement {
     return [screenX, top + tile / 2];
   }
 
-  /**
-   * Groups screen points that are close together. `points` are
-   * `{x, y, plane, ...}`; returns `{x, y, plane, members}` with the members'
-   * average position. Only points on the same plane are grouped.
-   */
+  /** Groups screen points that are close together; see clusterPoints. */
   static clusterMarkers(points, cellPx = CLUSTER_CELL_PX) {
-    const cells = new Map();
-    for (const point of points) {
-      const key = `${point.plane}:${Math.floor(point.x / cellPx)}:${Math.floor(point.y / cellPx)}`;
-      if (!cells.has(key)) cells.set(key, []);
-      cells.get(key).push(point);
-    }
-    // Merge neighbouring cells whose groups are within one cell of each other.
-    const groups = [...cells.values()].map((members) => ({ members }));
-    const center = (members) => [
-      members.reduce((sum, m) => sum + m.x, 0) / members.length,
-      members.reduce((sum, m) => sum + m.y, 0) / members.length,
-    ];
-    let merged = true;
-    while (merged) {
-      merged = false;
-      outer: for (let i = 0; i < groups.length; i++) {
-        for (let j = i + 1; j < groups.length; j++) {
-          if (groups[i].members[0].plane !== groups[j].members[0].plane) continue;
-          const [ax, ay] = center(groups[i].members);
-          const [bx, by] = center(groups[j].members);
-          if (Math.abs(ax - bx) < cellPx && Math.abs(ay - by) < cellPx) {
-            groups[i].members.push(...groups[j].members);
-            groups.splice(j, 1);
-            merged = true;
-            break outer;
-          }
-        }
-      }
-    }
-    return groups.map(({ members }) => {
-      const [x, y] = center(members);
-      return { x, y, plane: members[0].plane, members };
-    });
+    return clusterPoints(points, cellPx);
   }
 
   /**
@@ -987,8 +982,14 @@ export class CanvasMap extends BaseElement {
     }
   }
 
-  /** What a click on a player or a group of players does. */
+  /** What a click on a player, a group of players or an event does. */
   activatePlayerItem(item) {
+    if (item.kind === "event") {
+      const { event } = item.marker.top;
+      if (groupData.members.has(event.member)) selection.select(event.member, { follow: false });
+      this.focusEvent(event.id);
+      return;
+    }
     if (item.kind === "player") {
       selection.select(item.name, { follow: true });
       return;
@@ -1004,97 +1005,166 @@ export class CanvasMap extends BaseElement {
   }
 
   // ---------------------------------------------------------------------------
-  // Event pings
+  // Events
   // ---------------------------------------------------------------------------
 
+  /** The events on the map; see EventMarkers. Its clock is the server's, like the hub's. */
+  get eventMarkers() {
+    if (!this.eventMarkersInstance) this.eventMarkersInstance = new EventMarkers();
+    return this.eventMarkersInstance;
+  }
+
+  get eventIcons() {
+    if (!this.eventIconsInstance) this.eventIconsInstance = new IconCache({ onLoad: () => this.requestUpdate() });
+    return this.eventIconsInstance;
+  }
+
+  get eventPlaces() {
+    if (!this.eventPlacesInstance) this.eventPlacesInstance = new EventPlaces();
+    return this.eventPlacesInstance;
+  }
+
+  /** Which events the map shows; see defaultEventFilters. The map page's controls set them. */
+  get eventFilters() {
+    if (!this.eventFiltersValue) this.eventFiltersValue = loadEventFilters();
+    return this.eventFiltersValue;
+  }
+
+  setEventFilters(filters) {
+    this.eventFiltersValue = { ...filters };
+    this.requestUpdate();
+    // The replay's timeline marks the events that are shown.
+    if (this.trailLayerInstance?.names().length) this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
+  }
+
   /**
-   * Shows an event on the map: an expanding ring, a label for a while (e.g. the
-   * value of a drop) and, for deaths, a marker that stays for ten minutes.
-   * `{x, y, plane, color, kind: "loot"|"death"|"level"|"other", label}`,
-   * coordinates in game tiles as the site stores them (after the +1 y offset).
+   * The hub's events as the live feed has them. The map is there for the
+   * whole session, on whichever page: what happens while another page is
+   * open is on the map, where it happened, when the map is looked at again.
    */
-  addPing(ping) {
-    if (!this.isValidCoordinates(ping)) return;
-    this.pings.push({ ...ping, start: performance.now() });
-    // Keep the list small whatever happens.
-    if (this.pings.length > 200) this.pings.splice(0, this.pings.length - 200);
+  handleLiveEvents({ events, initial }) {
+    // The first call replays the last poll, or is the first load: those
+    // events are put on the map, not announced.
+    this.liveEventsAreNews = Boolean(this.liveEvents) && !initial;
+    // A feed that starts over may be another group's.
+    if (initial) this.eventMarkers.clearLive();
+    this.liveEvents = events;
+    this.placeLiveEvents();
+  }
+
+  /** Puts the live events on the map that aren't on it yet. */
+  placeLiveEvents() {
+    if (!this.liveEvents?.length) return;
+    const now = api.serverNow();
+    const added = this.eventMarkers.add(this.liveEvents, {
+      now,
+      place: (event) => this.placeOfEvent(event),
+      news: Boolean(this.liveEventsAreNews),
+    });
+    if (!added.length) return;
+    // Where the player was when it happened is only known now: after a reload it would be a guess.
+    const placedByPlayer = added.filter((marker) => !marker.approximate && !marker.event.location);
+    if (placedByPlayer.length) this.eventPlaces.remember(placedByPlayer, now);
     this.requestUpdate();
   }
 
-  static pingAlive(ping, now) {
-    const age = now - ping.start;
-    if (ping.kind === "death") return age < DEATH_MARKER_MS;
-    if (ping.label) return age < PING_LABEL_MS;
-    return age < PING_RING_MS;
+  /**
+   * Where an event goes on the map, and in which colour: where it says it
+   * happened or where it was put when it did, or else where its player is
+   * now (`known: false`). Null when none of those is known.
+   */
+  placeOfEvent(event) {
+    const player = this.playerMarkers?.get(event.member);
+    const color = player?.color || colorForName(event.member).color;
+    const place = eventPlace(event) || this.eventPlaces.get(event.id);
+    if (place) return { ...place, color, known: true };
+    if (!this.isValidCoordinates(player?.coordinates)) return null;
+    const { x, y, plane } = player.coordinates;
+    return { x, y, plane, color, known: false };
   }
 
-  /** Draws the pings; returns whether any is still animating. */
-  drawPings(now) {
-    if (!this.pings?.length) return false;
-    this.pings = this.pings.filter((ping) => CanvasMap.pingAlive(ping, now));
-    if (!this.pings.length) return false;
-    const ctx = this.ctx;
-    const currentPlane = this.plane - 1;
-    let animating = false;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    for (const ping of this.pings) {
-      if (ping.plane !== currentPlane) continue;
-      const [x, y] = this.tileCenterOnScreen(ping.x, ping.y);
-      if (x < -50 || y < -50 || x > this.canvas.width + 50 || y > this.canvas.height + 50) continue;
-      const age = now - ping.start;
-      if (age < PING_RING_MS) {
-        animating = true;
-        for (const offset of [0, 0.35]) {
-          const t = (age / PING_RING_MS + offset) % 1;
-          ctx.beginPath();
-          ctx.arc(x, y, 8 + t * 34, 0, Math.PI * 2);
-          ctx.strokeStyle = ping.color || "#ff981f";
-          ctx.globalAlpha = (1 - t) * 0.9;
-          ctx.lineWidth = 3;
-          ctx.stroke();
-        }
-      }
-      if (ping.kind === "death") {
-        this.drawDeathMarker(x, y, age);
-      }
-      if (ping.label && age < PING_LABEL_MS) {
-        animating = true;
-        ctx.globalAlpha = Math.min(1, (PING_LABEL_MS - age) / 3000);
-        ctx.font = `${LABEL_FONT_PX}px rssmall`;
-        const labelY = y + 18 + Math.min(age / 400, 6);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = "black";
-        ctx.strokeText(ping.label, x, labelY);
-        ctx.fillStyle = ping.kind === "loot" ? "#ffd700" : "white";
-        ctx.fillText(ping.label, x, labelY);
-      }
-    }
-    ctx.restore();
-    ctx.globalAlpha = 1;
-    return animating;
+  /** Draws the events, and sees to it that the map is drawn again when they change. */
+  drawEvents() {
+    const store = this.eventMarkersInstance;
+    if (!store) return;
+    const now = api.serverNow();
+    store.prune(now);
+    const markers = store.visible({
+      filters: this.eventFilters,
+      now,
+      replayTime: this.trailLayerInstance?.replayTime ?? null,
+    });
+    const { items, nextMs } = layoutMarkers(markers, {
+      width: this.canvas.width,
+      height: this.canvas.height,
+      plane: this.plane - 1,
+      tile: this.pixelsPerGameTile * this.camera.zoom.current,
+      reducedMotion: Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
+      toScreen: (x, y) => this.tileCenterOnScreen(x, y),
+    });
+    drawEventMarkers(this.ctx, items, { icons: this.eventIcons });
+    this.renderedEvents = items;
+    if (nextMs !== null) this.requestEventFrame(nextMs);
   }
 
-  drawDeathMarker(x, y, age) {
-    const ctx = this.ctx;
-    ctx.globalAlpha = Math.max(0.35, 1 - age / DEATH_MARKER_MS);
-    const r = 7;
-    ctx.beginPath();
-    ctx.arc(x, y - 1, r, 0, Math.PI * 2);
-    ctx.fillStyle = "#f2f2f2";
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "black";
-    ctx.stroke();
-    ctx.fillStyle = "black";
-    for (const dx of [-2.5, 2.5]) {
-      ctx.beginPath();
-      ctx.arc(x + dx, y - 2, 1.8, 0, Math.PI * 2);
-      ctx.fill();
+  /** The drawn event (or stack of events) under a client position, if any; see layoutMarkers. */
+  getEventAtClient(clientX, clientY) {
+    if (!this.renderedEvents?.length) return null;
+    const canvasRect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
+    const x = clientX - canvasRect.left;
+    const y = clientY - canvasRect.top;
+    // The last drawn is on top.
+    for (let i = this.renderedEvents.length - 1; i >= 0; i--) {
+      const marker = this.renderedEvents[i];
+      const reach = marker.r + 3;
+      if ((marker.x - x) ** 2 + (marker.y - y) ** 2 <= reach * reach) return marker;
     }
-    ctx.fillRect(x - 2, y + 3, 4, 1.5);
+    return null;
+  }
+
+  eventTooltip(marker) {
+    const { tileX, tileY } = marker.top;
+    return eventTooltipHtml(
+      marker.members.map((member) => member.event),
+      { now: api.serverNow(), place: regionName(tileX, tileY - 1), approximate: marker.approximate }
+    );
+  }
+
+  hideEventTooltip() {
+    this.hoveredEvent = null;
+    if (this.eventTooltipShown) {
+      this.eventTooltipShown = false;
+      tooltipManager.hideTooltip();
+    }
+  }
+
+  /**
+   * Brings an event's marker to the middle of what can be seen of the map:
+   * the profile drawer of its player may be open over one side. Returns
+   * whether the event is on the map.
+   */
+  focusEvent(id) {
+    const marker = this.eventMarkersInstance?.find(id);
+    if (!marker) return false;
+    this.handleMapFocus({ x: marker.x, y: marker.y, plane: marker.plane });
+    if (this.canvas.width >= DRAWER_MIN_SCREEN_PX) {
+      const drawer = document.body.classList;
+      const shift = drawer.contains("profile-open") ? 1 : drawer.contains("profile-open-left") ? -1 : 0;
+      if (shift) this.camera.x.goTo(this.camera.x.target + (shift * DRAWER_PX) / 2, 400);
+    }
+    return true;
+  }
+
+  /** Asks for the map to be drawn again in a while, for the sake of the events on it. */
+  requestEventFrame(ms) {
+    const at = performance.now() + ms;
+    if (this.eventFrameTimer && this.eventFrameAt <= at) return;
+    window.clearTimeout(this.eventFrameTimer);
+    this.eventFrameAt = at;
+    this.eventFrameTimer = window.setTimeout(() => {
+      this.eventFrameTimer = null;
+      this.requestUpdate();
+    }, ms);
   }
 
   drawGameTiles(positions, fillColor, strokeColor) {
@@ -1387,6 +1457,7 @@ export class CanvasMap extends BaseElement {
     this.pendingPlayer = null;
     this.hoveredPlayer = null;
     this.hidePlayerTooltip();
+    this.hideEventTooltip();
     this.hideTrailTooltip();
     this.pendingMapLink = null;
     this.pointerDragged = false;
@@ -1428,6 +1499,11 @@ export class CanvasMap extends BaseElement {
       this.beginPlayerPress(player, event.clientX, event.clientY);
       return;
     }
+    const marker = this.getEventAtClient(event.clientX, event.clientY);
+    if (marker) {
+      this.beginPlayerPress({ kind: "event", marker }, event.clientX, event.clientY);
+      return;
+    }
     this.startDragging(event.clientX, event.clientY);
   }
 
@@ -1446,6 +1522,7 @@ export class CanvasMap extends BaseElement {
       this.pendingPlayer = null;
       this.pointerDragged = true;
       this.hidePlayerTooltip();
+      this.hideEventTooltip();
       this.startDragging(clientX, clientY);
       return true;
     }
@@ -1483,6 +1560,12 @@ export class CanvasMap extends BaseElement {
         event.preventDefault();
         return;
       }
+      const marker = this.getEventAtClient(touch.clientX, touch.clientY);
+      if (marker) {
+        this.beginPlayerPress({ kind: "event", marker }, touch.clientX, touch.clientY);
+        event.preventDefault();
+        return;
+      }
     } else if (event.touches.length === 2) {
       this.pendingMapLink = null;
       this.touch.startDistance = this.pinchDistance(event.touches);
@@ -1492,6 +1575,7 @@ export class CanvasMap extends BaseElement {
 
   startDragging(x, y) {
     this.hideTrailTooltip();
+    this.hideEventTooltip();
     // Whoever was moving the camera for the user (the replay) should let go.
     this.dispatchEvent(new CustomEvent("map-dragged"));
     this.classList.add("dragging");
@@ -1516,6 +1600,7 @@ export class CanvasMap extends BaseElement {
       this.pendingPlayer = null;
       this.pointerDragged = false;
       this.hidePlayerTooltip();
+      this.hideEventTooltip();
       this.activatePlayerItem(item);
       return;
     }
@@ -1564,6 +1649,7 @@ export class CanvasMap extends BaseElement {
     const link = this.getLinkAtClient(event.clientX, event.clientY);
     if (link) {
       this.hideTrailTooltip();
+      this.hideEventTooltip();
       if (this.hoveredMapLink?.key !== link.key) {
         this.hoveredMapLink = link;
         this.showMapLinkTooltip(link, event);
@@ -1583,6 +1669,7 @@ export class CanvasMap extends BaseElement {
         this.requestUpdate();
       }
       this.hideTrailTooltip();
+      this.hideEventTooltip();
       this.playerTooltipShown = true;
       tooltipManager.showTooltip(this.playerTooltip(player), event);
       this.style.cursor = "pointer";
@@ -1593,6 +1680,21 @@ export class CanvasMap extends BaseElement {
       this.requestUpdate();
     }
     this.hidePlayerTooltip();
+    const marker = this.getEventAtClient(event.clientX, event.clientY);
+    if (marker) {
+      this.hideTrailTooltip();
+      // Shown once per marker, not on every move: the tooltip holds an image,
+      // and follows the pointer by itself.
+      const key = marker.members.map((member) => member.id).join();
+      if (this.hoveredEvent !== key) {
+        this.hoveredEvent = key;
+        this.eventTooltipShown = true;
+        tooltipManager.showTooltip(this.eventTooltip(marker), event);
+      }
+      this.style.cursor = "pointer";
+      return;
+    }
+    this.hideEventTooltip();
     this.style.cursor = "";
     // A trail is only looked at, so hovering it leaves the cursor alone.
     const trail = this.getTrailAtClient(event.clientX, event.clientY);

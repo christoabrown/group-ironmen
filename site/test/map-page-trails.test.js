@@ -18,8 +18,9 @@ function fakeWorldMap() {
     clearTrail: vi.fn((name) => drawn.delete(name)),
     clearTrails: vi.fn(() => drawn.clear()),
     trailNames: () => [...drawn],
-    setTrailDeaths: vi.fn(),
-    addPing: vi.fn(),
+    setTrailEvents: vi.fn(),
+    setEventFilters: vi.fn(),
+    focusEvent: vi.fn(() => true),
     setReplayTime: vi.fn(),
     trailNextChange: vi.fn(() => null),
     trailNextHop: vi.fn(() => null),
@@ -71,7 +72,7 @@ describe("map page trails", () => {
     worldMap = fakeWorldMap();
     document.body.append(authed, worldMap);
     pubsub.publish("features", { hub_history: true });
-    vi.spyOn(api, "getHubEvents").mockResolvedValue([]);
+    vi.spyOn(api, "getPlayerEvents").mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -194,60 +195,158 @@ describe("map page trails", () => {
     expect(page.querySelector('[data-name="Bob"]').textContent).toBe("Bob");
   });
 
-  describe("deaths", () => {
-    const death = (id, member, secondsAgo) => ({
+  describe("events", () => {
+    const event = (id, member, secondsAgo, extra = {}) => ({
       id,
       type: "death",
       member,
       occurred_at: new Date((NOW_S - secondsAgo) * 1000).toISOString(),
       location: { x: 3142, y: 9958, plane: 0 },
+      ...extra,
     });
+    /** The events last handed to the map for a player's trail. */
+    const marked = (name) => {
+      const calls = worldMap.setTrailEvents.mock.calls;
+      return (calls[calls.length - 1][0].get(name) || []).map((e) => e.id);
+    };
 
     beforeEach(() => {
       vi.spyOn(api, "getTrails").mockResolvedValue(trailsResponse(["Alice"]));
-      api.getHubEvents.mockResolvedValue([death("a", "Alice", 300), death("b", "Bob", 200)]);
+      api.getPlayerEvents.mockResolvedValue([event("a", "Alice", 300), event("l", "Alice", 200, { type: "level_up" })]);
     });
 
-    it("are marked on the trails shown", async () => {
+    it("of the players whose trails are shown are handed to the map", async () => {
       mount();
       selection.toggleTrail("Alice");
       await settle();
-      expect(api.getHubEvents).toHaveBeenCalledWith({ types: ["death"], limit: 500 });
-      expect(worldMap.setTrailDeaths).toHaveBeenLastCalledWith("Alice", [
-        { id: "a", x: 3142, y: 9959, plane: 0, t: NOW_S - 300 },
-      ]);
+      expect(api.getPlayerEvents).toHaveBeenCalledWith("Alice", 200);
+      expect(marked("Alice")).toEqual(["a", "l"]);
+    });
+
+    it("include what the live feed has of that player, once", async () => {
+      const live = [event("a", "Alice", 300), event("recent", "Alice", 20), event("bob", "Bob", 10)];
+      pubsub.publish("live-events", { events: live, added: [], initial: true });
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      expect(marked("Alice")).toEqual(["a", "l", "recent"]);
     });
 
     it("include one that happens while the map is open", async () => {
       mount();
       selection.toggleTrail("Alice");
       await settle();
-      pubsub.publish("live-events", { events: [], added: [death("c", "Alice", 0)], initial: false });
-      const [, marks] = worldMap.setTrailDeaths.mock.calls[worldMap.setTrailDeaths.mock.calls.length - 1];
-      expect(marks.map((mark) => mark.id)).toEqual(["a", "c"]);
+      const added = [event("c", "Alice", 0)];
+      pubsub.publish("live-events", { events: added, added, initial: false });
+      expect(marked("Alice")).toEqual(["a", "l", "c"]);
     });
 
-    it("are left off while the Deaths filter is off", async () => {
-      localStorage.setItem("map-event-filters", JSON.stringify({ death: false }));
+    it("aren't asked for again with every refresh of the trails, only now and then", async () => {
       mount();
       selection.toggleTrail("Alice");
       await settle();
-      expect(worldMap.setTrailDeaths).toHaveBeenLastCalledWith("Alice", []);
+      expect(api.getPlayerEvents).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(5 * 60000);
+      expect(api.getTrails.mock.calls.length).toBeGreaterThan(3);
+      expect(api.getPlayerEvents).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(6 * 60000);
+      expect(api.getPlayerEvents).toHaveBeenCalledTimes(2);
+    });
 
-      const toggle = page.querySelector('.map-page__event-kinds input[name="death"]');
-      toggle.checked = true;
-      toggle.dispatchEvent(new Event("change", { bubbles: true }));
-      const [, marks] = worldMap.setTrailDeaths.mock.calls[worldMap.setTrailDeaths.mock.calls.length - 1];
-      expect(marks).toHaveLength(1);
+    it("are asked for again for a trail that was switched off and on", async () => {
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      selection.toggleTrail("Alice");
+      selection.toggleTrail("Alice");
+      await settle();
+      expect(api.getPlayerEvents).toHaveBeenCalledTimes(2);
     });
 
     it("don't hold up the trails when they can't be fetched", async () => {
-      api.getHubEvents.mockRejectedValue(new Error("down"));
+      api.getPlayerEvents.mockRejectedValue(Object.assign(new Error("not shared"), { status: 404 }));
+      const live = [event("recent", "Alice", 20)];
+      pubsub.publish("live-events", { events: live, added: [], initial: true });
       mount();
       selection.toggleTrail("Alice");
       await settle();
       expect(worldMap.trailNames()).toEqual(["Alice"]);
       expect(page.querySelector(".map-page__trail-error")).toBeNull();
+      expect(marked("Alice")).toEqual(["recent"]);
+    });
+
+    it("leave the filtering to the map, which is told the filters", async () => {
+      localStorage.setItem("map-event-filters", JSON.stringify({ death: false }));
+      mount();
+      expect(worldMap.setEventFilters).toHaveBeenLastCalledWith(expect.objectContaining({ death: false }));
+      const toggle = page.querySelector('.map-page__event-kinds input[name="death"]');
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      expect(worldMap.setEventFilters).toHaveBeenLastCalledWith(expect.objectContaining({ death: true }));
+    });
+  });
+
+  describe("toasts", () => {
+    const drop = (id, secondsAgo, extra = {}) => ({
+      id,
+      type: "loot",
+      member: "Alice",
+      line: `Alice received drop ${id}`,
+      value_gp: 2500000,
+      occurred_at: new Date((NOW_S - secondsAgo) * 1000).toISOString(),
+      ...extra,
+    });
+    const arrive = (...added) => pubsub.publish("live-events", { events: added, added, initial: false });
+    /** The page with the live feed already under way, as when the map is opened later on. */
+    const mountLive = () => {
+      pubsub.publish("live-events", { events: [], added: [], initial: true });
+      return mount();
+    };
+    const shown = () => [...page.querySelectorAll(".event-toasts__text")].map((text) => text.textContent);
+
+    it("announce what happens while the map is open", () => {
+      mountLive();
+      arrive(drop("a", 5));
+      expect(shown()).toEqual(["Alice received drop a"]);
+    });
+
+    it("leave out what the filters hide", () => {
+      mountLive();
+      arrive(drop("small", 5, { value_gp: 500 }), { ...drop("level", 5), type: "level_up" });
+      expect(shown()).toEqual(["Alice received drop level"]);
+    });
+
+    it("leave out what happened a while ago", () => {
+      mountLive();
+      arrive(drop("old", 600));
+      expect(shown()).toEqual([]);
+    });
+
+    it("can be switched off, which is remembered", () => {
+      mountLive();
+      const toggle = page.querySelector('.map-page__events input[name="toasts"]');
+      expect(toggle.checked).toBe(true);
+      toggle.checked = false;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      arrive(drop("a", 5));
+      expect(shown()).toEqual([]);
+
+      page.remove();
+      mountLive();
+      expect(page.querySelector('.map-page__events input[name="toasts"]').checked).toBe(false);
+    });
+
+    it("show the map where it happened when clicked", () => {
+      mountLive();
+      arrive(drop("d", 5));
+      page.querySelector(".event-toasts__toast").click();
+      expect(worldMap.focusEvent).toHaveBeenCalledWith("d");
+      expect(shown()).toEqual([]);
+    });
+
+    it("start no timer until there is something to show", () => {
+      mountLive();
+      expect(vi.getTimerCount()).toBe(0);
     });
   });
 

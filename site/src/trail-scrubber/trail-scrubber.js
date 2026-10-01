@@ -6,6 +6,13 @@ import { ReplayClock } from "./replay-clock";
 const MAX_TICKS = 300;
 const FOLLOW_KEY = "map-replay-follow";
 
+/** How much a tick matters when there are too many to show: deaths, then notable events, then teleports. */
+function tickWeight(tick) {
+  if (tick.kind === "death") return 3;
+  if (tick.tier) return 2;
+  return tick.kind === "teleport" ? 1 : 0;
+}
+
 /**
  * The replay controls of the map's trails: a timeline to drag, play and
  * pause, a speed, whether to skip the time in which nothing happened and
@@ -17,7 +24,8 @@ const FOLLOW_KEY = "map-replay-follow";
  * opens or the trails grow.
  *
  * `setTimeline({tMin, tMax, ticks})` gives it the span of the trails and the
- * moments to mark; `nextChange(time)`, when set, says when something next
+ * moments to mark (`{t, kind, tier, color}`: a teleport, or an event of a kind
+ * the map shows, notable when it has a tier); `nextChange(time)`, when set, says when something next
  * happens on the trails, and `nextHold(from, to)` when the player lands after
  * a hop in that span, where the replay then holds for a moment.
  */
@@ -184,10 +192,10 @@ export class TrailScrubber extends BaseElement {
     if (!this.ticks) return;
     const { tMin, tMax, ticks } = this.timeline;
     const span = Math.max(tMax - tMin, 1);
-    // Deaths go last, so they are kept when there are too many to show.
+    // What matters most goes last, so it is kept when there are too many to show.
     const shown = ticks
       .slice()
-      .sort((a, b) => Number(a.kind === "death") - Number(b.kind === "death"))
+      .sort((a, b) => tickWeight(a) - tickWeight(b))
       .slice(-MAX_TICKS);
     this.ticks.replaceChildren(
       ...shown
@@ -195,6 +203,7 @@ export class TrailScrubber extends BaseElement {
         .map((tick) => {
           const mark = document.createElement("span");
           mark.className = `trail-scrubber__tick trail-scrubber__tick--${tick.kind}`;
+          if (tick.tier) mark.classList.add("trail-scrubber__tick--notable");
           mark.style.left = `${((tick.t - tMin) / span) * 100}%`;
           mark.style.setProperty("--player-color", tick.color);
           return mark;

@@ -39,3 +39,4 @@ import "./player-profile/player-profile.js";
 import "./player-profile-view/player-profile-view.js";
 import "./clan-page/clan-page.js";
 import "./trail-scrubber/trail-scrubber.js";
+import "./event-toasts/event-toasts.js";

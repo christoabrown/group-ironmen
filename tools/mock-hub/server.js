@@ -12,12 +12,15 @@
 // /accounts/{id} and its /xp, /gains, /sessions, /wealth, /equipment-history
 // and /locations, the bulk /xp and /locations, /leaderboards/gains,
 // /leaderboards/loot and /events (cursor, types, accounts, min_value), following
-// the hub's docs/API.md as of D-94. A loot, level up or death happens every few
-// seconds.
+// the hub's docs/API.md as of D-94. Something happens every few seconds
+// (MOCK_HUB_EVENT_MS, default 4000): mostly small drops and levels, now and
+// then a big drop, PK loot, a collection log slot, a diary, a combat task, a
+// superior spawn or a death.
 //
 // The first account follows a fixed 40-minute route instead (see `route`), with
 // everything a trail can show: a walk, teleports, a boat trip, a floor change,
-// a dungeon entrance, a death, a world hop and a logout. MOCK_HUB_TRAIL_HOURS
+// a dungeon entrance, a death, a world hop and a logout, and the same events
+// every lap: a level, a 14.5M drop, a collection log slot. MOCK_HUB_TRAIL_HOURS
 // sets how far back trails go (default 6; 720 gives enough to need thinning).
 const http = require("http");
 const crypto = require("crypto");
@@ -69,8 +72,33 @@ const ITEMS = [
   [12002, "Occult necklace", 900_000],
   [13576, "Dragon warhammer", 38_000_000],
   [11286, "Draconic visage", 3_800_000],
+  [4087, "Dragon platelegs", 160_000],
+  [1149, "Dragon med helm", 58_000],
+  [2363, "Runite bar", 12_000],
+  [1617, "Uncut diamond", 2_500],
   [385, "Shark", 700],
   [995, "Coins", 1],
+];
+// Most drops are small; one in twelve is worth ten million or more.
+const BIG_ITEMS = ITEMS.filter(([, , price]) => price >= 10_000_000);
+const SMALL_ITEMS = ITEMS.filter(([, , price]) => price < 10_000_000);
+const LOG_ITEMS = [
+  [12073, "Elite clue scroll"],
+  [11286, "Draconic visage"],
+  [13576, "Dragon warhammer"],
+];
+const DIARIES = ["Lumbridge & Draynor", "Varrock", "Falador", "Ardougne", "Wilderness"];
+const DIARY_TIERS = ["Easy", "Medium", "Hard", "Elite"];
+const COMBAT_TASKS = [
+  ["Noxious Foe", "Easy", 1],
+  ["A Slow Death", "Medium", 2],
+  ["Demonic Rebound", "Hard", 3],
+  ["Perfect Zulrah", "Elite", 4],
+];
+const SUPERIORS = [
+  [7410, "Greater abyssal demon"],
+  [7406, "Abhorrent spectre"],
+  [7402, "Screaming banshee"],
 ];
 const NPCS = [
   [2215, "General Graardor"],
@@ -100,6 +128,10 @@ const accounts = Array.from({ length: ACCOUNT_COUNT }, (_, i) => {
 const ROUTE_MINUTES = 40;
 const ROUTE_LOGOUT_MINUTE = 35;
 const ROUTE_DEATH_MINUTE = 29.5;
+// The rest of what happens to the routed account every lap.
+const ROUTE_LEVEL_MINUTE = 5;
+const ROUTE_DROP_MINUTE = 21;
+const ROUTE_LOG_MINUTE = 27;
 
 // Where the first account is at time t. The route depends on the wall clock
 // only, so a trail is the same however often it is requested.
@@ -257,42 +289,113 @@ function addEvent(type, account, extra, at = new Date()) {
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
-function randomEvent(account, at) {
-  const roll = Math.random();
-  if (roll < 0.55) {
-    const [itemId, itemName, price] = pick(ITEMS);
-    const [npcId, npcName] = pick(NPCS);
-    const quantity = itemId === 995 ? 50_000 : itemId === 385 ? 5 : 1;
-    const total = price * quantity;
-    addEvent(
-      "loot",
-      account,
-      {
-        value_gp: total,
-        item_id: itemId,
-        npc_id: npcId,
-        title: "Loot",
-        line: `${account.name} received ${itemName} (${(total / 1e6).toFixed(1)}M) from ${npcName}`,
+function loot(account, at, [itemId, itemName, price], type = "loot") {
+  const [npcId, npcName] = pick(NPCS);
+  const quantity = itemId === 995 ? 50_000 : itemId === 385 ? 5 : 1;
+  const total = price * quantity;
+  const worth = total >= 1e6 ? `${(total / 1e6).toFixed(1)}M` : `${Math.round(total / 1e3)}K`;
+  const pk = type === "pk_loot";
+  const from = pk ? pick(NAMES) : npcName;
+  addEvent(
+    type,
+    account,
+    {
+      value_gp: total,
+      item_id: itemId,
+      npc_id: pk ? null : npcId,
+      title: pk ? "PK loot" : "Loot",
+      line: pk
+        ? `${account.name} looted ${itemName} (${worth}) from ${from}`
+        : `${account.name} received ${itemName} (${worth}) from ${from}`,
+      data: {
+        type,
         data: {
-          type: "loot",
-          data: {
-            type: "NPC",
-            npcId,
-            source: { text: npcName },
-            totalValue: total,
-            items: [
-              { id: itemId, name: itemName, gePrice: price, quantity },
-              { id: 385, name: "Shark", gePrice: 700, quantity: 3 },
-            ],
-          },
+          type: pk ? "PLAYER" : "NPC",
+          ...(pk ? {} : { npcId }),
+          source: { text: from },
+          totalValue: total,
+          items: [
+            { id: itemId, name: itemName, gePrice: price, quantity },
+            { id: 385, name: "Shark", gePrice: 700, quantity: 3 },
+          ],
         },
       },
-      at
-    );
-  } else if (roll < 0.85) {
-    const skill = pick(SKILLS);
-    const lvl = 60 + Math.floor(Math.random() * 39);
-    addEvent("level_up", account, { skill, level: lvl, title: "Level up", line: `${account.name} reached level ${lvl} ${skill}` }, at);
+    },
+    at
+  );
+}
+
+function levelUp(account, at) {
+  const skill = pick(SKILLS);
+  const lvl = 60 + Math.floor(Math.random() * 39);
+  addEvent("level_up", account, { skill, level: lvl, title: "Level up", line: `${account.name} reached level ${lvl} ${skill}` }, at);
+}
+
+function collectionLog(account, at) {
+  const [itemId, itemName] = pick(LOG_ITEMS);
+  addEvent(
+    "collection_log",
+    account,
+    { item_id: itemId, title: "Collection log", line: `${account.name} added ${itemName} to their collection log` },
+    at
+  );
+}
+
+function diary(account, at) {
+  const tier = pick(DIARY_TIERS);
+  const area = pick(DIARIES);
+  addEvent(
+    "achievement_diary",
+    account,
+    { tier, title: "Achievement diary", line: `${account.name} completed the ${tier} ${area} diary` },
+    at
+  );
+}
+
+function combatTask(account, at) {
+  const [task, tier, points] = pick(COMBAT_TASKS);
+  addEvent(
+    "combat_task",
+    account,
+    { tier, points, title: "Combat task", line: `${account.name} completed the ${tier} combat task ${task}` },
+    at
+  );
+}
+
+// One of the two types that say where they happened (when the account shares that).
+function superiorSpawn(account, at) {
+  const [npcId, npcName] = pick(SUPERIORS);
+  const { x, y, plane } = position(account, at.getTime());
+  const location = shares(account, "location_live") ? { x, y, plane } : undefined;
+  addEvent(
+    "superior_spawn",
+    account,
+    {
+      npc_id: npcId,
+      title: "Superior spawn",
+      line: `A ${npcName} appeared for ${account.name}`,
+      data: { type: "superior_spawn", data: { npcId, ...(location ? { location } : {}) } },
+    },
+    at
+  );
+}
+
+function randomEvent(account, at) {
+  const roll = Math.random();
+  if (roll < 0.45) {
+    loot(account, at, pick(Math.random() < 1 / 12 ? BIG_ITEMS : SMALL_ITEMS));
+  } else if (roll < 0.5) {
+    loot(account, at, pick(SMALL_ITEMS), "pk_loot");
+  } else if (roll < 0.75) {
+    levelUp(account, at);
+  } else if (roll < 0.8) {
+    collectionLog(account, at);
+  } else if (roll < 0.84) {
+    diary(account, at);
+  } else if (roll < 0.88) {
+    combatTask(account, at);
+  } else if (roll < 0.92) {
+    superiorSpawn(account, at);
   } else if (!account.routed) {
     death(account, at);
   }
@@ -314,26 +417,38 @@ function death(account, at) {
   );
 }
 
-// The routed account dies once per lap, at the same place every time.
-let routeDeaths = Math.floor((started - TRAIL_HOURS * 3600_000) / 60_000 / ROUTE_MINUTES);
-function addRouteDeaths() {
+// What happens to the routed account every lap, at the same minute and so at
+// the same place every time: a level, a big drop upstairs in the Slayer
+// Tower, a new collection log slot in the dungeon, and a death.
+const ROUTE_EVENTS = [
+  [ROUTE_LEVEL_MINUTE, levelUp],
+  [ROUTE_DROP_MINUTE, (account, at) => loot(account, at, ITEMS[0])],
+  [ROUTE_LOG_MINUTE, collectionLog],
+  [ROUTE_DEATH_MINUTE, death],
+];
+let routeEventsUntil = started - TRAIL_HOURS * 3600_000;
+function addRouteEvents() {
   const account = accounts.find((a) => a.routed);
-  for (;;) {
-    const at = ((routeDeaths + 1) * ROUTE_MINUTES + ROUTE_DEATH_MINUTE) * 60_000;
-    if (!account || at > Date.now()) return;
-    routeDeaths += 1;
-    death(account, new Date(at));
+  const now = Date.now();
+  if (!account) return;
+  const lapMs = ROUTE_MINUTES * 60_000;
+  for (let lap = Math.floor(routeEventsUntil / lapMs); lap * lapMs <= now; lap++) {
+    for (const [minute, add] of ROUTE_EVENTS) {
+      const at = lap * lapMs + minute * 60_000;
+      if (at > routeEventsUntil && at <= now) add(account, new Date(at));
+    }
   }
+  routeEventsUntil = now;
 }
 
 // Some history, then something new every few seconds.
 for (let i = 0; i < 80; i++) {
   randomEvent(pick(accounts), new Date(started - (80 - i) * 9 * 60_000));
 }
-addRouteDeaths();
+addRouteEvents();
 events.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
 events.forEach((event, i) => (event.seq = i + 1));
-setInterval(addRouteDeaths, 10_000);
+setInterval(addRouteEvents, 10_000);
 setInterval(() => {
   const online = accounts.filter((a) => a.online);
   if (online.length) randomEvent(pick(online), new Date());

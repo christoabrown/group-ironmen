@@ -10,11 +10,10 @@ import { placeAtTime, pointOnRun, tileCenter, vertexAtTime } from "./trail-geome
 // the player at its end.
 //
 // view:  {zoom, plane, minX, minY, maxX, maxY, nowS, nowMs, reducedMotion}
-// trail: {model, geometry, color, light, selected, online, deaths, hover}
+// trail: {model, geometry, color, light, selected, online, hover}
 // mode:  {kind: "live", windowS} | {kind: "replay", time}
 
 const OUTLINE = "#0a0f1e";
-const DEATH_RED = "#e0403a";
 // The fade from new to old is stepped, so that long stretches share a stroke.
 const AGE_BANDS = 12;
 // Ages are compared on a log scale: the last hour takes as much of the fade
@@ -219,31 +218,6 @@ function drawJump(ctx, view, trail, jump, alpha, progress, animate) {
   return moving;
 }
 
-function drawDeaths(ctx, view, trail, alphaOf) {
-  const { tMin, tMax } = trail.model;
-  const size = 5 / view.zoom;
-  ctx.setLineDash([]);
-  ctx.lineCap = "round";
-  for (const death of trail.deaths || []) {
-    if (tMin === null || death.t < tMin - 60 || death.t > tMax + 60) continue;
-    const [x, y] = tileCenter(death.x, death.y);
-    if (!inView(view, x, y, size * 2)) continue;
-    const alpha = alphaOf(death) * floorAlpha(death.plane, view);
-    ctx.beginPath();
-    ctx.moveTo(x - size, y - size);
-    ctx.lineTo(x + size, y + size);
-    ctx.moveTo(x + size, y - size);
-    ctx.lineTo(x - size, y + size);
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 5 / view.zoom;
-    ctx.stroke();
-    ctx.strokeStyle = DEATH_RED;
-    ctx.lineWidth = 2.4 / view.zoom;
-    ctx.stroke();
-  }
-}
-
 /** Little arrow heads flowing along the line towards the player. */
 function drawChevrons(ctx, view, trail, mode) {
   const spacing = CHEVRON_SPACING / view.zoom;
@@ -377,7 +351,6 @@ function drawLive(ctx, view, trail, mode) {
     }
   }
 
-  drawDeaths(ctx, view, trail, () => 1);
   return animating;
 }
 
@@ -424,8 +397,6 @@ function drawReplay(ctx, view, trail, mode) {
     const progress = jump.tB > jump.tA ? Math.min(1, (time - jump.tA) / (jump.tB - jump.tA)) : 1;
     drawJump(ctx, view, trail, jump, 1, progress, false);
   }
-
-  drawDeaths(ctx, view, trail, (death) => (death.t <= time ? 1 : 0.25));
 
   const ghost = placeAtTime(geometry, time);
   if (ghost && inView(view, ghost.x, ghost.y, pad)) {

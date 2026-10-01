@@ -1465,6 +1465,35 @@ describe("CanvasMap trails", () => {
     ...extra,
   });
 
+  it("marks a player's events on their trail, for as long as it is shown", () => {
+    const map = createMapInstance();
+    const trail = serverTrail();
+    const t = trail.points[1][3];
+    const level = { id: "l", type: "level_up", member: "Alice", occurred_at: new Date(t * 1000).toISOString() };
+    const changed = vi.fn();
+    map.addEventListener("trail-timeline-changed", changed);
+
+    map.setTrail("Alice", trail, STYLE);
+    map.setTrailEvents(new Map([["Alice", [level]]]));
+    expect(map.eventMarkers.find("l")).toMatchObject({
+      x: 3210,
+      y: 3201,
+      plane: 0,
+      color: STYLE.color,
+      trail: "Alice",
+    });
+    expect(map.trailTimeline().ticks).toEqual([{ t, kind: "level", tier: 0, color: STYLE.color }]);
+    expect(changed).toHaveBeenCalledTimes(2);
+
+    // The timeline follows the filters; the map is told to draw again.
+    map.setEventFilters({ loot: true, level: false, death: true, other: true, minLoot: 0 });
+    expect(map.trailTimeline().ticks).toEqual([]);
+    expect(changed).toHaveBeenCalledTimes(3);
+
+    map.clearTrail("Alice");
+    expect(map.eventMarkers.find("l")).toBeNull();
+  });
+
   it("shows a trail from the server's answer and takes it off again", () => {
     const map = createMapInstance();
     const changed = vi.fn();
@@ -1541,7 +1570,7 @@ describe("CanvasMap trails", () => {
     map.onPointerMove({ clientX: x, clientY: y + 3 });
 
     mockHideTooltip.mockClear();
-    map.setTrailDeaths("Alice", []);
+    map.setTrailEvents(new Map([["Alice", []]]));
     expect(mockHideTooltip).not.toHaveBeenCalled();
 
     // A fresh trail may have other points: what was hovered is gone.
@@ -1562,6 +1591,82 @@ describe("CanvasMap trails", () => {
     expect(map.trailLayer.replayTime).toBeNull();
     expect(map.trailNextChange(tMin + 30)).toBe(tMin + 30);
     expect(map.trailNextChange(tMax + 30)).toBeNull();
+  });
+
+  describe("events in a replay", () => {
+    const eventAt = (id, t, extra = {}) => ({
+      id,
+      type: "level_up",
+      member: "Alice",
+      occurred_at: new Date(t * 1000).toISOString(),
+      ...extra,
+    });
+    const filters = { loot: true, level: true, death: true, other: true, minLoot: 0 };
+
+    function replayMap(count = 1) {
+      const map = createMapInstance();
+      const trail = serverTrail();
+      const [, mid] = trail.points.map((point) => point[3]);
+      const events = [];
+      for (let i = 0; i < count; i++) events.push(eventAt(`e${i}`, mid + i));
+      map.setTrail("Alice", trail, STYLE);
+      map.setTrailEvents(new Map([["Alice", events]]));
+      map.setEventFilters(filters);
+      return { map, mid };
+    }
+    const shown = (map, now = Date.now()) =>
+      Object.fromEntries(
+        map.eventMarkers
+          .visible({ filters, now, replayTime: map.trailLayer.replayTime })
+          .map((marker) => [marker.id, marker])
+      );
+
+    it("are dim until the replay comes to them", () => {
+      const { map, mid } = replayMap();
+      map.setReplayTime(mid - 30);
+      expect(shown(map).e0.alpha).toBeLessThan(0.5);
+      map.setReplayTime(mid + 30);
+      expect(shown(map).e0.alpha).toBe(1);
+    });
+
+    it("ring as the replay passes them, going forward only", () => {
+      const { map, mid } = replayMap();
+      map.setReplayTime(mid - 30);
+      expect(shown(map).e0.ringAge).toBeNull();
+      map.setReplayTime(mid + 5);
+      expect(shown(map).e0.ringAge).not.toBeNull();
+
+      const { map: back, mid: time } = replayMap();
+      back.setReplayTime(time + 30);
+      back.setReplayTime(time - 30);
+      expect(shown(back).e0.ringAge).toBeNull();
+    });
+
+    it("don't ring when the replay is opened, or closed", () => {
+      const { map, mid } = replayMap();
+      map.setReplayTime(mid + 30);
+      expect(shown(map).e0.ringAge).toBeNull();
+      map.setReplayTime(null);
+      expect(shown(map).e0.ringAge).toBeNull();
+    });
+
+    it("ring for the last few only when many are passed at once", () => {
+      const { map, mid } = replayMap(6);
+      map.setReplayTime(mid - 30);
+      map.setReplayTime(mid + 30);
+      const ringing = Object.values(shown(map))
+        .filter((marker) => marker.ringAge !== null)
+        .map((marker) => marker.id);
+      expect(ringing.sort()).toEqual(["e3", "e4", "e5"]);
+    });
+
+    it("don't ring for an event the filters hide", () => {
+      const { map, mid } = replayMap();
+      map.setEventFilters({ ...filters, level: false });
+      map.setReplayTime(mid - 30);
+      map.setReplayTime(mid + 30);
+      expect(map.eventMarkers.pops.size).toBe(0);
+    });
   });
 
   describe("following the replay", () => {

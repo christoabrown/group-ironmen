@@ -1,4 +1,12 @@
-import { buildTrailModel, decodeTrail, mergeTrail, nextChangeAfter, observeLive, timelineTicks } from "./trail-model";
+import {
+  buildTrailModel,
+  decodeTrail,
+  mergeTrail,
+  nextChangeAfter,
+  observeLive,
+  placeMarks,
+  timelineTicks,
+} from "./trail-model";
 import { buildGeometry, hitTest, lodForZoom, placeAtTime } from "./trail-geometry";
 import { drawTrail } from "./trail-renderer";
 
@@ -16,7 +24,8 @@ export class TrailLayer {
     this.now = now;
     this.trails = new Map();
     this.seen = new Map();
-    this.deaths = new Map();
+    this.events = new Map();
+    this.eventFilter = null;
     this.replayTime = null;
     this.hover = null;
   }
@@ -80,14 +89,36 @@ export class TrailLayer {
     return false;
   }
 
-  /** The deaths to mark on a player's trail; see deathMarks. */
-  setDeaths(name, marks) {
-    this.deaths.set(name, marks);
+  /** The hub events of a player, to mark on their trail. */
+  setEvents(name, events) {
+    this.events.set(name, events);
+    const trail = this.trails.get(name);
+    if (trail) trail.marks = null;
   }
 
-  deathsOn(name, model) {
-    if (model.tMin === null) return [];
-    return (this.deaths.get(name) || []).filter((death) => death.t >= model.tMin - 60 && death.t <= model.tMax + 60);
+  /**
+   * Which events count on the timeline and for what happens next:
+   * `passes(event)`, as the map's filters have it. Null lets them all through.
+   */
+  setEventFilter(passes) {
+    this.eventFilter = passes;
+  }
+
+  /** The events on a player's trail, whatever the filter; see placeMarks. */
+  marksOn(name) {
+    const trail = this.trails.get(name);
+    if (!trail) return [];
+    if (!trail.marks) trail.marks = placeMarks(this.events.get(name) || [], name, trail.model);
+    return trail.marks;
+  }
+
+  shownMarksOn(name) {
+    const marks = this.marksOn(name);
+    return this.eventFilter ? marks.filter((mark) => this.eventFilter(mark.event)) : marks;
+  }
+
+  colorOf(name) {
+    return this.trails.get(name)?.color || null;
   }
 
   rebuild(name) {
@@ -97,6 +128,7 @@ export class TrailLayer {
     const points = mergeTrail(trail.history, seen?.buffer || [], head);
     trail.model = buildTrailModel(points, { step: trail.step });
     trail.geometries = [];
+    trail.marks = null;
     if (this.hover?.name === name) this.hover = null;
   }
 
@@ -124,7 +156,7 @@ export class TrailLayer {
       const end = this.isOnline(name) ? Math.max(model.tMax, this.now()) : model.tMax;
       tMin = tMin === null ? model.tMin : Math.min(tMin, model.tMin);
       tMax = tMax === null ? end : Math.max(tMax, end);
-      for (const tick of timelineTicks(model, this.deathsOn(name, model))) {
+      for (const tick of timelineTicks(model, this.shownMarksOn(name))) {
         ticks.push({ ...tick, color: trail.color });
       }
     }
@@ -159,13 +191,16 @@ export class TrailLayer {
 
   /**
    * When something next happens on any of the trails at or after a time, or
-   * null when nothing does; see nextChangeAfter.
+   * null when nothing does: a player moves (see nextChangeAfter), or an event
+   * is marked, so that a replay which skips the waits doesn't skip those.
    */
   nextChangeAfter(time) {
     let next = null;
-    for (const trail of this.trails.values()) {
+    for (const [name, trail] of this.trails) {
       const change = nextChangeAfter(trail.model, time);
       if (change !== null && (next === null || change < next)) next = change;
+      const mark = this.shownMarksOn(name).find((candidate) => candidate.t >= time);
+      if (mark && (next === null || mark.t < next)) next = mark.t;
     }
     return next;
   }
@@ -193,7 +228,6 @@ export class TrailLayer {
           light: trail.light,
           selected: name === selectedName,
           online: this.isOnline(name),
-          deaths: this.deathsOn(name, trail.model),
           hover: this.hover?.name === name ? this.hover.point : null,
         },
         mode

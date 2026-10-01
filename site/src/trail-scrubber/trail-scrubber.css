@@ -62,10 +62,37 @@ trail-scrubber[hidden] {
   background: var(--player-color, white);
 }
 
-.trail-scrubber__tick--death {
+/* Teleports are above the track in the player's colour; what happened to the
+   player is below it, in the colour of its kind. */
+.trail-scrubber__tick--death,
+.trail-scrubber__tick--loot,
+.trail-scrubber__tick--level,
+.trail-scrubber__tick--other {
   top: auto;
   bottom: 1px;
+}
+
+.trail-scrubber__tick--death {
   background: #e0403a;
+}
+
+.trail-scrubber__tick--loot {
+  background: #b8a13a;
+}
+
+.trail-scrubber__tick--level {
+  background: #5bd45b;
+}
+
+.trail-scrubber__tick--other {
+  background: #f2f2f2;
+}
+
+.trail-scrubber__tick--notable {
+  width: 3px;
+  height: 8px;
+  background: #ffd700;
+  box-shadow: 0 0 4px #ffd700;
 }
 
 .trail-scrubber__time {
@@ -79,12 +106,4 @@ trail-scrubber[hidden] {
 .trail-scrubber__skip {
   display: flex;
   align-items: center;
-  gap: 3px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.trail-scrubber__follow input,
-.trail-scrubber__skip input {
-  margin: 0;
 }

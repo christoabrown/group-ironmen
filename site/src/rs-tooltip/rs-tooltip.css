@@ -35,3 +35,58 @@ rs-tooltip {
   pointer-events: none;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
 }
+
+/* What happened at a marker on the map: one event, or the events of a stack. */
+.event-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 320px;
+  line-height: 1.25;
+}
+
+.event-tip em {
+  color: #bbb;
+}
+
+.event-tip__icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.event-tip__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.event-tip__value {
+  color: #ffd700;
+}
+
+.event-tip__items {
+  display: inline-flex;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.event-tip__item {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.event-tip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.event-tip__ago,
+.event-tip__foot {
+  color: #aaa;
+  font-size: 0.85rem;
+}

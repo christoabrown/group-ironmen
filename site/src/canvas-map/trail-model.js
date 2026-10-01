@@ -1,4 +1,5 @@
 import { GroupData } from "../data/group-data";
+import { eventKind, eventPlace, eventTier, eventTimeMs } from "../data/event-view";
 
 // What a player's trail is, apart from how it is drawn: the points the hub
 // sampled (about one a minute) joined with the positions seen live, and what
@@ -290,29 +291,51 @@ export function nextChangeAfter(model, t) {
   return t;
 }
 
-/** A member's deaths that have a place: `[{id, x, y, plane, t}]`, from hub events. */
-export function deathMarks(events, member) {
+// An event may fall this long before or after a trail and still be marked on it.
+const MARK_SLACK_S = 60;
+
+/**
+ * A member's hub events as marks on their trail:
+ * `[{id, event, x, y, plane, t, approximate}]`, oldest first. An event that
+ * says where it happened is marked there; any other where the trail has the
+ * player at that time, which is a guess (`approximate`) when they were
+ * between two places the trail can't join up. Events of a type the map
+ * doesn't show, and those from outside the time the trail covers, are left
+ * out.
+ */
+export function placeMarks(events, member, model) {
   const marks = [];
+  if (model.tMin === null) return marks;
   for (const event of events) {
-    if (event.type !== "death" || event.member !== member || !event.location) continue;
-    const position = GroupData.transformCoordinatesFromStorage([
-      event.location.x,
-      event.location.y,
-      event.location.plane || 0,
-    ]);
-    const t = Date.parse(event.occurred_at) / 1000;
-    if (isNaN(t) || isNaN(position.x) || isNaN(position.y)) continue;
-    marks.push({ id: event.id, ...position, t });
+    if (event.member !== member || !event.id || !eventKind(event)) continue;
+    const time = eventTimeMs(event);
+    if (time === null) continue;
+    const t = time / 1000;
+    if (t < model.tMin - MARK_SLACK_S || t > model.tMax + MARK_SLACK_S) continue;
+    let place = eventPlace(event);
+    let approximate = false;
+    if (!place) {
+      place = positionAt(model, t);
+      if (!place) continue;
+      approximate = place.moving && !CONNECTED.has(place.kind);
+    }
+    if (isNaN(place.x) || isNaN(place.y)) continue;
+    marks.push({ id: event.id, event, x: place.x, y: place.y, plane: place.plane, t, approximate });
   }
   return marks.sort((a, b) => a.t - b.t);
 }
 
-/** The moments worth a tick on the replay timeline: `[{t, kind}]`, oldest first. */
-export function timelineTicks(model, deaths = []) {
+/**
+ * The moments worth a tick on the replay timeline, oldest first: teleports
+ * as `{t, kind: "teleport"}` and the events marked on the trail (see
+ * placeMarks) as `{t, kind, tier}`, with the event's kind and how notable
+ * it is.
+ */
+export function timelineTicks(model, marks = []) {
   const ticks = model.jumps
     .filter((jump) => jump.kind === "teleport")
     .map((jump) => ({ t: model.points[jump.from + 1].t0, kind: "teleport" }));
-  for (const death of deaths) ticks.push({ t: death.t, kind: "death" });
+  for (const mark of marks) ticks.push({ t: mark.t, kind: eventKind(mark.event), tier: eventTier(mark.event) });
   return ticks.sort((a, b) => a.t - b.t);
 }
 

@@ -1,10 +1,9 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
-import { Item } from "../data/item";
 import { describeEvent, relativeTime, hubErrorMessage } from "../data/hub-format";
+import { eventIconUrl } from "../data/event-view";
 import { selection } from "../data/selection";
 import { groupData } from "../data/group-data";
-import { Skill } from "../data/skill";
 
 export const EVENT_FILTERS = [
   { label: "All", types: [] },
@@ -17,13 +16,6 @@ export const EVENT_FILTERS = [
 
 const PLAYER_REFRESH_MS = 30000;
 const TIME_REFRESH_MS = 30000;
-
-/** The image for an event: its item, or a sprite for its kind. */
-export function eventIcon(event) {
-  if (event.item_id) return Item.imageUrl(event.item_id, 1) || null;
-  if (event.type === "level_up" && event.skill) return Skill.getIcon(event.skill) || null;
-  return null;
-}
 
 /**
  * A list of hub events. Without `player-name` it shows the whole guild's feed
@@ -153,7 +145,7 @@ export class EventFeed extends BaseElement {
     row.classList.toggle("event-feed__event--new", this.newIds.has(event.id));
     row.classList.toggle("event-feed__event--clickable", Boolean(event.location) || !this.playerName);
 
-    const iconUrl = eventIcon(event);
+    const iconUrl = eventIconUrl(event);
     const icon = document.createElement("img");
     icon.className = "event-feed__icon";
     icon.loading = "lazy";

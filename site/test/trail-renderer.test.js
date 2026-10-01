@@ -79,7 +79,6 @@ function trailOf(points, extra = {}) {
     light: LIGHT,
     selected: false,
     online: false,
-    deaths: [],
     hover: null,
     ...extra,
   };
@@ -271,18 +270,6 @@ describe("drawTrail, live", () => {
     drawTrail(offline, viewOf(3215, 3202), trailOf(walk), LIVE);
     expect(offline.fills.filter((fill) => fill.style === LIGHT && atHead(fill))).toHaveLength(0);
     expect(offline.strokes.some(atHead)).toBe(true);
-  });
-
-  it("marks deaths with a red cross", () => {
-    const ctx = recordingContext();
-    const deaths = [{ id: "d", x: 3205, y: 3200, plane: 0, t: NOW - 150 }];
-    drawTrail(ctx, viewOf(3215, 3202), trailOf(walk, { deaths }), LIVE);
-    const [x, y] = tileCenter(3205, 3200);
-    const cross = ctx.strokes.filter(
-      (stroke) => stroke.path.length === 4 && stroke.path[0][0] < x && stroke.path[1][0] > x
-    );
-    expect(cross.length).toBe(2);
-    expect(cross[0].path[0][1]).toBeLessThan(y);
   });
 });
 
