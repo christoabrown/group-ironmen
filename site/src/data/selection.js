@@ -7,6 +7,7 @@ import { pubsub } from "./pubsub";
 //   map-focus        {x, y, plane, zoom?}   (a place to show on the map)
 
 export const MAX_TRAILS = 8;
+const TRAILS_KEY = "map-trails";
 
 class Selection {
   constructor() {
@@ -39,17 +40,19 @@ class Selection {
       if (this.trails.size >= MAX_TRAILS) return false;
       this.trails.add(name);
     }
-    pubsub.publish("trails-changed", new Set(this.trails));
+    this.trailsChanged();
     return true;
   }
 
   clearTrails() {
     this.trails.clear();
-    pubsub.publish("trails-changed", new Set());
+    this.trailsChanged();
   }
 
   /** Forgets players that left the roster. */
   retainTrails(names) {
+    // An empty roster is one that hasn't loaded yet, not one everybody left.
+    if (!names.size) return;
     let changed = false;
     for (const name of [...this.trails]) {
       if (!names.has(name)) {
@@ -57,13 +60,36 @@ class Selection {
         changed = true;
       }
     }
-    if (changed) pubsub.publish("trails-changed", new Set(this.trails));
+    if (changed) this.trailsChanged();
+  }
+
+  trailsChanged() {
+    try {
+      localStorage.setItem(TRAILS_KEY, JSON.stringify([...this.trails]));
+    } catch {
+      // Not remembered in private mode.
+    }
+    pubsub.publish("trails-changed", new Set(this.trails));
+  }
+
+  /** Shows the trails that were on before the page was reloaded. */
+  restore() {
+    let names = [];
+    try {
+      names = JSON.parse(localStorage.getItem(TRAILS_KEY) || "[]");
+    } catch {
+      // Start without trails.
+    }
+    if (!Array.isArray(names)) names = [];
+    this.trails = new Set(names.filter((name) => typeof name === "string").slice(0, MAX_TRAILS));
+    if (this.trails.size) pubsub.publish("trails-changed", new Set(this.trails));
   }
 
   focusMap(x, y, plane = 0, zoom) {
     pubsub.publish("map-focus", { x, y, plane, zoom });
   }
 
+  /** Forgets the trails for this page, not the ones remembered for the next. */
   reset() {
     this.trails.clear();
   }

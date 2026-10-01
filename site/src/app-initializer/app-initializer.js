@@ -39,6 +39,7 @@ export class AppInitializer extends BaseElement {
 
   async initializeApp() {
     this.cleanup();
+    selection.restore();
     loadingScreenManager.showLoadingScreen();
     await Promise.all([Item.loadItems(), Item.loadGePrices()]);
     // Place names aren't needed to show the map; fill them in when they arrive.

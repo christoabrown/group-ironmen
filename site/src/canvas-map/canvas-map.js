@@ -582,6 +582,11 @@ export class CanvasMap extends BaseElement {
     }
   }
 
+  /** The players whose trails are on the map. */
+  trailNames() {
+    return [...this.trails.keys()];
+  }
+
   clearTrails() {
     if (this.trails.size) {
       this.trails.clear();

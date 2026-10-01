@@ -2,10 +2,34 @@ import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { groupData, GroupData } from "../data/group-data";
 import { selection } from "../data/selection";
+import { colorForName } from "../data/player-colors";
 import { formatGp } from "../data/hub-format";
 
 const TRAIL_REFRESH_MS = 60000;
+// The first retry after a failed trail request; it doubles up to the normal refresh.
+const TRAIL_RETRY_MS = 5000;
+// Hub data older than this is the server's stale copy: the hub isn't answering.
+const TRAIL_STALE_S = 180;
+const TRAIL_DAYS_KEY = "map-trail-days";
 const FILTERS_KEY = "map-event-filters";
+
+/** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
+function staleNotice(asOf) {
+  if (!asOf || Date.now() / 1000 - asOf < TRAIL_STALE_S) return null;
+  const time = new Date(asOf * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `Hub data from ${time}`;
+}
+
+/** The trail length chosen last time, when the select still offers it. */
+function storedTrailDays(select) {
+  let stored = null;
+  try {
+    stored = localStorage.getItem(TRAIL_DAYS_KEY);
+  } catch {
+    // Private mode.
+  }
+  return [...select.options].some((option) => option.value === stored) ? stored : select.value;
+}
 
 /** Which hub events show on the map, and how. */
 export const PING_KINDS = [
@@ -92,12 +116,13 @@ export class MapPage extends BaseElement {
     this.eventControls = this.querySelector(".map-page__events");
 
     this.planeSelect.value = this.worldMap.plane || 1;
+    this.trailDaysSelect.value = storedTrailDays(this.trailDaysSelect);
     this.renderEventControls();
 
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));
     this.eventListener(this.planeSelect, "wheel", this.handlePlaneWheel.bind(this), { passive: false });
     this.eventListener(this.worldMap, "plane-changed", this.handlePlaneChange.bind(this));
-    this.eventListener(this.trailDaysSelect, "change", () => this.loadTrails());
+    this.eventListener(this.trailDaysSelect, "change", this.handleTrailDaysChange.bind(this));
     this.eventListener(this.trailChips, "click", this.handleTrailChipClick.bind(this));
     this.eventListener(this.querySelector(".map-page__trails-clear"), "click", () => selection.clearTrails());
     this.eventListener(this.querySelector(".map-page__roster-toggle"), "click", () =>
@@ -113,7 +138,7 @@ export class MapPage extends BaseElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.clearInterval(this.trailRefresh);
+    window.clearTimeout(this.trailRefresh);
     this.worldMap.clearTrails();
     this.worldMap.classList.remove("interactable");
     document.body.classList.remove("roster-open");
@@ -158,34 +183,63 @@ export class MapPage extends BaseElement {
   // Trails
   // ---------------------------------------------------------------------------
 
+  handleTrailDaysChange() {
+    try {
+      localStorage.setItem(TRAIL_DAYS_KEY, this.trailDaysSelect.value);
+    } catch {
+      // Not remembered in private mode.
+    }
+    this.loadTrails();
+  }
+
+  /**
+   * Fetches the selected trails and draws them, then again every minute. A
+   * later call (another selection, another length) overtakes one whose
+   * answer is still under way.
+   */
   async loadTrails() {
-    window.clearInterval(this.trailRefresh);
+    window.clearTimeout(this.trailRefresh);
+    const requestId = (this.trailRequestId = (this.trailRequestId || 0) + 1);
     const names = [...selection.trails];
-    this.renderTrailChips();
+    // A trail that was switched off goes at once, whatever the request does.
+    for (const name of this.worldMap.trailNames()) {
+      if (!selection.hasTrail(name)) this.worldMap.clearTrail(name);
+    }
+    for (const name of [...this.trailData.keys()]) {
+      if (!selection.hasTrail(name)) this.trailData.delete(name);
+    }
     if (!names.length) {
-      this.trailData.clear();
-      this.worldMap.clearTrails();
+      this.trailError = null;
+      this.trailFailures = 0;
+      this.renderTrailChips();
       return;
     }
+    this.renderTrailChips();
+
     const days = parseInt(this.trailDaysSelect.value, 10);
-    const requestId = (this.trailRequestId = (this.trailRequestId || 0) + 1);
+    let retryIn = TRAIL_REFRESH_MS;
     try {
       const data = await api.getTrails(names, days);
       if (!this.isConnected || requestId !== this.trailRequestId) return;
       this.trailData = new Map(data.trails.map((trail) => [trail.member, trail]));
-      this.worldMap.clearTrails();
       for (const trail of data.trails) {
-        if (!trail.shared) continue;
-        const color = groupData.members.get(trail.member)?.color || "#f5d742";
-        this.worldMap.setTrail(trail.member, trail.points, color);
+        if (trail.shared) {
+          this.worldMap.setTrail(trail.member, trail.points, colorForName(trail.member).color);
+        } else {
+          this.worldMap.clearTrail(trail.member);
+        }
       }
-      this.trailError = null;
+      this.trailFailures = 0;
+      this.trailError = staleNotice(data.as_of);
     } catch (error) {
       if (!this.isConnected || requestId !== this.trailRequestId) return;
+      // What is drawn stays; it is only getting older.
       this.trailError = error.status === 503 ? "Hub busy" : "Trails unavailable";
+      this.trailFailures = (this.trailFailures || 0) + 1;
+      retryIn = Math.min(TRAIL_RETRY_MS * 2 ** (this.trailFailures - 1), TRAIL_REFRESH_MS);
     }
     this.renderTrailChips();
-    this.trailRefresh = window.setInterval(() => this.loadTrails(), TRAIL_REFRESH_MS);
+    this.trailRefresh = window.setTimeout(() => this.loadTrails(), retryIn);
   }
 
   renderTrailChips() {
@@ -197,7 +251,7 @@ export class MapPage extends BaseElement {
         chip.type = "button";
         chip.className = "map-page__trail-chip";
         chip.dataset.name = name;
-        chip.style.setProperty("--player-color", groupData.members.get(name)?.color || "#f5d742");
+        chip.style.setProperty("--player-color", colorForName(name).color);
         const trail = this.trailData.get(name);
         const notShared = trail && !trail.shared;
         const empty = trail?.shared && trail.points.length === 0;
