@@ -115,13 +115,27 @@ fn spawn_worker(
     (tx, notify_rx)
 }
 
+/// Runs the batcher over `updates` and returns when all of them are stored.
+///
+/// A running worker closes a batch 50 ms after the first update arrives, so
+/// updates sent one after another can end up in more than one batch, and one
+/// notification does not say that the last of them is written. Tests that
+/// send several updates use this instead of `spawn_worker`.
+async fn store(pool: &Pool, updates: Vec<GroupMember>) {
+    let (tx, rx) = tokio::sync::mpsc::channel::<GroupMember>(updates.len().max(1));
+    for update in updates {
+        tx.try_send(update).expect("the channel holds every update");
+    }
+    // With the sender gone the worker returns once the channel is empty.
+    drop(tx);
+    update_batcher::background_worker(pool.clone(), rx, None).await;
+}
+
 #[tokio::test]
 async fn test_concurrent_updates_same_member_no_lost_fields() {
     let _guard = TEST_MUTEX.lock().await;
     let pool = create_test_pool().await;
     let group_id = setup_test_group(&pool).await;
-
-    let (tx, mut notify_rx) = spawn_worker(&pool);
 
     // Send two partial updates for the same member in the same batch
     let mut update1 = make_member(Some(group_id), "alice");
@@ -133,19 +147,13 @@ async fn test_concurrent_updates_same_member_no_lost_fields() {
         210, 220, 230, 240,
     ]);
 
-    tx.send(update1).await.expect("failed to send update1");
-    tx.send(update2).await.expect("failed to send update2");
-
-    // Wait for the batch to process
-    notify_rx.recv().await.expect("worker should process batch");
+    store(&pool, vec![update1, update2]).await;
 
     // Verify both fields are present (no lost update)
     let client = pool.get().await.expect("failed to get client");
     let alice = get_member_from_db(&client, group_id, "alice").await;
     assert_eq!(alice.stats, Some(vec![1, 2, 3, 4, 5, 6, 7]));
     assert!(alice.skills.is_some(), "skills should not be lost");
-
-    drop(tx);
 }
 
 #[tokio::test]
@@ -153,8 +161,6 @@ async fn test_concurrent_updates_different_members() {
     let _guard = TEST_MUTEX.lock().await;
     let pool = create_test_pool().await;
     let group_id = setup_test_group(&pool).await;
-
-    let (tx, mut notify_rx) = spawn_worker(&pool);
 
     // Send updates for different members
     let mut alice = make_member(Some(group_id), "alice");
@@ -166,11 +172,7 @@ async fn test_concurrent_updates_different_members() {
     let mut carol = make_member(Some(group_id), "carol");
     carol.stats = Some(vec![3, 3, 3, 3, 3, 3, 3]);
 
-    tx.send(alice).await.unwrap();
-    tx.send(bob).await.unwrap();
-    tx.send(carol).await.unwrap();
-
-    notify_rx.recv().await.expect("worker should process batch");
+    store(&pool, vec![alice, bob, carol]).await;
 
     let client = pool.get().await.expect("failed to get client");
     assert_eq!(
@@ -185,8 +187,6 @@ async fn test_concurrent_updates_different_members() {
         get_member_from_db(&client, group_id, "carol").await.stats,
         Some(vec![3, 3, 3, 3, 3, 3, 3])
     );
-
-    drop(tx);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -297,9 +297,8 @@ async fn test_batch_exceeding_chunk_size() {
             .expect("failed to insert extra member");
     }
 
-    let (tx, mut notify_rx) = spawn_worker(&pool);
-
     // Send 55 updates (exceeds CHUNK_SIZE of 50)
+    let mut updates = Vec::new();
     for i in 0..55u32 {
         let name = if i < 3 {
             ["alice", "bob", "carol"][i as usize].to_string()
@@ -308,10 +307,9 @@ async fn test_batch_exceeding_chunk_size() {
         };
         let mut m = make_member(Some(group_id), &name);
         m.stats = Some(vec![i as i32; 7]);
-        tx.send(m).await.unwrap();
+        updates.push(m);
     }
-
-    notify_rx.recv().await.expect("worker should process batch");
+    store(&pool, updates).await;
 
     let client = pool.get().await.expect("failed to get client");
 
@@ -331,8 +329,6 @@ async fn test_batch_exceeding_chunk_size() {
             i
         );
     }
-
-    drop(tx);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -345,8 +341,6 @@ async fn test_non_member_update_is_silent_noop() {
     let pool = create_test_pool().await;
     let group_id = setup_test_group(&pool).await;
 
-    let (tx, mut notify_rx) = spawn_worker(&pool);
-
     // Send an update for a real member and a non-member in the same batch
     let mut alice = make_member(Some(group_id), "alice");
     alice.stats = Some(vec![1, 2, 3, 4, 5, 6, 7]);
@@ -354,11 +348,8 @@ async fn test_non_member_update_is_silent_noop() {
     let mut ghost = make_member(Some(group_id), "ghost");
     ghost.stats = Some(vec![9, 9, 9, 9, 9, 9, 9]);
 
-    tx.send(alice).await.unwrap();
-    tx.send(ghost).await.unwrap();
-
     // Batch should process without error
-    notify_rx.recv().await.expect("worker should process batch");
+    store(&pool, vec![alice, ghost]).await;
 
     let client = pool.get().await.expect("failed to get client");
 
@@ -377,8 +368,6 @@ async fn test_non_member_update_is_silent_noop() {
         !members.iter().any(|m| m.name == "ghost"),
         "non-member 'ghost' should not appear in group data"
     );
-
-    drop(tx);
 }
 
 #[tokio::test]

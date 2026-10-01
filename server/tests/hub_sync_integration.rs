@@ -21,6 +21,9 @@ use server::update_batcher;
 
 static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+/// Room for the members one poll sends.
+const UPDATE_CAPACITY: usize = 1000;
+
 async fn create_test_pool() -> Pool {
     let mut cfg = if let Ok(url) = env::var("TEST_DATABASE_URL") {
         let mut c = deadpool_postgres::Config::new();
@@ -171,8 +174,9 @@ struct Harness {
     group_id: i64,
     hub: Arc<Mutex<MockHub>>,
     sync: HubSync,
-    notify: mpsc::Receiver<()>,
-    sent: Arc<Mutex<usize>>,
+    /// What the sync sends; `poll` hands it to the batcher.
+    updates: mpsc::Receiver<GroupMember>,
+    sent: usize,
     control: SyncControl,
     directory: HubDirectory,
 }
@@ -190,22 +194,9 @@ async fn harness() -> Harness {
         ..HubConfig::default()
     };
 
-    // Count what the sync sends, then forward it to a real batcher.
-    let (tx, mut rx) = mpsc::channel::<GroupMember>(1000);
-    let (batch_tx, batch_rx) = mpsc::channel::<GroupMember>(1000);
-    let (notify_tx, notify) = mpsc::channel::<()>(100);
-    let sent = Arc::new(Mutex::new(0usize));
-    let sent_counter = Arc::clone(&sent);
-    tokio::spawn(async move {
-        while let Some(member) = rx.recv().await {
-            *sent_counter.lock().unwrap() += 1;
-            batch_tx.send(member).await.unwrap();
-        }
-    });
-    let batcher_pool = pool.clone();
-    tokio::spawn(async move {
-        update_batcher::background_worker(batcher_pool, batch_rx, Some(notify_tx)).await;
-    });
+    // Nothing reads this channel while a poll runs, so it has to hold
+    // everything one poll sends.
+    let (tx, updates) = mpsc::channel::<GroupMember>(UPDATE_CAPACITY);
 
     let directory = HubDirectory::default();
     let control = SyncControl::default();
@@ -225,29 +216,38 @@ async fn harness() -> Harness {
         group_id,
         hub,
         sync,
-        notify,
-        sent,
+        updates,
+        sent: 0,
         control,
         directory,
     }
 }
 
 impl Harness {
+    /// One poll, with everything it sent stored by the time this returns.
+    ///
+    /// The sync sends its accounts one by one with database work in between,
+    /// and a running batcher closes a batch 50 ms after the first member
+    /// arrives, so one poll can end up in several batches. Instead of guessing
+    /// how many to wait for, the real batcher runs here over exactly what the
+    /// poll sent, until it is done.
     async fn poll(&mut self) -> Result<(), HubError> {
-        let before = *self.sent.lock().unwrap();
         let result = self.sync.poll_once().await;
-        // Give the forwarding task a moment, then wait for the batch if one was sent.
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        if *self.sent.lock().unwrap() > before {
-            tokio::time::timeout(Duration::from_secs(5), self.notify.recv())
-                .await
-                .expect("batcher did not process the hub update");
+        let (batch_tx, batch_rx) = mpsc::channel::<GroupMember>(UPDATE_CAPACITY);
+        while let Ok(member) = self.updates.try_recv() {
+            self.sent += 1;
+            batch_tx
+                .try_send(member)
+                .expect("as large as the channel it is filled from");
         }
+        // With the sender gone the batcher returns once the channel is empty.
+        drop(batch_tx);
+        update_batcher::background_worker(self.pool.clone(), batch_rx, None).await;
         result
     }
 
     fn sent(&self) -> usize {
-        *self.sent.lock().unwrap()
+        self.sent
     }
 
     async fn member(&self, name: &str) -> Option<GroupMember> {
