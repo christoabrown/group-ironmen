@@ -282,8 +282,10 @@ function outside(box, x, y, radius) {
  */
 export function hitTest(geometry, x, y, radius) {
   let best = null;
+  // Of equally near points the later one wins: where a trail passes a place
+  // more than once, the last visit is the one on top.
   const consider = (distance, src) => {
-    if (distance <= radius && (!best || distance < best.distance)) best = { src, distance };
+    if (distance <= radius && (!best || distance <= best.distance)) best = { src, distance };
   };
   for (const run of geometry.runs) {
     if (outside(run.bbox, x, y, radius)) continue;

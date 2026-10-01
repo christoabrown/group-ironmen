@@ -1542,6 +1542,8 @@ describe("CanvasMap trails", () => {
     expect(map.updateRequested).toBeGreaterThan(0);
     map.setReplayTime(null);
     expect(map.trailLayer.replayTime).toBeNull();
+    expect(map.trailNextChange(tMin + 30)).toBe(tMin + 30);
+    expect(map.trailNextChange(tMax + 30)).toBeNull();
   });
 
   it("draws the trails under the camera", () => {

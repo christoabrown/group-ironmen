@@ -1,4 +1,4 @@
-import { buildTrailModel, decodeTrail, mergeTrail, observeLive, timelineTicks } from "./trail-model";
+import { buildTrailModel, decodeTrail, mergeTrail, nextChangeAfter, observeLive, timelineTicks } from "./trail-model";
 import { buildGeometry, hitTest, lodForZoom } from "./trail-geometry";
 import { drawTrail } from "./trail-renderer";
 
@@ -129,6 +129,19 @@ export class TrailLayer {
     }
     ticks.sort((a, b) => a.t - b.t);
     return { tMin, tMax, ticks };
+  }
+
+  /**
+   * When something next happens on any of the trails at or after a time, or
+   * null when nothing does; see nextChangeAfter.
+   */
+  nextChangeAfter(time) {
+    let next = null;
+    for (const trail of this.trails.values()) {
+      const change = nextChangeAfter(trail.model, time);
+      if (change !== null && (next === null || change < next)) next = change;
+    }
+    return next;
   }
 
   /**

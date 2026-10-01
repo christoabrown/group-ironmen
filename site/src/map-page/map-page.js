@@ -5,6 +5,10 @@ import { selection } from "../data/selection";
 import { colorForName } from "../data/player-colors";
 import { formatGp } from "../data/hub-format";
 import { deathMarks } from "../canvas-map/trail-model";
+// The page drives these two from the moment it is connected, so they have to
+// be defined before it is.
+import "../canvas-map/canvas-map";
+import "../trail-scrubber/trail-scrubber";
 
 const TRAIL_REFRESH_MS = 60000;
 // The first retry after a failed trail request; it doubles up to the normal refresh.
@@ -117,17 +121,26 @@ export class MapPage extends BaseElement {
     this.trailControls = this.querySelector(".map-page__trails");
     this.trailChips = this.querySelector(".map-page__trail-chips");
     this.trailDaysSelect = this.querySelector(".map-page__trail-days");
+    this.replayButton = this.querySelector(".map-page__trails-replay");
+    this.scrubber = this.querySelector("trail-scrubber");
     this.eventControls = this.querySelector(".map-page__events");
 
     this.planeSelect.value = this.worldMap.plane || 1;
     this.trailDaysSelect.value = storedTrailDays(this.trailDaysSelect);
     this.renderEventControls();
+    this.scrubber.nextChange = (time) => this.worldMap.trailNextChange(time);
+    this.scrubber.setWindowDays(parseInt(this.trailDaysSelect.value, 10));
 
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));
     this.eventListener(this.planeSelect, "wheel", this.handlePlaneWheel.bind(this), { passive: false });
     this.eventListener(this.worldMap, "plane-changed", this.handlePlaneChange.bind(this));
     this.eventListener(this.trailDaysSelect, "change", this.handleTrailDaysChange.bind(this));
     this.eventListener(this.trailChips, "click", this.handleTrailChipClick.bind(this));
+    this.eventListener(this.replayButton, "click", this.handleReplayClick.bind(this));
+    this.eventListener(this.scrubber, "replay-change", this.handleReplayChange.bind(this));
+    this.eventListener(this.worldMap, "trail-timeline-changed", () =>
+      this.scrubber.setTimeline(this.worldMap.trailTimeline())
+    );
     this.eventListener(this.querySelector(".map-page__trails-clear"), "click", () => selection.clearTrails());
     this.eventListener(this.querySelector(".map-page__roster-toggle"), "click", () =>
       document.body.classList.toggle("roster-open")
@@ -143,6 +156,7 @@ export class MapPage extends BaseElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearTimeout(this.trailRefresh);
+    this.worldMap.setReplayTime(null);
     this.worldMap.clearTrails();
     this.worldMap.classList.remove("interactable");
     document.body.classList.remove("roster-open");
@@ -193,7 +207,21 @@ export class MapPage extends BaseElement {
     } catch {
       // Not remembered in private mode.
     }
+    this.scrubber.setWindowDays(parseInt(this.trailDaysSelect.value, 10));
     this.loadTrails();
+  }
+
+  handleReplayClick() {
+    if (this.scrubber.isOpen) this.scrubber.close();
+    else this.scrubber.open();
+  }
+
+  /** The replay shows a time on the trails, or was closed (null) and the map is live again. */
+  handleReplayChange(event) {
+    const { time } = event.detail;
+    this.replayButton.setAttribute("aria-pressed", String(time !== null));
+    this.replayButton.classList.toggle("active", time !== null);
+    this.worldMap.setReplayTime(time);
   }
 
   /**

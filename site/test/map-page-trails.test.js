@@ -20,6 +20,11 @@ function fakeWorldMap() {
     trailNames: () => [...drawn],
     setTrailDeaths: vi.fn(),
     addPing: vi.fn(),
+    setReplayTime: vi.fn(),
+    trailNextChange: vi.fn(() => null),
+    // As the real map: nothing to replay until a trail is drawn.
+    trailTimeline: () =>
+      drawn.size ? { tMin: NOW_S - 3600, tMax: NOW_S, ticks: [] } : { tMin: null, tMax: null, ticks: [] },
   });
   return map;
 }
@@ -70,6 +75,13 @@ describe("map page trails", () => {
 
   afterEach(() => {
     document.body.innerHTML = "";
+  });
+
+  // The page calls into these as soon as it is connected, which in the bundle
+  // is the moment it is defined: they have to be defined before it.
+  it("loads the components it drives", () => {
+    expect(customElements.get("trail-scrubber")).toBeDefined();
+    expect(customElements.get("canvas-map")).toBeDefined();
   });
 
   it("draws nothing when the trails are cleared while their request is under way", async () => {
@@ -204,6 +216,67 @@ describe("map page trails", () => {
       await settle();
       expect(worldMap.trailNames()).toEqual(["Alice"]);
       expect(page.querySelector(".map-page__trail-error")).toBeNull();
+    });
+  });
+
+  describe("replay", () => {
+    const replayButton = () => page.querySelector(".map-page__trails-replay");
+    const scrubber = () => page.querySelector("trail-scrubber");
+
+    beforeEach(async () => {
+      vi.spyOn(api, "getTrails").mockResolvedValue(trailsResponse(["Alice"]));
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      worldMap.dispatchEvent(new CustomEvent("trail-timeline-changed"));
+    });
+
+    it("is closed to begin with", () => {
+      expect(scrubber().hidden).toBe(true);
+      expect(replayButton().getAttribute("aria-pressed")).toBe("false");
+      expect(worldMap.setReplayTime).not.toHaveBeenCalled();
+    });
+
+    it("shows the map at the time of the timeline, and live again when closed", () => {
+      replayButton().click();
+      expect(scrubber().hidden).toBe(false);
+      expect(replayButton().getAttribute("aria-pressed")).toBe("true");
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S);
+
+      scrubber().seek(NOW_S - 600);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S - 600);
+
+      replayButton().click();
+      expect(scrubber().hidden).toBe(true);
+      expect(replayButton().getAttribute("aria-pressed")).toBe("false");
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null);
+    });
+
+    it("closes when the last trail is switched off", () => {
+      replayButton().click();
+      selection.clearTrails();
+      worldMap.dispatchEvent(new CustomEvent("trail-timeline-changed"));
+      expect(scrubber().hidden).toBe(true);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null);
+    });
+
+    it("asks the map what happens next on the trails", () => {
+      scrubber().nextChange(NOW_S - 100);
+      expect(worldMap.trailNextChange).toHaveBeenCalledWith(NOW_S - 100);
+    });
+
+    it("starts at a speed that suits the length of the trails", async () => {
+      const select = page.querySelector(".map-page__trail-days");
+      select.value = "30";
+      select.dispatchEvent(new Event("change"));
+      await settle();
+      expect(scrubber().clock.speed).toBe(7200);
+    });
+
+    it("leaves the map live when the page is left", () => {
+      replayButton().click();
+      page.remove();
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null);
     });
   });
 

@@ -104,6 +104,27 @@ describe("TrailLayer", () => {
     expect(new TrailLayer().timeline()).toEqual({ tMin: null, tMax: null, ticks: [] });
   });
 
+  it("says when something next happens on any of the trails", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    layer.setHistory(
+      "Bob",
+      {
+        step: 60,
+        points: [
+          [3000, 3000, 0, T + 400, 700],
+          [3010, 3000, 0, T + 460],
+        ],
+      },
+      COLORS
+    );
+    // Alice is under way.
+    expect(layer.nextChangeAfter(T + 30)).toBe(T + 30);
+    // Alice is done; Bob stays where he is until T + 400.
+    expect(layer.nextChangeAfter(T + 121)).toBe(T + 400);
+    expect(layer.nextChangeAfter(T + 500)).toBeNull();
+    expect(new TrailLayer().nextChangeAfter(T)).toBeNull();
+  });
+
   it("leaves out deaths from before the trail starts", () => {
     layer.setHistory("Alice", history(), COLORS);
     layer.setDeaths("Alice", [{ id: "old", x: 3205, y: 3201, plane: 0, t: T - 5000 }]);

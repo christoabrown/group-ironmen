@@ -204,6 +204,14 @@ describe("hitTest", () => {
     expect(hitTest(geometry, x + 2, y, 8)).toMatchObject({ src: 3 });
   });
 
+  it("gives the latest visit where the trail passes the same place twice", () => {
+    const there = [at(3200, 3200, 0), at(3210, 3200, 1), at(3220, 3200, 2)];
+    const andAgain = [at(3200, 3200, 10), at(3210, 3200, 11), at(3220, 3200, 12)];
+    const twice = buildGeometry(buildTrailModel([...there, at(2662, 3305, 5), ...andAgain]), 0);
+    const [x, y] = tileCenter(3210, 3200);
+    expect(hitTest(twice, x, y, 8)).toMatchObject({ src: 5 });
+  });
+
   it("misses when the pointer is further away than the radius", () => {
     const [x, y] = tileCenter(3210, 3200);
     expect(hitTest(geometry, x, y + 20, 8)).toBeNull();

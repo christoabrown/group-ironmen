@@ -1,0 +1,16 @@
+<button type="button" class="men-button small trail-scrubber__play" aria-label="Play"></button>
+<div class="trail-scrubber__track">
+  <div class="trail-scrubber__ticks" aria-hidden="true"></div>
+  <input type="range" class="trail-scrubber__range" step="1" aria-label="Time on the trails" />
+</div>
+<output class="trail-scrubber__time"></output>
+<select class="trail-scrubber__speed" aria-label="Replay speed">
+  <option value="60">1 min/s</option>
+  <option value="300">5 min/s</option>
+  <option value="1800">30 min/s</option>
+  <option value="7200">2 h/s</option>
+</select>
+<label class="trail-scrubber__skip" title="Jump over the time in which nobody moved"
+  ><input type="checkbox" checked />Skip idle</label
+>
+<button type="button" class="men-button small trail-scrubber__close" aria-label="Close replay">×</button>

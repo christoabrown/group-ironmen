@@ -636,6 +636,11 @@ export class CanvasMap extends BaseElement {
     return this.trailLayer.timeline();
   }
 
+  /** When something next happens on the trails at or after a time, or null. */
+  trailNextChange(time) {
+    return this.trailLayer.nextChangeAfter(time);
+  }
+
   trailsChanged() {
     this.hideTrailTooltip();
     this.requestUpdate();
