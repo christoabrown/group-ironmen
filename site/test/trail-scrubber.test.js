@@ -95,6 +95,64 @@ describe("ReplayClock", () => {
     expect(clock.time).toBe(T + 60);
   });
 
+  describe("after a hop", () => {
+    // The player lands somewhere else at T + 20.
+    const landing = (from, to) => (from < T + 20 && to >= T + 20 ? T + 20 : null);
+
+    beforeEach(() => {
+      clock.seek(T);
+      clock.speed = 300;
+      clock.play();
+    });
+
+    it("stops where the player landed and waits a moment before going on", () => {
+      const asked = vi.fn(landing);
+      expect(clock.tick(100, null, asked)).toBe(true);
+      expect(asked).toHaveBeenCalledWith(T, T + 30);
+      expect(clock.time).toBe(T + 20);
+      expect(clock.playing).toBe(true);
+
+      // A second and a half, in frames of a quarter of a second.
+      for (let i = 0; i < 6; i++) {
+        expect(clock.tick(250, null, landing)).toBe(false);
+        expect(clock.time).toBe(T + 20);
+      }
+      clock.tick(100, null, landing);
+      expect(clock.time).toBe(T + 50);
+    });
+
+    it("doesn't wait when a time is looked up by hand, or after a pause", () => {
+      clock.tick(100, null, landing);
+      clock.seek(T + 100);
+      clock.tick(100, null, landing);
+      expect(clock.time).toBe(T + 130);
+
+      clock.seek(T);
+      clock.tick(100, null, landing);
+      clock.pause();
+      clock.play();
+      clock.tick(100, null, landing);
+      expect(clock.time).toBe(T + 50);
+    });
+
+    it("also stops at a landing it would have skipped to", () => {
+      // Nothing happens until the player turns up elsewhere at T + 2000.
+      clock.tick(
+        100,
+        () => T + 2000,
+        (from, to) => (from < T + 2000 && to >= T + 2000 ? T + 2000 : null)
+      );
+      expect(clock.time).toBe(T + 1970);
+      for (let i = 0; i < 3; i++)
+        clock.tick(
+          40,
+          () => T + 2000,
+          (from, to) => (from < T + 2000 && to >= T + 2000 ? T + 2000 : null)
+        );
+      expect(clock.time).toBe(T + 2000);
+    });
+  });
+
   it("goes to the end when nothing more happens", () => {
     clock.seek(T);
     clock.play();
@@ -275,6 +333,21 @@ describe("trail scrubber", () => {
     scrubber.setTimeline({ tMin: null, tMax: null, ticks: [] });
     expect(scrubber.hidden).toBe(true);
     expect(changes[changes.length - 1]).toBeNull();
+  });
+
+  it("holds the replay for a moment where the player lands after a hop", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    scrubber.nextHold = vi.fn((from, to) => (from < T + 300 && to >= T + 300 ? T + 300 : null));
+    scrubber.open();
+    scrubber.querySelector(".trail-scrubber__skip input").click();
+    playButton().click();
+    // At five minutes a second the landing is reached within a second or so.
+    vi.advanceTimersByTime(1500);
+    expect(changes[changes.length - 1]).toBe(T + 300);
+    vi.advanceTimersByTime(800);
+    expect(changes[changes.length - 1]).toBe(T + 300);
+    vi.advanceTimersByTime(2000);
+    expect(changes[changes.length - 1]).toBeGreaterThan(T + 300);
   });
 
   it("asks what happens next so that it can skip the waiting", () => {

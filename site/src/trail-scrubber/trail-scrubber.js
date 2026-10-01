@@ -24,7 +24,8 @@ const SPEED_FOR_DAYS = [
  *
  * `setTimeline({tMin, tMax, ticks})` gives it the span of the trails and the
  * moments to mark; `nextChange(time)`, when set, says when something next
- * happens on the trails.
+ * happens on the trails, and `nextHold(from, to)` when the player lands after
+ * a hop in that span, where the replay then holds for a moment.
  */
 export class TrailScrubber extends BaseElement {
   constructor() {
@@ -32,6 +33,7 @@ export class TrailScrubber extends BaseElement {
     this.clock = new ReplayClock();
     this.timeline = { tMin: null, tMax: null, ticks: [] };
     this.nextChange = null;
+    this.nextHold = null;
     this.follow = wantsFollow();
   }
 
@@ -138,7 +140,7 @@ export class TrailScrubber extends BaseElement {
 
   frame(now) {
     this.frameRequest = null;
-    if (this.clock.tick(now - this.lastFrame, this.nextChange)) this.emit();
+    if (this.clock.tick(now - this.lastFrame, this.nextChange, this.nextHold)) this.emit();
     this.lastFrame = now;
     this.show();
     if (this.clock.playing) this.frameRequest = window.requestAnimationFrame(this.frame);

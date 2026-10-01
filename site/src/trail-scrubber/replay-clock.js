@@ -8,6 +8,9 @@ const MAX_FRAME_MS = 250;
 // long before the next thing that happens.
 const IDLE_SKIP_S = 600;
 const IDLE_LEAD_S = 30;
+// How long the replay stands still where a player landed after a hop, so the
+// eye (and the camera) can catch up before it goes on.
+const LANDING_HOLD_MS = 1500;
 
 export const DEFAULT_SPEED = 300;
 
@@ -19,6 +22,7 @@ export class ReplayClock {
     this.playing = false;
     this.speed = DEFAULT_SPEED;
     this.skipIdle = true;
+    this.holdMs = 0;
   }
 
   get atEnd() {
@@ -38,6 +42,7 @@ export class ReplayClock {
 
   seek(time) {
     this.time = Math.min(Math.max(time, this.tMin), this.tMax);
+    this.holdMs = 0;
   }
 
   /** Starts playing, from the start when the end had been reached. */
@@ -48,15 +53,24 @@ export class ReplayClock {
 
   pause() {
     this.playing = false;
+    this.holdMs = 0;
   }
 
   /**
    * Moves on by a frame that took `elapsedMs`. `nextChange(time)` says when
    * something next happens on the trails (null: nothing more), so that waits
-   * can be skipped. Returns whether the time changed.
+   * can be skipped. `nextHold(from, to)` says when, after `from` and up to
+   * `to`, the player lands after a hop (null: not in that span): the clock
+   * stops there and stands still for a moment. Returns whether the time
+   * changed.
    */
-  tick(elapsedMs, nextChange) {
+  tick(elapsedMs, nextChange, nextHold) {
     if (!this.playing) return false;
+    const frameMs = Math.min(elapsedMs, MAX_FRAME_MS);
+    if (this.holdMs > 0) {
+      this.holdMs -= frameMs;
+      return false;
+    }
     const before = this.time;
     const next = this.skipIdle && nextChange ? nextChange(this.time) : undefined;
     if (next === null) {
@@ -64,7 +78,12 @@ export class ReplayClock {
     } else if (next !== undefined && next - this.time > IDLE_SKIP_S) {
       this.time = Math.min(next - IDLE_LEAD_S, this.tMax);
     } else {
-      this.time = Math.min(this.time + (Math.min(elapsedMs, MAX_FRAME_MS) / 1000) * this.speed, this.tMax);
+      this.time = Math.min(this.time + (frameMs / 1000) * this.speed, this.tMax);
+    }
+    const landing = nextHold ? nextHold(before, this.time) : null;
+    if (landing !== null && landing > before && landing <= this.time) {
+      this.time = landing;
+      this.holdMs = LANDING_HOLD_MS;
     }
     if (this.atEnd) this.playing = false;
     return this.time !== before;

@@ -156,6 +156,31 @@ describe("TrailLayer", () => {
     expect(layer.hitTest(x, y + 40, 8, 2)).toBeNull();
   });
 
+  it("says when a player next lands after a hop", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    layer.setHistory(
+      "Bob",
+      {
+        step: 60,
+        points: [
+          [3000, 3000, 0, T - 600],
+          [2400, 3000, 0, T - 540],
+          [2410, 3000, 0, T - 480],
+          [2410, 9400, 0, T - 420],
+        ],
+      },
+      COLORS
+    );
+    expect(layer.modelOf("Bob").kinds).toEqual(["teleport", "walk", "entrance"]);
+    expect(layer.nextLanding("Bob", T - 600, T - 500)).toBe(T - 540);
+    expect(layer.nextLanding("Bob", T - 600, T)).toBe(T - 540);
+    // From just after one landing, the next.
+    expect(layer.nextLanding("Bob", T - 540, T)).toBe(T - 420);
+    expect(layer.nextLanding("Bob", T - 600, T - 541)).toBeNull();
+    expect(layer.nextLanding("Alice", T - 600, T + 600)).toBeNull();
+    expect(layer.nextLanding("Nobody", T - 600, T)).toBeNull();
+  });
+
   it("says where a player was at a time of the replay", () => {
     layer.setHistory("Alice", history(), COLORS);
     const [x, y] = tileCenter(3210, 3201);

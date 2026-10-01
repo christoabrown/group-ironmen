@@ -22,6 +22,7 @@ function fakeWorldMap() {
     addPing: vi.fn(),
     setReplayTime: vi.fn(),
     trailNextChange: vi.fn(() => null),
+    trailNextHop: vi.fn(() => null),
     // As the real map: nothing to replay until a trail is drawn.
     trailTimeline: () =>
       drawn.size ? { tMin: NOW_S - 3600, tMax: NOW_S, ticks: [] } : { tMin: null, tMax: null, ticks: [] },
@@ -302,6 +303,11 @@ describe("map page trails", () => {
     it("asks the map what happens next on the trails", () => {
       scrubber().nextChange(NOW_S - 100);
       expect(worldMap.trailNextChange).toHaveBeenCalledWith(NOW_S - 100);
+    });
+
+    it("asks the map where the player lands next, to hold the replay there", () => {
+      scrubber().nextHold(NOW_S - 100, NOW_S - 70);
+      expect(worldMap.trailNextHop).toHaveBeenCalledWith(NOW_S - 100, NOW_S - 70);
     });
 
     it("starts at a speed that suits the length of the trails", async () => {

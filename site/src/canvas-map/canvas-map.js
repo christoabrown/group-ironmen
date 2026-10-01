@@ -637,15 +637,24 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
-  /**
-   * Centres the camera on the ghost of the selected player, or of the first
-   * player with a trail when the selected one has none.
-   */
-  followReplay(time) {
+  /** Whose replay is watched: the selected player, or the first with a trail when they have none. */
+  replayPlayer() {
     const names = this.trailNames();
-    const name = names.includes(this.selectedName) ? this.selectedName : names[0];
+    return names.includes(this.selectedName) ? this.selectedName : names[0];
+  }
+
+  /**
+   * When, after `from` and up to `to`, the watched player lands after a hop
+   * (a teleport, an entrance, an unexplained jump), or null.
+   */
+  trailNextHop(from, to) {
+    return this.trailLayer.nextLanding(this.replayPlayer(), from, to);
+  }
+
+  /** Centres the camera on the watched player's ghost. */
+  followReplay(time) {
     const zoom = this.camera.zoom.current;
-    const ghost = this.trailLayer.ghostAt(name, time, zoom);
+    const ghost = this.trailLayer.ghostAt(this.replayPlayer(), time, zoom);
     if (!ghost) return;
     // Following the player where they are now would pull the camera back.
     this.stopFollowingPlayer();

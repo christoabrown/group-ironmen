@@ -1615,6 +1615,27 @@ describe("CanvasMap trails", () => {
       expect([map.camera.x.target, map.camera.y.target]).toEqual(before);
     });
 
+    it("looks for hops on the trail of the player it follows", () => {
+      const map = createMapInstance();
+      const hop = () => {
+        const end = Math.floor(Date.now() / 1000) - 300;
+        return {
+          step: 60,
+          points: [
+            [3200, 3200, 0, end - 60],
+            [2600, 3300, 0, end],
+          ],
+        };
+      };
+      map.setTrail("Alice", serverTrail(), STYLE);
+      map.setTrail("Bob", hop(), STYLE);
+      const { tMin, tMax } = map.trailTimeline();
+      // Alice's is the first trail and has no hops.
+      expect(map.trailNextHop(tMin, tMax)).toBeNull();
+      map.selectedName = "Bob";
+      expect(map.trailNextHop(tMin, tMax)).toBe(map.trailLayer.modelOf("Bob").points[1].t0);
+    });
+
     it("says when the map is moved by hand", () => {
       const map = createMapInstance();
       const dragged = vi.fn();

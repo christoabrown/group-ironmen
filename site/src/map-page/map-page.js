@@ -135,6 +135,7 @@ export class MapPage extends BaseElement {
     this.trailDaysSelect.value = storedTrailDays(this.trailDaysSelect);
     this.renderEventControls();
     this.scrubber.nextChange = (time) => this.worldMap.trailNextChange(time);
+    this.scrubber.nextHold = (from, to) => this.worldMap.trailNextHop(from, to);
     this.scrubber.setWindowDays(parseInt(this.trailDaysSelect.value, 10));
 
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));

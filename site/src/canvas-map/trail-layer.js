@@ -142,6 +142,22 @@ export class TrailLayer {
   }
 
   /**
+   * When, after `from` and up to `to`, a player next turns up somewhere else:
+   * after a teleport, through an entrance, or across a jump that can't be
+   * explained. Null when they don't in that span, or have no trail.
+   */
+  nextLanding(name, from, to) {
+    const model = this.modelOf(name);
+    if (!model) return null;
+    for (const jump of model.jumps) {
+      const landed = model.points[jump.from + 1].t0;
+      if (landed > to) return null;
+      if (landed > from) return landed;
+    }
+    return null;
+  }
+
+  /**
    * When something next happens on any of the trails at or after a time, or
    * null when nothing does; see nextChangeAfter.
    */
