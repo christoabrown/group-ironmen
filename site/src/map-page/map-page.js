@@ -23,10 +23,9 @@ const TRAIL_RETRY_MS = 5000;
 // Hub data older than this is the server's stale copy: the hub isn't answering.
 const TRAIL_STALE_S = 180;
 const TRAIL_DAYS_KEY = "map-trail-days";
-// As many of a player's events as the server will give, to mark on their
-// trail. What happened doesn't change, and what happens next comes with the
-// live feed, so they are only asked for again now and then.
-const TRAIL_EVENTS_LIMIT = 200;
+// A player's events over the length of their trail, to mark on it. What
+// happened doesn't change, and what happens next comes with the live feed, so
+// they are only asked for again now and then.
 const TRAIL_EVENTS_REFRESH_MS = 10 * 60 * 1000;
 
 /** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
@@ -248,19 +247,24 @@ export class MapPage extends BaseElement {
    */
   async loadTrailEvents() {
     const now = Date.now();
+    const days = parseInt(this.trailDaysSelect.value, 10);
+    // The server leaves out the drops the map wouldn't show anyway.
+    const minLoot = this.filters.minLoot || 0;
     const due = this.worldMap.trailNames().filter((name) => {
       const fetched = this.trailEvents.get(name);
-      return !fetched || now - fetched.at >= TRAIL_EVENTS_REFRESH_MS;
+      if (!fetched || now - fetched.at >= TRAIL_EVENTS_REFRESH_MS) return true;
+      // Another length of trail, or smaller drops than were asked for.
+      return fetched.days !== days || fetched.minLoot > minLoot;
     });
     if (!due.length) return;
     await Promise.all(
       due.map(async (name) => {
         // Noted before the answer, so a slow one isn't asked for twice.
         const known = this.trailEvents.get(name)?.events || [];
-        this.trailEvents.set(name, { events: known, at: now });
+        this.trailEvents.set(name, { events: known, at: now, days, minLoot });
         try {
-          const events = await api.getPlayerEvents(name, TRAIL_EVENTS_LIMIT);
-          if (this.trailEvents.has(name)) this.trailEvents.set(name, { events, at: now });
+          const events = await api.getTrailEvents(name, days, minLoot);
+          if (this.trailEvents.has(name)) this.trailEvents.set(name, { events, at: now, days, minLoot });
         } catch {
           // Not shared, or the hub is busy: the trail is shown with what the live feed has.
         }
@@ -362,6 +366,8 @@ export class MapPage extends BaseElement {
       // Not remembered in private mode.
     }
     this.worldMap.setEventFilters(this.filters);
+    // Smaller drops than the trails' events were fetched with have to be asked for.
+    this.loadTrailEvents();
   }
 
   handleLiveEvents({ events, added, initial }) {

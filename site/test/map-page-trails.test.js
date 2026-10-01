@@ -72,7 +72,7 @@ describe("map page trails", () => {
     worldMap = fakeWorldMap();
     document.body.append(authed, worldMap);
     pubsub.publish("features", { hub_history: true });
-    vi.spyOn(api, "getPlayerEvents").mockResolvedValue([]);
+    vi.spyOn(api, "getTrailEvents").mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -212,14 +212,15 @@ describe("map page trails", () => {
 
     beforeEach(() => {
       vi.spyOn(api, "getTrails").mockResolvedValue(trailsResponse(["Alice"]));
-      api.getPlayerEvents.mockResolvedValue([event("a", "Alice", 300), event("l", "Alice", 200, { type: "level_up" })]);
+      api.getTrailEvents.mockResolvedValue([event("a", "Alice", 300), event("l", "Alice", 200, { type: "level_up" })]);
     });
 
     it("of the players whose trails are shown are handed to the map", async () => {
       mount();
       selection.toggleTrail("Alice");
       await settle();
-      expect(api.getPlayerEvents).toHaveBeenCalledWith("Alice", 200);
+      // Over the length of the trail, and no smaller drops than the map shows.
+      expect(api.getTrailEvents).toHaveBeenCalledWith("Alice", 1, 100000);
       expect(marked("Alice")).toEqual(["a", "l"]);
     });
 
@@ -245,12 +246,45 @@ describe("map page trails", () => {
       mount();
       selection.toggleTrail("Alice");
       await settle();
-      expect(api.getPlayerEvents).toHaveBeenCalledTimes(1);
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(5 * 60000);
       expect(api.getTrails.mock.calls.length).toBeGreaterThan(3);
-      expect(api.getPlayerEvents).toHaveBeenCalledTimes(1);
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(6 * 60000);
-      expect(api.getPlayerEvents).toHaveBeenCalledTimes(2);
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(2);
+    });
+
+    it("are asked for again when the trails get longer", async () => {
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      const select = page.querySelector(".map-page__trail-days");
+      select.value = "30";
+      select.dispatchEvent(new Event("change"));
+      await settle();
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(2);
+      expect(api.getTrailEvents).toHaveBeenLastCalledWith("Alice", 30, 100000);
+    });
+
+    it("are asked for again when smaller drops are to be shown, not when only bigger ones are", async () => {
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      const minLoot = page.querySelector(".map-page__event-min-loot");
+      const choose = async (value) => {
+        minLoot.value = value;
+        minLoot.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+      };
+
+      await choose("10000000");
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(1);
+      await choose("0");
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(2);
+      expect(api.getTrailEvents).toHaveBeenLastCalledWith("Alice", 1, 0);
+      // What was fetched with every drop in it serves any filter.
+      await choose("1000000");
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(2);
     });
 
     it("are asked for again for a trail that was switched off and on", async () => {
@@ -260,11 +294,11 @@ describe("map page trails", () => {
       selection.toggleTrail("Alice");
       selection.toggleTrail("Alice");
       await settle();
-      expect(api.getPlayerEvents).toHaveBeenCalledTimes(2);
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(2);
     });
 
     it("don't hold up the trails when they can't be fetched", async () => {
-      api.getPlayerEvents.mockRejectedValue(Object.assign(new Error("not shared"), { status: 404 }));
+      api.getTrailEvents.mockRejectedValue(Object.assign(new Error("not shared"), { status: 404 }));
       const live = [event("recent", "Alice", 20)];
       pubsub.publish("live-events", { events: live, added: [], initial: true });
       mount();

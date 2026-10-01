@@ -506,6 +506,15 @@ class Api {
   async getPlayerEvents(memberName, limit = 50) {
     return this.getHubJson(`${this.playerPath(memberName, "events")}?limit=${limit}`);
   }
+
+  /**
+   * A player's events of the last `days`, newest first, to mark along their
+   * trail: every kind the map shows, drops only from `minLoot` gp. The server
+   * reads at most a few thousand; for a busy player the oldest may be missing.
+   */
+  async getTrailEvents(memberName, days, minLoot = 0) {
+    return this.getHubJson(`${this.playerPath(memberName, "events")}?days=${days}&min_loot=${minLoot}`);
+  }
 }
 
 const api = new Api();
