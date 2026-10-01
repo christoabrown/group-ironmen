@@ -28,11 +28,42 @@ export async function loadRegions() {
   }
 }
 
+// The regions of the dungeons under the wilderness that are wilderness too: the
+// Edgeville Dungeon past its gate, the God Wars Dungeon, the Revenant Caves, the
+// Slayer Cave, the Lava Maze and Deep Wilderness dungeons, the agility course's
+// pit and Scorpia's cave. The other dungeons in that rectangle (the Slayer
+// Tower's basement, the Ferox Enclave Dungeon) are not.
+const WILDERNESS_DUNGEONS = new Set([
+  12443, 12444, 12190, 12701, 12702, 12703, 12957, 12958, 12959, 13469, 13470, 13725, 13726, 12192, 12193, 11937, 12961,
+]);
+
+// The boss lairs and the caves between them: their level doesn't follow from
+// where they are on the map.
+const WILDERNESS_LAIRS = new Map([
+  [13473, "40"], // Callisto's Den
+  [13215, "35"], // Vet'ion's Rest
+  [13727, "35"], // Silk Chasm
+  [13472, "30-42"], // Escape Caves
+  [7092, "21"], // Hunter's End
+  [7604, "21"], // Skeletal Tomb
+  [6580, "29"], // Web Chasm
+]);
+
+// The enclave is a safe zone inside the wilderness (its outline, roughly).
+function inFeroxEnclave(x, y) {
+  return x >= 3123 && x <= 3155 && y >= 3617 && y <= 3646;
+}
+
 function wildernessLevel(x, y) {
-  if (x >= 2944 && x < 3392 && y >= 3520 && y < 3968) return Math.floor((y - 3520) / 8) + 1;
-  // The wilderness dungeons sit under it, 6400 tiles north.
-  if (x >= 2944 && x < 3456 && y >= 9920 && y < 10560) return Math.floor((y - 9920) / 8) + 1;
-  return null;
+  const id = regionId(x, y);
+  if (WILDERNESS_LAIRS.has(id)) return WILDERNESS_LAIRS.get(id);
+  const dungeon = WILDERNESS_DUNGEONS.has(id);
+  if (!dungeon && (x < 2944 || x >= 3392)) return null;
+  // A wilderness dungeon has the level of the surface 6400 tiles south of it.
+  const surfaceY = dungeon ? y - 6400 : y;
+  // The ditch runs along y 3522; the levels count from two tiles south of it.
+  if (surfaceY <= 3522 || surfaceY >= 3968) return null;
+  return Math.floor((surfaceY - 3520) / 8) + 1;
 }
 
 /**
@@ -40,6 +71,7 @@ function wildernessLevel(x, y) {
  * site's stored coordinates are one tile north; see regionForMember).
  */
 export function regionName(x, y) {
+  if (inFeroxEnclave(x, y)) return "Ferox Enclave";
   const level = wildernessLevel(x, y);
   if (level !== null) return `Wilderness (level ${level})`;
   const id = regionId(x, y);
