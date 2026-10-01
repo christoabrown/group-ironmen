@@ -34,7 +34,7 @@ Intended outcome: a trail that always joins the player marker, survives reload, 
 |---|---|
 | `trail-model.js` | Pure. Decode v1/v2 points, classify steps, merge history with live points, time lookup (`positionAt`, `nextChangeAfter`), death marks, timeline ticks. |
 | `trail-geometry.js` | Pure. Smoothing, arcs, wave path, decimation by zoom, hit-testing. No `Path2D` (jsdom has none). |
-| `trail-renderer.js` | Canvas only. `drawTrail` (world space) and `drawTrailOverlay` (screen space) for live and replay modes. |
+| `trail-renderer.js` | Canvas only. `drawTrail`, for live and replay modes, all in the map's own pixels under the camera transform. |
 | `trail-layer.js` | State. Owns trails, live buffers, replay time, hover; `draw()` returns whether it is animating. |
 
 `CanvasMap` keeps thin delegates (`setTrail`, `clearTrail(s)`, `setTrailDeaths`, `setReplayTime`, `trailTimeline`, `getTrailAtClient`) and three hooks: `_update` (draw + overlay + frame gate), `handleUpdatedCoordinates`/`handleUpdatedMembers` (feed live points), `onPointerMove` (hover, after the link and player checks at `canvas-map.js:1464-1488`). `TRAIL_MAX_STEP_TILES`, `trailSegments` and the old `drawTrails` body are removed.
@@ -58,7 +58,7 @@ Runs of walk/stairs/sail may be a single point, drawn as a dot, which fixes the 
 - On logout the glow goes and a hollow end cap marks the last point.
 
 ### Reload and robustness fixes (`selection.js`, `map-page.js`, `app-initializer.js`)
-- Persist selected names and the days window in localStorage; `selection.restore()` runs after `cleanup()` and publishes `trails-changed`.
+- Persist selected names and the days window in localStorage; `selection.restore()` runs once the session is set and publishes `trails-changed`. (Restoring on connect ran before the map component was defined: the bundle defines `app-initializer` before `canvas-map`.)
 - `loadTrails` bumps `trailRequestId` first (today the empty-selection path at `map-page.js:165-169` does not, so an in-flight response can redraw cleared trails).
 - On fetch error keep drawn trails but mark the chips, show data age from `as_of`, and retry with backoff instead of a fixed interval.
 - `retainTrails` ignores an empty roster so a slow first poll cannot wipe the restored selection.
@@ -115,6 +115,16 @@ Work on a new branch `trail-overhaul`, one commit per step, no push. Each step l
 7. Stop the mock hub: chips show the data age; trails stay drawn.
 8. Hover the trail for time and place. Open Replay: play, drag, change speed, change window.
 9. Full CI commands pass.
+
+## As built
+Where the implementation differs from the plan above:
+- **One draw function.** Marks, ghost and deaths are drawn in map pixels with sizes divided by the zoom, so no separate screen-space overlay was needed.
+- **Three levels of detail** (zoom 2 and up, 1 and up, below 1) rather than four.
+- **No per-run geometry cache.** Geometry is rebuilt per trail and level of detail when the trail changes; a 3000-point trail with hundreds of teleports draws in about 4 ms.
+- **`map-page` imports `canvas-map` and `trail-scrubber`.** It calls into both as soon as it is connected, so they must be defined first.
+- **A trail the server had to cut short says so**: its chip reads "(since 26 Sep)". This happens when the teleports alone exceed 3000 points, which the mock route does on 30 days.
+- **Hovering** where a trail passes more than once reports the latest visit.
+- **A player who logs out** keeps the live points seen until then; the trail ends with a hollow cap instead of the glow.
 
 ## Risks and limits
 - Thresholds (158 / 275 tiles at 60 s) are estimates; calibrate on real trails once deployed.
