@@ -60,6 +60,9 @@ export class AppInitializer extends BaseElement {
 
   async loadWithSession(session) {
     api.setSession(session.sessionToken, session.username, session.role);
+    // Only now: the map page fetches the trails as soon as it hears of them,
+    // which takes the session and the rest of the page being loaded.
+    selection.restore();
     api.loadFeatures().then((features) => {
       if (features.hub_history && this.isConnected) liveEvents.start();
     });

@@ -189,6 +189,45 @@ describe("selection", () => {
     expect(selection.toggleTrail("P0")).toBe(true);
     expect(selection.hasTrail("P0")).toBe(false);
   });
+
+  it("brings the trails back after a reload", () => {
+    selection.toggleTrail("Alice");
+    selection.toggleTrail("Bob");
+    selection.toggleTrail("Bob");
+    // A reload starts with nothing in memory.
+    selection.reset();
+    pubsub.unpublishAll();
+    expect(selection.hasTrail("Alice")).toBe(false);
+
+    selection.restore();
+    expect([...selection.trails]).toEqual(["Alice"]);
+    expect(pubsub.getMostRecent("trails-changed")[0]).toEqual(new Set(["Alice"]));
+  });
+
+  it("forgets cleared trails for the next reload too", () => {
+    selection.toggleTrail("Alice");
+    selection.clearTrails();
+    selection.reset();
+    selection.restore();
+    expect(selection.trails.size).toBe(0);
+  });
+
+  it("starts without trails when what was stored is unreadable", () => {
+    localStorage.setItem("map-trails", "{not json");
+    selection.restore();
+    expect(selection.trails.size).toBe(0);
+    localStorage.setItem("map-trails", JSON.stringify({ a: 1 }));
+    selection.restore();
+    expect(selection.trails.size).toBe(0);
+  });
+
+  it("keeps the trails while the roster hasn't loaded yet", () => {
+    selection.toggleTrail("Alice");
+    selection.retainTrails(new Set());
+    expect(selection.hasTrail("Alice")).toBe(true);
+    selection.retainTrails(new Set(["Bob"]));
+    expect(selection.hasTrail("Alice")).toBe(false);
+  });
 });
 
 describe("wealth sparkline", () => {

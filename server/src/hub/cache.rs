@@ -23,12 +23,13 @@ impl TtlCache {
         Self::default()
     }
 
-    fn lookup(&self, key: &str, max_age: Duration) -> Option<Arc<Value>> {
+    /// The entry and how long ago it was stored, when younger than `max_age`.
+    fn lookup(&self, key: &str, max_age: Duration) -> Option<(Arc<Value>, Duration)> {
         let entries = self.entries.lock().expect("hub cache lock poisoned");
         entries
             .get(key)
-            .filter(|(stored_at, _)| stored_at.elapsed() < max_age)
-            .map(|(_, value)| Arc::clone(value))
+            .map(|(stored_at, value)| (Arc::clone(value), stored_at.elapsed()))
+            .filter(|(_, age)| *age < max_age)
     }
 
     fn store(&self, key: &str, value: Arc<Value>) {
@@ -52,8 +53,24 @@ impl TtlCache {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<Value, HubError>>,
     {
-        if let Some(value) = self.lookup(key, ttl) {
-            return Ok(value);
+        self.get_or_fetch_dated(key, ttl, fetch)
+            .await
+            .map(|(value, _)| value)
+    }
+
+    /// Like [`TtlCache::get_or_fetch`], with how long ago the value came from the hub.
+    pub async fn get_or_fetch_dated<F, Fut>(
+        &self,
+        key: &str,
+        ttl: Duration,
+        fetch: F,
+    ) -> Result<(Arc<Value>, Duration), HubError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<Value, HubError>>,
+    {
+        if let Some(found) = self.lookup(key, ttl) {
+            return Ok(found);
         }
 
         let lock = {
@@ -63,8 +80,8 @@ impl TtlCache {
         let _guard = lock.lock().await;
 
         // Another request may have filled the entry while we waited.
-        if let Some(value) = self.lookup(key, ttl) {
-            return Ok(value);
+        if let Some(found) = self.lookup(key, ttl) {
+            return Ok(found);
         }
 
         let result = fetch().await;
@@ -78,7 +95,7 @@ impl TtlCache {
             Ok(value) => {
                 let value = Arc::new(value);
                 self.store(key, Arc::clone(&value));
-                Ok(value)
+                Ok((value, Duration::ZERO))
             }
             Err(err @ (HubError::RateLimited(_) | HubError::Other(_))) => {
                 self.lookup(key, MAX_STALE).ok_or(err)
@@ -133,6 +150,27 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(*value, serde_json::json!(1));
+    }
+
+    #[tokio::test]
+    async fn a_stale_entry_reports_its_age() {
+        let cache = TtlCache::new();
+        let (_, age) = cache
+            .get_or_fetch_dated("trail", Duration::from_secs(60), || async {
+                Ok(serde_json::json!(1))
+            })
+            .await
+            .unwrap();
+        assert!(age < Duration::from_millis(40));
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        let (value, age) = cache
+            .get_or_fetch_dated("trail", Duration::ZERO, || async {
+                Err(HubError::Other("down".to_string()))
+            })
+            .await
+            .unwrap();
+        assert_eq!(*value, serde_json::json!(1));
+        assert!(age >= Duration::from_millis(60));
     }
 
     #[tokio::test]

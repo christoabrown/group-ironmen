@@ -30,7 +30,11 @@ of Group Ironman teams:
 - **Player profile**: vitals, total level and XP, carried value, gear and inventory, skills; XP gained
   today, this week, month or year; play time and sessions with their worlds; carried value over 30 days;
   gear changes; recent events. The map follows the player while it's open.
-- **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days).
+- **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days). A
+  trail ends on the player's marker and grows as they move, fading with age. Teleports are drawn as arcs,
+  boat trips as waves, deaths as a red cross, and parts on another floor faintly. Hover a trail to see
+  when the player was where, or press Replay to play the routes back on a timeline; the map follows the
+  player while it plays, until you drag it, and waits a moment wherever they teleport or go underground. The trails you had on are still there after a reload.
 - **Clan page**: who's online and where (click a place to see it on the map), which worlds, the top XP
   gainers, the biggest drops of the day, week or month, and the event feed.
 - **Players page**: a sortable table of everyone, with type, owner, totals and carried value.
@@ -176,7 +180,9 @@ npm start
 ```
 
 To try the map without a hub, run the mock and point the backend at it. `MOCK_HUB_ACCOUNTS` sets how
-many players it serves (default 12); every fourth keeps its inventory, equipment and trail private.
+many players it serves (default 12); every fourth keeps its inventory, equipment and trail private. The
+first player walks a fixed 40-minute route with everything a trail can show (teleports, a boat trip,
+stairs, a dungeon, a death, a logout); `MOCK_HUB_TRAIL_HOURS` sets how far back trails go (default 6).
 
 ```bash
 MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key

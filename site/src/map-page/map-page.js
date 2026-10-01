@@ -2,10 +2,47 @@ import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { groupData, GroupData } from "../data/group-data";
 import { selection } from "../data/selection";
+import { colorForName } from "../data/player-colors";
 import { formatGp } from "../data/hub-format";
+import { deathMarks } from "../canvas-map/trail-model";
+// The page drives these two from the moment it is connected, so they have to
+// be defined before it is.
+import "../canvas-map/canvas-map";
+import "../trail-scrubber/trail-scrubber";
 
 const TRAIL_REFRESH_MS = 60000;
+// The first retry after a failed trail request; it doubles up to the normal refresh.
+const TRAIL_RETRY_MS = 5000;
+// Hub data older than this is the server's stale copy: the hub isn't answering.
+const TRAIL_STALE_S = 180;
+const TRAIL_DAYS_KEY = "map-trail-days";
+// As many deaths as the server will give: it keeps the latest events only.
+const TRAIL_DEATHS_LIMIT = 500;
 const FILTERS_KEY = "map-event-filters";
+
+/** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
+function staleNotice(asOf) {
+  if (!asOf || Date.now() / 1000 - asOf < TRAIL_STALE_S) return null;
+  const time = new Date(asOf * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `Hub data from ${time}`;
+}
+
+/** The day a trail (as the server sends it) starts, e.g. "26 Sep". */
+function trailStartDay(trail) {
+  const [, , , time, dwell = 0] = trail.points[0];
+  return new Date((time - dwell) * 1000).toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+/** The trail length chosen last time, when the select still offers it. */
+function storedTrailDays(select) {
+  let stored = null;
+  try {
+    stored = localStorage.getItem(TRAIL_DAYS_KEY);
+  } catch {
+    // Private mode.
+  }
+  return [...select.options].some((option) => option.value === stored) ? stored : select.value;
+}
 
 /** Which hub events show on the map, and how. */
 export const PING_KINDS = [
@@ -73,6 +110,7 @@ export class MapPage extends BaseElement {
     super();
     this.filters = loadPingFilters();
     this.trailData = new Map();
+    this.deathEvents = [];
   }
 
   html() {
@@ -89,16 +127,28 @@ export class MapPage extends BaseElement {
     this.trailControls = this.querySelector(".map-page__trails");
     this.trailChips = this.querySelector(".map-page__trail-chips");
     this.trailDaysSelect = this.querySelector(".map-page__trail-days");
+    this.replayButton = this.querySelector(".map-page__trails-replay");
+    this.scrubber = this.querySelector("trail-scrubber");
     this.eventControls = this.querySelector(".map-page__events");
 
     this.planeSelect.value = this.worldMap.plane || 1;
+    this.trailDaysSelect.value = storedTrailDays(this.trailDaysSelect);
     this.renderEventControls();
+    this.scrubber.nextChange = (time) => this.worldMap.trailNextChange(time);
+    this.scrubber.nextHold = (from, to) => this.worldMap.trailNextHop(from, to);
 
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));
     this.eventListener(this.planeSelect, "wheel", this.handlePlaneWheel.bind(this), { passive: false });
     this.eventListener(this.worldMap, "plane-changed", this.handlePlaneChange.bind(this));
-    this.eventListener(this.trailDaysSelect, "change", () => this.loadTrails());
+    this.eventListener(this.trailDaysSelect, "change", this.handleTrailDaysChange.bind(this));
     this.eventListener(this.trailChips, "click", this.handleTrailChipClick.bind(this));
+    this.eventListener(this.replayButton, "click", this.handleReplayClick.bind(this));
+    this.eventListener(this.scrubber, "replay-change", this.handleReplayChange.bind(this));
+    this.eventListener(this.worldMap, "trail-timeline-changed", () =>
+      this.scrubber.setTimeline(this.worldMap.trailTimeline())
+    );
+    // The replay follows the player until the map is moved by hand.
+    this.eventListener(this.worldMap, "map-dragged", () => this.scrubber.setFollow(false));
     this.eventListener(this.querySelector(".map-page__trails-clear"), "click", () => selection.clearTrails());
     this.eventListener(this.querySelector(".map-page__roster-toggle"), "click", () =>
       document.body.classList.toggle("roster-open")
@@ -113,7 +163,8 @@ export class MapPage extends BaseElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.clearInterval(this.trailRefresh);
+    window.clearTimeout(this.trailRefresh);
+    this.worldMap.setReplayTime(null);
     this.worldMap.clearTrails();
     this.worldMap.classList.remove("interactable");
     document.body.classList.remove("roster-open");
@@ -150,7 +201,9 @@ export class MapPage extends BaseElement {
   handleFeatures(features) {
     const history = Boolean(features?.hub_history);
     this.eventControls.hidden = !history;
+    const switchedOn = history && this.historyEnabled === false;
     this.historyEnabled = history;
+    if (switchedOn) this.loadTrails();
     this.renderTrailChips();
   }
 
@@ -158,34 +211,98 @@ export class MapPage extends BaseElement {
   // Trails
   // ---------------------------------------------------------------------------
 
+  handleTrailDaysChange() {
+    try {
+      localStorage.setItem(TRAIL_DAYS_KEY, this.trailDaysSelect.value);
+    } catch {
+      // Not remembered in private mode.
+    }
+    this.loadTrails();
+  }
+
+  handleReplayClick() {
+    if (this.scrubber.isOpen) this.scrubber.close();
+    else this.scrubber.open();
+  }
+
+  /** The replay shows a time on the trails, or was closed (null) and the map is live again. */
+  handleReplayChange(event) {
+    const { time, follow } = event.detail;
+    this.replayButton.setAttribute("aria-pressed", String(time !== null));
+    this.replayButton.classList.toggle("active", time !== null);
+    this.worldMap.setReplayTime(time, { follow: Boolean(follow) });
+  }
+
+  /**
+   * Fetches the selected trails and draws them, then again every minute. A
+   * later call (another selection, another length) overtakes one whose
+   * answer is still under way.
+   */
   async loadTrails() {
-    window.clearInterval(this.trailRefresh);
+    window.clearTimeout(this.trailRefresh);
+    const requestId = (this.trailRequestId = (this.trailRequestId || 0) + 1);
     const names = [...selection.trails];
-    this.renderTrailChips();
-    if (!names.length) {
-      this.trailData.clear();
-      this.worldMap.clearTrails();
+    // A trail that was switched off goes at once, whatever the request does.
+    for (const name of this.worldMap.trailNames()) {
+      if (!selection.hasTrail(name)) this.worldMap.clearTrail(name);
+    }
+    for (const name of [...this.trailData.keys()]) {
+      if (!selection.hasTrail(name)) this.trailData.delete(name);
+    }
+    // Nothing to fetch, or (once the server has said so) no history to fetch it from.
+    if (!names.length || this.historyEnabled === false) {
+      this.trailError = null;
+      this.trailFailures = 0;
+      this.renderTrailChips();
       return;
     }
+    this.renderTrailChips();
+
     const days = parseInt(this.trailDaysSelect.value, 10);
-    const requestId = (this.trailRequestId = (this.trailRequestId || 0) + 1);
+    let retryIn = TRAIL_REFRESH_MS;
     try {
       const data = await api.getTrails(names, days);
       if (!this.isConnected || requestId !== this.trailRequestId) return;
       this.trailData = new Map(data.trails.map((trail) => [trail.member, trail]));
-      this.worldMap.clearTrails();
       for (const trail of data.trails) {
-        if (!trail.shared) continue;
-        const color = groupData.members.get(trail.member)?.color || "#f5d742";
-        this.worldMap.setTrail(trail.member, trail.points, color);
+        if (trail.shared) {
+          const { color, light } = colorForName(trail.member);
+          this.worldMap.setTrail(trail.member, trail, { color, light, windowS: days * 86400 });
+        } else {
+          this.worldMap.clearTrail(trail.member);
+        }
       }
-      this.trailError = null;
+      this.trailFailures = 0;
+      this.trailError = staleNotice(data.as_of);
+      this.showTrailDeaths();
+      this.loadTrailDeaths();
     } catch (error) {
       if (!this.isConnected || requestId !== this.trailRequestId) return;
+      // What is drawn stays; it is only getting older.
       this.trailError = error.status === 503 ? "Hub busy" : "Trails unavailable";
+      this.trailFailures = (this.trailFailures || 0) + 1;
+      retryIn = Math.min(TRAIL_RETRY_MS * 2 ** (this.trailFailures - 1), TRAIL_REFRESH_MS);
     }
     this.renderTrailChips();
-    this.trailRefresh = window.setInterval(() => this.loadTrails(), TRAIL_REFRESH_MS);
+    this.trailRefresh = window.setTimeout(() => this.loadTrails(), retryIn);
+  }
+
+  /** Fetches the deaths the server still knows of, to mark them on the trails. */
+  async loadTrailDeaths() {
+    try {
+      this.deathEvents = await api.getHubEvents({ types: ["death"], limit: TRAIL_DEATHS_LIMIT });
+    } catch {
+      // The trails are shown without them.
+      return;
+    }
+    if (this.isConnected) this.showTrailDeaths();
+  }
+
+  /** Marks the deaths on the trails shown, unless deaths are filtered out of the map. */
+  showTrailDeaths() {
+    for (const name of this.worldMap.trailNames()) {
+      this.worldMap.setTrailDeaths(name, this.filters.death ? deathMarks(this.deathEvents, name) : []);
+    }
   }
 
   renderTrailChips() {
@@ -197,13 +314,16 @@ export class MapPage extends BaseElement {
         chip.type = "button";
         chip.className = "map-page__trail-chip";
         chip.dataset.name = name;
-        chip.style.setProperty("--player-color", groupData.members.get(name)?.color || "#f5d742");
+        chip.style.setProperty("--player-color", colorForName(name).color);
         const trail = this.trailData.get(name);
         const notShared = trail && !trail.shared;
         const empty = trail?.shared && trail.points.length === 0;
-        chip.textContent = `${name}${notShared ? " (not shared)" : empty ? " (no points)" : ""}`;
+        // The server cuts a trail with more than it can send down to its newest part.
+        const since = trail?.shared && trail.truncated && !empty ? trailStartDay(trail) : null;
+        const note = notShared ? " (not shared)" : empty ? " (no points)" : since ? ` (since ${since})` : "";
+        chip.textContent = `${name}${note}`;
         chip.classList.toggle("map-page__trail-chip--off", Boolean(notShared || empty));
-        chip.title = "Remove this trail";
+        chip.title = since ? "Too much to show for the whole period. Remove this trail" : "Remove this trail";
         return chip;
       })
     );
@@ -255,12 +375,18 @@ export class MapPage extends BaseElement {
     } catch {
       // Not remembered in private mode.
     }
+    this.showTrailDeaths();
   }
 
   handleLiveEvents({ added }) {
     for (const event of added) {
       const ping = pingForEvent(event, groupData.members.get(event.member), this.filters);
       if (ping) this.worldMap.addPing(ping);
+    }
+    const deaths = added.filter((event) => event.type === "death");
+    if (deaths.length) {
+      this.deathEvents = [...deaths, ...this.deathEvents];
+      this.showTrailDeaths();
     }
   }
 }

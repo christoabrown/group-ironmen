@@ -14,7 +14,7 @@ for local development.
 | `GET /xp?accounts=` (≤50) | Graphs | 5 min |
 | `GET /leaderboards/gains` | Clan page, the graphs' default players | 5 min |
 | `GET /leaderboards/loot` | Clan page "Biggest drops" (falls back to the event buffer on older hubs) | 1 min |
-| `GET /locations?accounts=` (≤50) | Trails of up to 8 players at once (one-by-one when one isn't shared) | 1 min |
+| `GET /locations?accounts=` (≤50) | Trails of up to 8 players at once (one-by-one when one isn't shared). Each point's `world` and `is_on_boat` are passed on; a long trail is thinned to 3000 points, keeping both sides of every teleport, boat or world change and gap | 1 min |
 | `GET /accounts/{id}/gains` | Profile → Gains | 2 min |
 | `GET /accounts/{id}/sessions` | Profile → Activity (play time) | 1 min |
 | `GET /accounts/{id}/wealth` | Profile → Wealth | 5 min |

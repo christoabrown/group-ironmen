@@ -14,6 +14,11 @@
 // /leaderboards/loot and /events (cursor, types, accounts, min_value), following
 // the hub's docs/API.md as of D-94. A loot, level up or death happens every few
 // seconds.
+//
+// The first account follows a fixed 40-minute route instead (see `route`), with
+// everything a trail can show: a walk, teleports, a boat trip, a floor change,
+// a dungeon entrance, a death, a world hop and a logout. MOCK_HUB_TRAIL_HOURS
+// sets how far back trails go (default 6; 720 gives enough to need thinning).
 const http = require("http");
 const crypto = require("crypto");
 
@@ -21,6 +26,7 @@ const PORT = parseInt(process.env.PORT || "7070", 10);
 const API_KEY = process.env.MOCK_HUB_KEY || "ohub_mock_key";
 const ACCOUNT_COUNT = Math.max(1, parseInt(process.env.MOCK_HUB_ACCOUNTS || "12", 10));
 const EVENT_EVERY_MS = parseInt(process.env.MOCK_HUB_EVENT_MS || "4000", 10);
+const TRAIL_HOURS = Math.max(1, parseInt(process.env.MOCK_HUB_TRAIL_HOURS || "6", 10));
 const SKILLS = [
   "Agility", "Attack", "Construction", "Cooking", "Crafting", "Defence", "Farming", "Firemaking",
   "Fishing", "Fletching", "Herblore", "Hitpoints", "Hunter", "Magic", "Mining", "Prayer", "Ranged",
@@ -87,16 +93,50 @@ const accounts = Array.from({ length: ACCOUNT_COUNT }, (_, i) => {
     xp: 5_000_000 + ((i * 7_654_321) % 150_000_000),
     type: i % 7 === 3 ? 2 : i % 5 === 1 ? 1 : 0,
     categories: i % 4 === 3 ? DEFAULT_CATEGORIES : ALL_CATEGORIES,
+    routed: i === 0,
   };
 });
 
+const ROUTE_MINUTES = 40;
+const ROUTE_LOGOUT_MINUTE = 35;
+const ROUTE_DEATH_MINUTE = 29.5;
+
+// Where the first account is at time t. The route depends on the wall clock
+// only, so a trail is the same however often it is requested.
+function route(t) {
+  const p = (t / 60_000) % ROUTE_MINUTES;
+  const at = (x, y, extra = {}) => ({ x: Math.round(x), y: Math.round(y), plane: 0, boat: false, world: 302, online: true, ...extra });
+  // Lumbridge, north along the river.
+  if (p < 8) return at(3222 + 25 * Math.sin(p * 1.3), 3218 + p * 40);
+  // Teleport to Falador, walk to Port Sarim.
+  if (p < 12) return at(2964 + (p - 8) * 19, 3378 - (p - 8) * 42);
+  // Sail south.
+  if (p < 18) return at(3040 + (p - 12) * 20, 3200 - (p - 12) * 60, { boat: true });
+  // Teleport to the Slayer Tower, three minutes upstairs.
+  if (p < 20) return at(3428 + (p - 18) * 4, 3538);
+  if (p < 23) return at(3436 + (p - 20) * 3, 3540, { plane: 1 });
+  // Teleport to Edgeville, down the trapdoor: the dungeon is 6400 tiles north.
+  if (p < 25) return at(3094 + (p - 23) * 1.5, 3491 - (p - 23) * 11.5);
+  if (p < 30) return at(3097 + (p - 25) * 10, 9868 + (p - 25) * 20);
+  // Dies there, respawns in Lumbridge on another world.
+  if (p < 32) return at(3222 + (p - 30) * 5, 3218 + (p - 30) * 8, { world: 330 });
+  // In Varrock a minute later: too far to be sure it was on foot.
+  if (p < ROUTE_LOGOUT_MINUTE) return at(3212 + (p - 32) * 6, 3424 + (p - 32) * 4, { world: 330 });
+  // Logged out until the route starts over.
+  return at(3230, 3436, { world: 330, online: false });
+}
+
 function position(account, t = Date.now()) {
+  if (account.routed) return route(t);
   // One lap every 7 minutes, so the once-a-minute trail points differ.
   const angle = ((t - started) / 420_000) * Math.PI * 2 + account.phase;
   return {
     x: Math.round(account.place[1] + Math.cos(angle) * account.radius),
     y: Math.round(account.place[2] + Math.sin(angle) * account.radius),
     plane: account.place[3],
+    boat: false,
+    world: 302 + (account.phase % 40),
+    online: account.online,
   };
 }
 
@@ -115,7 +155,15 @@ function level(xp) {
 }
 
 const shares = (account, category) => account.categories.includes(category);
-const lastSeen = (account) => (account.online ? new Date() : new Date(started - (3 + account.phase) * 3600_000));
+
+function lastSeen(account, online) {
+  if (online) return new Date();
+  if (account.routed) {
+    const lap = Math.floor(Date.now() / 60_000 / ROUTE_MINUTES) * ROUTE_MINUTES;
+    return new Date((lap + ROUTE_LOGOUT_MINUTE) * 60_000);
+  }
+  return new Date(started - (3 + account.phase) * 3600_000);
+}
 
 function equipmentItems(account) {
   return [
@@ -137,8 +185,8 @@ function inventoryItems(account) {
 const value = (items) => items.reduce((sum, item) => sum + item.ge_price * item.quantity, 0);
 
 function snapshotAccount(account) {
-  const seen = lastSeen(account);
-  const { x, y, plane } = position(account);
+  const { x, y, plane, boat, world, online } = position(account);
+  const seen = lastSeen(account, online);
   const skills = SKILLS.map((skill, i) => {
     const xp = skillXp(account, i);
     return { skill, level: level(xp), real_level: level(xp), xp };
@@ -151,15 +199,15 @@ function snapshotAccount(account) {
     categories: account.categories,
     account_hash: crypto.createHash("sha224").update(account.id).digest("hex"),
     owner: { name: `${account.name.split(" ")[0]}'s owner`, discord_id: null },
-    online: account.online,
-    world: 302 + (account.phase % 40),
+    online,
+    world,
     special_world: false,
-    game_state: account.online ? (Math.random() < 0.03 ? "HOPPING" : "LOGGED_IN") : "LOGIN_SCREEN",
+    game_state: online ? (Math.random() < 0.03 ? "HOPPING" : "LOGGED_IN") : "LOGIN_SCREEN",
     last_seen: seen.toISOString(),
     hp: { current: 60 + (account.phase % 39), max: 99 },
     prayer: { current: 20 + (account.phase % 50), max: 70 },
     spellbook: ["standard", "ancient", "lunar", "arceuus"][account.phase % 4],
-    location: { x, y, plane, is_on_boat: false, stale: !account.online, updated_at: seen.toISOString() },
+    location: { x, y, plane, is_on_boat: boat, stale: !online, updated_at: seen.toISOString() },
     skills: {
       total_level: skills.reduce((sum, s) => sum + s.level, 0),
       overall_xp: skills.reduce((sum, s) => sum + s.xp, 0),
@@ -245,20 +293,36 @@ function randomEvent(account, at) {
     const skill = pick(SKILLS);
     const lvl = 60 + Math.floor(Math.random() * 39);
     addEvent("level_up", account, { skill, level: lvl, title: "Level up", line: `${account.name} reached level ${lvl} ${skill}` }, at);
-  } else {
-    const { x, y, plane } = position(account, at.getTime());
-    const location = shares(account, "location_live") ? { x, y, plane } : undefined;
-    addEvent(
-      "death",
-      account,
-      {
-        value_gp: 250_000,
-        title: "Death",
-        line: `${account.name} died`,
-        data: { type: "death", data: { valueLost: 250_000, danger: "DANGEROUS", ...(location ? { location } : {}) } },
-      },
-      at
-    );
+  } else if (!account.routed) {
+    death(account, at);
+  }
+}
+
+function death(account, at) {
+  const { x, y, plane } = position(account, at.getTime());
+  const location = shares(account, "location_live") ? { x, y, plane } : undefined;
+  addEvent(
+    "death",
+    account,
+    {
+      value_gp: 250_000,
+      title: "Death",
+      line: `${account.name} died`,
+      data: { type: "death", data: { valueLost: 250_000, danger: "DANGEROUS", ...(location ? { location } : {}) } },
+    },
+    at
+  );
+}
+
+// The routed account dies once per lap, at the same place every time.
+let routeDeaths = Math.floor((started - TRAIL_HOURS * 3600_000) / 60_000 / ROUTE_MINUTES);
+function addRouteDeaths() {
+  const account = accounts.find((a) => a.routed);
+  for (;;) {
+    const at = ((routeDeaths + 1) * ROUTE_MINUTES + ROUTE_DEATH_MINUTE) * 60_000;
+    if (!account || at > Date.now()) return;
+    routeDeaths += 1;
+    death(account, new Date(at));
   }
 }
 
@@ -266,6 +330,10 @@ function randomEvent(account, at) {
 for (let i = 0; i < 80; i++) {
   randomEvent(pick(accounts), new Date(started - (80 - i) * 9 * 60_000));
 }
+addRouteDeaths();
+events.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+events.forEach((event, i) => (event.seq = i + 1));
+setInterval(addRouteDeaths, 10_000);
 setInterval(() => {
   const online = accounts.filter((a) => a.online);
   if (online.length) randomEvent(pick(online), new Date());
@@ -296,12 +364,14 @@ function periodStart(period) {
   return Date.now() - ({ week: 7, month: 30, year: 365 }[period] || 1) * 86400_000;
 }
 
+// One sample per minute, on the minute like the hub's, and none while logged out.
 function trail(account, from) {
   const points = [];
-  const start = Math.max(from, Date.now() - 6 * 3600_000);
+  const start = Math.ceil(Math.max(from, Date.now() - TRAIL_HOURS * 3600_000) / 60_000) * 60_000;
   for (let t = start; t <= Date.now(); t += 60_000) {
-    const { x, y, plane } = position(account, t);
-    points.push({ at: new Date(t).toISOString(), x, y, plane, world: 302, is_on_boat: false });
+    const { x, y, plane, boat, world, online } = position(account, t);
+    if (account.routed && !online) continue;
+    points.push({ at: new Date(t).toISOString(), x, y, plane, world, is_on_boat: boat });
   }
   return points;
 }

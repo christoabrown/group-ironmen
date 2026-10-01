@@ -168,7 +168,7 @@ The poll response changes shape, so backend and frontend must deploy together.
 - Cache TTLs are 30–300 s, and the cache cap goes from 500 to 2000.
 
 **Other backend changes:**
-- **`GET /api/group/hub/trails?members=A,B&days=`** (at most 8 players) uses bulk `/locations` in chunks. A 404 falls back to one request per account, the way `fetch_xp_chunk` does. Each player gets `{member, shared, points}`.
+- **`GET /api/group/hub/trails?members=A,B&days=`** (at most 8 players) uses bulk `/locations` in chunks. A 404 falls back to one request per account, the way `fetch_xp_chunk` does. Each player gets `{member, shared, points}` (later also `step`, `truncated` and `worlds`, and longer points; see the trail overhaul spec).
 - **`get-skill-data`** accepts `members=` (up to 10).
 
 **Tests:**
@@ -315,7 +315,8 @@ The poll response changes shape, so backend and frontend must deploy together.
 - Trail toggles in roster rows and in the drawer (at most 8).
 - A trails control on the map page: the days select, a chip per trail in the player's colour, and clear-all.
 - One `getTrails` call per change, refreshed every 60 s. Chips show "not shared" for private trails.
-- The selected player's trail is drawn thicker, with an end-point dot.
+- The selected player's trail is drawn thicker, with a dot where it starts.
+- How trails are drawn, kept live and replayed has since been redone: see `2026-10-01-trail-overhaul-design.md`.
 
 **Tests:**
 - `regions.test.js`; `cache-data` validates `regions.json`.

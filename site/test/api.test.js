@@ -75,6 +75,20 @@ describe("api", () => {
     expect(publishSpy).toHaveBeenCalledWith("get-group-data", groupData);
   });
 
+  it("keeps time by the server's clock once it has answered", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-30T00:00:00.000Z"));
+    expect(api.serverNow()).toBe(Date.now());
+
+    // The browser's clock is an hour behind the server's.
+    const cursor = "2026-03-30T01:00:00.000Z";
+    globalThis.fetch.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ cursor }) });
+    vi.spyOn(groupData, "update").mockReturnValue(new Date(cursor));
+    await api.getGroupData();
+    vi.advanceTimersByTime(5000);
+    expect(api.serverNow()).toBe(Date.parse(cursor) + 5000);
+  });
+
   it("getGroupData handles unauthorized responses by disabling and redirecting", async () => {
     const disableSpy = vi.spyOn(api, "disable").mockResolvedValue();
     const pushStateSpy = vi.spyOn(window.history, "pushState");

@@ -1,0 +1,90 @@
+trail-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  padding: 0.4em;
+  color: white;
+  font-size: 0.9rem;
+}
+
+trail-scrubber[hidden] {
+  display: none;
+}
+
+/* The play and pause signs are drawn, so they look the same in every font. */
+.trail-scrubber__play::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent currentColor;
+}
+
+.trail-scrubber__play--playing::before {
+  width: 3px;
+  height: 12px;
+  border-width: 0 3px;
+  border-color: currentColor;
+}
+
+.trail-scrubber__track {
+  position: relative;
+  flex: 1 1 160px;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+}
+
+.trail-scrubber__range {
+  width: 100%;
+  margin: 0;
+}
+
+/* The ticks sit over the slider's track, inset by half its thumb on both sides. */
+.trail-scrubber__ticks {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.trail-scrubber__tick {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 5px;
+  margin-left: -1px;
+  background: var(--player-color, white);
+}
+
+.trail-scrubber__tick--death {
+  top: auto;
+  bottom: 1px;
+  background: #e0403a;
+}
+
+.trail-scrubber__time {
+  min-width: 7.5em;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.trail-scrubber__follow,
+.trail-scrubber__skip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.trail-scrubber__follow input,
+.trail-scrubber__skip input {
+  margin: 0;
+}
