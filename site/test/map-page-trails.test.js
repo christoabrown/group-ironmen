@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
 import { pubsub } from "../src/data/pubsub";
 import { selection } from "../src/data/selection";
+import { colorForName } from "../src/data/player-colors";
 import "../src/map-page/map-page";
 
 const NOW_S = 1_790_000_000;
@@ -17,6 +18,8 @@ function fakeWorldMap() {
     clearTrail: vi.fn((name) => drawn.delete(name)),
     clearTrails: vi.fn(() => drawn.clear()),
     trailNames: () => [...drawn],
+    setTrailDeaths: vi.fn(),
+    addPing: vi.fn(),
   });
   return map;
 }
@@ -62,6 +65,7 @@ describe("map page trails", () => {
     worldMap = fakeWorldMap();
     document.body.append(authed, worldMap);
     pubsub.publish("features", { hub_history: true });
+    vi.spyOn(api, "getHubEvents").mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -130,6 +134,77 @@ describe("map page trails", () => {
     selection.toggleTrail("Alice");
     await settle();
     expect(page.querySelector(".map-page__trail-error").textContent).toMatch(/^Hub data from \d/);
+  });
+
+  it("hands the map each shared trail with the player's colours and how far back it goes", async () => {
+    const response = trailsResponse(["Alice"]);
+    response.trails.push({ member: "Bob", shared: false });
+    vi.spyOn(api, "getTrails").mockResolvedValue(response);
+    mount();
+    selection.toggleTrail("Alice");
+    selection.toggleTrail("Bob");
+    await settle();
+    const { color, light } = colorForName("Alice");
+    expect(worldMap.setTrail).toHaveBeenCalledTimes(1);
+    expect(worldMap.setTrail).toHaveBeenCalledWith("Alice", response.trails[0], { color, light, windowS: 86400 });
+    expect(page.querySelector('[data-name="Bob"]').textContent).toContain("not shared");
+  });
+
+  describe("deaths", () => {
+    const death = (id, member, secondsAgo) => ({
+      id,
+      type: "death",
+      member,
+      occurred_at: new Date((NOW_S - secondsAgo) * 1000).toISOString(),
+      location: { x: 3142, y: 9958, plane: 0 },
+    });
+
+    beforeEach(() => {
+      vi.spyOn(api, "getTrails").mockResolvedValue(trailsResponse(["Alice"]));
+      api.getHubEvents.mockResolvedValue([death("a", "Alice", 300), death("b", "Bob", 200)]);
+    });
+
+    it("are marked on the trails shown", async () => {
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      expect(api.getHubEvents).toHaveBeenCalledWith({ types: ["death"], limit: 500 });
+      expect(worldMap.setTrailDeaths).toHaveBeenLastCalledWith("Alice", [
+        { id: "a", x: 3142, y: 9959, plane: 0, t: NOW_S - 300 },
+      ]);
+    });
+
+    it("include one that happens while the map is open", async () => {
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      pubsub.publish("live-events", { events: [], added: [death("c", "Alice", 0)], initial: false });
+      const [, marks] = worldMap.setTrailDeaths.mock.calls[worldMap.setTrailDeaths.mock.calls.length - 1];
+      expect(marks.map((mark) => mark.id)).toEqual(["a", "c"]);
+    });
+
+    it("are left off while the Deaths filter is off", async () => {
+      localStorage.setItem("map-event-filters", JSON.stringify({ death: false }));
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      expect(worldMap.setTrailDeaths).toHaveBeenLastCalledWith("Alice", []);
+
+      const toggle = page.querySelector('.map-page__event-kinds input[name="death"]');
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      const [, marks] = worldMap.setTrailDeaths.mock.calls[worldMap.setTrailDeaths.mock.calls.length - 1];
+      expect(marks).toHaveLength(1);
+    });
+
+    it("don't hold up the trails when they can't be fetched", async () => {
+      api.getHubEvents.mockRejectedValue(new Error("down"));
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      expect(worldMap.trailNames()).toEqual(["Alice"]);
+      expect(page.querySelector(".map-page__trail-error")).toBeNull();
+    });
   });
 
   it("remembers the trail length", async () => {

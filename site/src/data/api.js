@@ -13,6 +13,15 @@ class Api {
     this.sessionToken = null;
     this.username = null;
     this.role = null;
+    this.clockOffsetMs = 0;
+  }
+
+  /**
+   * The time (ms) by the server's clock, which is the one the hub's samples
+   * are stamped with: the browser's, corrected by what the last poll said.
+   */
+  serverNow() {
+    return Date.now() + this.clockOffsetMs;
   }
 
   get getGroupDataUrl() {
@@ -118,6 +127,8 @@ class Api {
     }
 
     const newGroupData = await response.json();
+    const serverTime = Date.parse(newGroupData.cursor);
+    if (!isNaN(serverTime)) this.clockOffsetMs = serverTime - Date.now();
     this.nextCheck = groupData.update(newGroupData).toISOString();
     pubsub.publish("get-group-data", groupData);
   }

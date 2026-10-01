@@ -2,14 +2,18 @@ import { BaseElement } from "../base-element/base-element";
 import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 import { utility } from "../utility";
 import { Animation } from "./animation";
-import { GroupData } from "../data/group-data";
 import { selection } from "../data/selection";
+import { api } from "../data/api";
+import { regionName } from "../data/regions";
+import { TrailLayer } from "./trail-layer";
+import { formatTrailTime } from "./trail-model";
 
 export const ICON_SPRITE_SIZE = 15;
 
-// Consecutive trail points further apart than this (in tiles) are a teleport
-// and are not connected with a line.
-export const TRAIL_MAX_STEP_TILES = 40;
+// A trail is hovered when the pointer is within this many pixels of its line.
+const TRAIL_HOVER_PX = 8;
+// Moving parts of a trail are redrawn about 25 times a second, not every frame.
+const TRAIL_FRAME_MS = 40;
 
 // Below this zoom, players closer than CLUSTER_CELL_PX on screen are drawn as
 // one bubble with a count.
@@ -56,7 +60,6 @@ export class CanvasMap extends BaseElement {
     this.eventListener(this, "touchcancel", this.stopDragging.bind(this));
     this.eventListener(window, "resize", this.onResize.bind(this));
     this.playerMarkers = new Map();
-    this.trails = new Map();
     this.pings = [];
     this.renderedPlayers = [];
     this.selectedName = null;
@@ -120,8 +123,11 @@ export class CanvasMap extends BaseElement {
       window.cancelAnimationFrame(this.frameRequestId);
       this.frameRequestId = null;
     }
+    window.clearTimeout(this.trailFrameTimer);
+    this.trailFrameTimer = null;
     this.hideMapLinkTooltip();
     this.hidePlayerTooltip();
+    this.hideTrailTooltip();
     super.disconnectedCallback();
   }
 
@@ -204,6 +210,8 @@ export class CanvasMap extends BaseElement {
     for (const member of members) {
       if (!member.inactive) {
         this.handleUpdatedCoordinates(member);
+      } else {
+        this.observeForTrail(member);
       }
     }
   }
@@ -212,7 +220,19 @@ export class CanvasMap extends BaseElement {
     return !isNaN(coordinates?.x) && !isNaN(coordinates?.y) && !isNaN(coordinates?.plane);
   }
 
+  /** Tells the trails where a member is now; an offline member's trail ends at its last sample. */
+  observeForTrail(member) {
+    const coordinates = member.coordinates;
+    const position = this.isValidCoordinates(coordinates)
+      ? { ...coordinates, boat: Boolean(member.meta?.is_on_boat), world: member.stats?.world ?? null }
+      : null;
+    if (this.trailLayer.observe(member.name, position, !member.inactive)) {
+      this.trailsChanged();
+    }
+  }
+
   handleUpdatedCoordinates(member) {
+    this.observeForTrail(member);
     if (member.inactive) {
       this.playerMarkers.delete(member.name);
       this.requestUpdate();
@@ -544,7 +564,7 @@ export class CanvasMap extends BaseElement {
       this.drawLocations();
       this.drawMapAreaLabels(!isPanningABigDistance);
       this.drawMapLinks();
-      this.drawTrails();
+      if (this.drawTrails()) this.requestTrailFrame();
       this.drawCursorTile();
       this.drawPlayers();
       doAnotherUpdate = this.drawPings(performance.now()) || doAnotherUpdate;
@@ -559,100 +579,129 @@ export class CanvasMap extends BaseElement {
     this.frameRequestId = window.requestAnimationFrame(this.update);
   }
 
-  /**
-   * Shows a location trail. Points are `[x, y, plane, unixSeconds]` as served by
-   * /api/group/hub/locations, in storage coordinates (the same offset as member
-   * coordinates is applied here).
-   */
-  setTrail(name, points, color = "#f5d742") {
-    const trailPoints = [];
-    for (const [x, y, plane, time] of points || []) {
-      const coordinates = GroupData.transformCoordinatesFromStorage([x, y, plane]);
-      if (this.isValidCoordinates(coordinates)) {
-        trailPoints.push({ ...coordinates, time });
-      }
+  // ---------------------------------------------------------------------------
+  // Trails
+  // ---------------------------------------------------------------------------
+
+  /** The trails on the map; see TrailLayer. Its clock is the server's, like the hub's samples. */
+  get trailLayer() {
+    if (!this.trailLayerInstance) {
+      this.trailLayerInstance = new TrailLayer({ now: () => api.serverNow() / 1000 });
     }
-    this.trails.set(name, { points: trailPoints, color });
-    this.requestUpdate();
+    return this.trailLayerInstance;
+  }
+
+  /**
+   * Shows a player's trail, as served by /api/group/hub/trails (one entry of
+   * `trails`). `style` is `{color, light, windowS}`: the player's colours and
+   * how far back the trail was asked for, in seconds.
+   */
+  setTrail(name, trail, style) {
+    this.trailLayer.setHistory(name, trail, style);
+    this.trailsChanged();
   }
 
   clearTrail(name) {
-    if (this.trails.delete(name)) {
-      this.requestUpdate();
+    if (this.trailLayer.remove(name)) {
+      this.trailsChanged();
+    }
+  }
+
+  clearTrails() {
+    if (this.trailLayer.names().length) {
+      this.trailLayer.clear();
+      this.trailsChanged();
     }
   }
 
   /** The players whose trails are on the map. */
   trailNames() {
-    return [...this.trails.keys()];
+    return this.trailLayer.names();
   }
 
-  clearTrails() {
-    if (this.trails.size) {
-      this.trails.clear();
-      this.requestUpdate();
-    }
+  /** Marks a player's deaths on their trail: `[{id, x, y, plane, t}]`. */
+  setTrailDeaths(name, deaths) {
+    this.trailLayer.setDeaths(name, deaths);
+    this.trailsChanged();
   }
 
-  /** Splits a trail into the line segments to draw on one plane. */
-  static trailSegments(points, plane, maxStepTiles = TRAIL_MAX_STEP_TILES) {
-    const segments = [];
-    let current = [];
-    let previous = null;
-    for (const point of points) {
-      const connected =
-        previous &&
-        previous.plane === point.plane &&
-        Math.abs(previous.x - point.x) <= maxStepTiles &&
-        Math.abs(previous.y - point.y) <= maxStepTiles;
-      if (!connected || point.plane !== plane) {
-        if (current.length > 1) segments.push(current);
-        current = [];
-      }
-      if (point.plane === plane) {
-        current.push(point);
-      }
-      previous = point;
-    }
-    if (current.length > 1) segments.push(current);
-    return segments;
+  /** Shows the trails as they were at a time (unix seconds), or live again for null. */
+  setReplayTime(time) {
+    this.trailLayer.setReplay(time);
+    this.requestUpdate();
   }
 
+  /** `{tMin, tMax, ticks}` of the trails shown, for the replay timeline. */
+  trailTimeline() {
+    return this.trailLayer.timeline();
+  }
+
+  trailsChanged() {
+    this.hideTrailTooltip();
+    this.requestUpdate();
+    this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
+  }
+
+  /** What the trail renderer needs to know of the camera, in map pixels. */
+  trailView() {
+    const zoom = this.camera.zoom.current;
+    const minX = this.camera.x.current / zoom;
+    const minY = -this.camera.y.current / zoom;
+    return {
+      zoom,
+      plane: this.plane - 1,
+      minX,
+      minY,
+      maxX: minX + this.canvas.width / zoom,
+      maxY: minY + this.canvas.height / zoom,
+      nowS: this.trailLayer.now(),
+      nowMs: performance.now(),
+      reducedMotion: Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
+    };
+  }
+
+  /** Draws the trails. Returns whether one of them is animating. */
   drawTrails() {
-    if (!this.trails?.size) return;
-    const plane = this.plane - 1;
-    const half = this.pixelsPerGameTile / 2;
-    this.ctx.lineJoin = "round";
-    this.ctx.lineCap = "round";
-    this.ctx.globalAlpha = 0.8;
-    for (const [name, trail] of this.trails) {
-      const selected = name === this.selectedName;
-      this.ctx.lineWidth = (selected ? 5 : 3) / this.camera.zoom.current;
-      this.ctx.strokeStyle = trail.color;
-      const segments = CanvasMap.trailSegments(trail.points, plane);
-      for (const segment of segments) {
-        this.ctx.beginPath();
-        segment.forEach((point, index) => {
-          const [x, y] = this.gamePositionToCanvas(point.x, point.y);
-          if (index === 0) {
-            this.ctx.moveTo(x + half, y + half);
-          } else {
-            this.ctx.lineTo(x + half, y + half);
-          }
-        });
-        this.ctx.stroke();
-      }
-      // Mark where the trail starts, so its direction is clear.
-      const first = trail.points.find((point) => point.plane === plane);
-      if (first) {
-        const [x, y] = this.gamePositionToCanvas(first.x, first.y);
-        this.ctx.beginPath();
-        this.ctx.fillStyle = trail.color;
-        this.ctx.arc(x + half, y + half, 4 / this.camera.zoom.current, 0, Math.PI * 2);
-        this.ctx.fill();
-      }
+    if (!this.trailLayer.names().length) return false;
+    return this.trailLayer.draw(this.ctx, this.trailView(), this.selectedName);
+  }
+
+  /** Asks for the next frame of a trail's animation, a little later. */
+  requestTrailFrame() {
+    if (this.trailFrameTimer) return;
+    this.trailFrameTimer = window.setTimeout(() => {
+      this.trailFrameTimer = null;
+      this.requestUpdate();
+    }, TRAIL_FRAME_MS);
+  }
+
+  /** The trail point under a client position, if any: `{name, index, point}`. */
+  getTrailAtClient(clientX, clientY) {
+    if (!this.trailLayer.names().length) return null;
+    const rect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
+    const zoom = this.camera.zoom.current;
+    const x = (clientX - rect.left + this.camera.x.current) / zoom;
+    const y = (clientY - rect.top - this.camera.y.current) / zoom;
+    return this.trailLayer.hitTest(x, y, TRAIL_HOVER_PX / zoom, zoom);
+  }
+
+  trailTooltip({ name, point }) {
+    const parts = [`<strong>${escapeHtml(name)}</strong>`];
+    parts.push(escapeHtml(formatTrailTime(point.t0, point.t1, this.trailLayer.now())));
+    const place = regionName(point.x, point.y - 1);
+    if (place) parts.push(escapeHtml(place));
+    if (point.plane) parts.push(`Floor ${point.plane + 1}`);
+    if (point.world) parts.push(`World ${point.world}`);
+    if (point.boat) parts.push("On a boat");
+    return `<div class="canvas-map__tooltip">${parts.join("<br/>")}</div>`;
+  }
+
+  hideTrailTooltip() {
+    if (this.trailLayer.setHover(null)) this.requestUpdate();
+    if (this.trailTooltipShown) {
+      this.trailTooltipShown = false;
+      tooltipManager.hideTooltip();
     }
-    this.ctx.globalAlpha = 1;
   }
 
   /** Screen position (relative to the canvas) of the centre of a game tile. */
@@ -1296,6 +1345,7 @@ export class CanvasMap extends BaseElement {
     this.pendingPlayer = null;
     this.hoveredPlayer = null;
     this.hidePlayerTooltip();
+    this.hideTrailTooltip();
     this.pendingMapLink = null;
     this.pointerDragged = false;
     this.hoveredMapLink = null;
@@ -1399,6 +1449,7 @@ export class CanvasMap extends BaseElement {
   }
 
   startDragging(x, y) {
+    this.hideTrailTooltip();
     this.classList.add("dragging");
     this.camera.isDragging = true;
     this.camera.x.cancelAnimation();
@@ -1468,6 +1519,7 @@ export class CanvasMap extends BaseElement {
     if (this.camera.isDragging) return;
     const link = this.getLinkAtClient(event.clientX, event.clientY);
     if (link) {
+      this.hideTrailTooltip();
       if (this.hoveredMapLink?.key !== link.key) {
         this.hoveredMapLink = link;
         this.showMapLinkTooltip(link, event);
@@ -1486,6 +1538,7 @@ export class CanvasMap extends BaseElement {
         this.hoveredPlayer = name;
         this.requestUpdate();
       }
+      this.hideTrailTooltip();
       this.playerTooltipShown = true;
       tooltipManager.showTooltip(this.playerTooltip(player), event);
       this.style.cursor = "pointer";
@@ -1497,6 +1550,15 @@ export class CanvasMap extends BaseElement {
     }
     this.hidePlayerTooltip();
     this.style.cursor = "";
+    // A trail is only looked at, so hovering it leaves the cursor alone.
+    const trail = this.getTrailAtClient(event.clientX, event.clientY);
+    if (trail) {
+      if (this.trailLayer.setHover(trail)) this.requestUpdate();
+      this.trailTooltipShown = true;
+      tooltipManager.showTooltip(this.trailTooltip(trail), event);
+    } else {
+      this.hideTrailTooltip();
+    }
   }
 
   onTouchMove(event) {

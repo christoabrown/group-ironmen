@@ -4,6 +4,7 @@ import { groupData, GroupData } from "../data/group-data";
 import { selection } from "../data/selection";
 import { colorForName } from "../data/player-colors";
 import { formatGp } from "../data/hub-format";
+import { deathMarks } from "../canvas-map/trail-model";
 
 const TRAIL_REFRESH_MS = 60000;
 // The first retry after a failed trail request; it doubles up to the normal refresh.
@@ -11,6 +12,8 @@ const TRAIL_RETRY_MS = 5000;
 // Hub data older than this is the server's stale copy: the hub isn't answering.
 const TRAIL_STALE_S = 180;
 const TRAIL_DAYS_KEY = "map-trail-days";
+// As many deaths as the server will give: it keeps the latest events only.
+const TRAIL_DEATHS_LIMIT = 500;
 const FILTERS_KEY = "map-event-filters";
 
 /** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
@@ -97,6 +100,7 @@ export class MapPage extends BaseElement {
     super();
     this.filters = loadPingFilters();
     this.trailData = new Map();
+    this.deathEvents = [];
   }
 
   html() {
@@ -224,13 +228,16 @@ export class MapPage extends BaseElement {
       this.trailData = new Map(data.trails.map((trail) => [trail.member, trail]));
       for (const trail of data.trails) {
         if (trail.shared) {
-          this.worldMap.setTrail(trail.member, trail.points, colorForName(trail.member).color);
+          const { color, light } = colorForName(trail.member);
+          this.worldMap.setTrail(trail.member, trail, { color, light, windowS: days * 86400 });
         } else {
           this.worldMap.clearTrail(trail.member);
         }
       }
       this.trailFailures = 0;
       this.trailError = staleNotice(data.as_of);
+      this.showTrailDeaths();
+      this.loadTrailDeaths();
     } catch (error) {
       if (!this.isConnected || requestId !== this.trailRequestId) return;
       // What is drawn stays; it is only getting older.
@@ -240,6 +247,24 @@ export class MapPage extends BaseElement {
     }
     this.renderTrailChips();
     this.trailRefresh = window.setTimeout(() => this.loadTrails(), retryIn);
+  }
+
+  /** Fetches the deaths the server still knows of, to mark them on the trails. */
+  async loadTrailDeaths() {
+    try {
+      this.deathEvents = await api.getHubEvents({ types: ["death"], limit: TRAIL_DEATHS_LIMIT });
+    } catch {
+      // The trails are shown without them.
+      return;
+    }
+    if (this.isConnected) this.showTrailDeaths();
+  }
+
+  /** Marks the deaths on the trails shown, unless deaths are filtered out of the map. */
+  showTrailDeaths() {
+    for (const name of this.worldMap.trailNames()) {
+      this.worldMap.setTrailDeaths(name, this.filters.death ? deathMarks(this.deathEvents, name) : []);
+    }
   }
 
   renderTrailChips() {
@@ -309,12 +334,18 @@ export class MapPage extends BaseElement {
     } catch {
       // Not remembered in private mode.
     }
+    this.showTrailDeaths();
   }
 
   handleLiveEvents({ added }) {
     for (const event of added) {
       const ping = pingForEvent(event, groupData.members.get(event.member), this.filters);
       if (ping) this.worldMap.addPing(ping);
+    }
+    const deaths = added.filter((event) => event.type === "death");
+    if (deaths.length) {
+      this.deathEvents = [...deaths, ...this.deathEvents];
+      this.showTrailDeaths();
     }
   }
 }

@@ -1452,39 +1452,115 @@ describe("CanvasMap.drawLocations with linked icon highlights", () => {
 });
 
 describe("CanvasMap trails", () => {
-  it("applies the member coordinate offset and skips invalid points", () => {
-    const map = createMapInstance();
-    map.setTrail("Alice", [
-      [3200, 3200, 0, 1],
-      [3201, 3200, 0, 2],
-      [NaN, 3200, 0, 3],
-    ]);
-    const trail = map.trails.get("Alice");
-    expect(trail.points).toHaveLength(2);
-    const expected = GroupData.transformCoordinatesFromStorage([3200, 3200, 0]);
-    expect(trail.points[0]).toMatchObject({ x: expected.x, y: expected.y, plane: 0, time: 1 });
-    expect(map.updateRequested).toBeGreaterThan(0);
-
-    map.clearTrail("Alice");
-    expect(map.trails.size).toBe(0);
+  const STYLE = { color: "hsl(10, 70%, 45%)", light: "hsl(10, 85%, 70%)", windowS: 86400 };
+  // Three points a minute apart, ten tiles each, ending five minutes ago.
+  const serverTrail = () => {
+    const end = Math.floor(Date.now() / 1000) - 300;
+    return { step: 60, points: [0, 1, 2].map((i) => [3200 + i * 10, 3200, 0, end - (2 - i) * 60]) };
+  };
+  const member = (extra = {}) => ({
+    name: "Alice",
+    inactive: false,
+    coordinates: GroupData.transformCoordinatesFromStorage([3230, 3200, 0]),
+    ...extra,
   });
 
-  it("splits segments at plane changes and teleports", () => {
-    const points = [
-      { x: 0, y: 0, plane: 0 },
-      { x: 1, y: 0, plane: 0 },
-      { x: 2, y: 0, plane: 1 },
-      { x: 3, y: 0, plane: 0 },
-      { x: 4, y: 0, plane: 0 },
-      { x: 500, y: 0, plane: 0 },
-      { x: 501, y: 0, plane: 0 },
-    ];
-    const segments = CanvasMap.trailSegments(points, 0);
-    expect(segments.map((segment) => segment.map((p) => p.x))).toEqual([
-      [0, 1],
-      [3, 4],
-      [500, 501],
-    ]);
-    expect(CanvasMap.trailSegments(points, 1)).toEqual([]);
+  it("shows a trail from the server's answer and takes it off again", () => {
+    const map = createMapInstance();
+    const changed = vi.fn();
+    map.addEventListener("trail-timeline-changed", changed);
+    map.setTrail("Alice", serverTrail(), STYLE);
+    expect(map.trailNames()).toEqual(["Alice"]);
+    expect(map.trailLayer.modelOf("Alice").points[0]).toMatchObject({ x: 3200, y: 3201, plane: 0 });
+    expect(map.updateRequested).toBeGreaterThan(0);
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    map.clearTrail("Alice");
+    expect(map.trailNames()).toEqual([]);
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it("ends the trail on the marker of a player who is online", () => {
+    const map = createMapInstance();
+    map.setTrail("Alice", serverTrail(), STYLE);
+    map.updateRequested = 0;
+    map.handleUpdatedCoordinates(member());
+    const points = map.trailLayer.modelOf("Alice").points;
+    expect(points[points.length - 1]).toMatchObject({ x: 3230, y: 3201, live: true });
+    expect(map.updateRequested).toBeGreaterThan(0);
+  });
+
+  it("keeps the trail up to where a player was last seen when they log out", () => {
+    const map = createMapInstance();
+    map.setTrail("Alice", serverTrail(), STYLE);
+    map.handleUpdatedCoordinates(member());
+    expect(map.trailLayer.isOnline("Alice")).toBe(true);
+    map.handleUpdatedMembers([member({ inactive: true })]);
+    expect(map.trailLayer.isOnline("Alice")).toBe(false);
+    const points = map.trailLayer.modelOf("Alice").points;
+    expect(points[points.length - 1]).toMatchObject({ x: 3230 });
+  });
+
+  it("passes on whether the player is on a boat and their world", () => {
+    const map = createMapInstance();
+    map.setTrail("Alice", serverTrail(), STYLE);
+    map.handleUpdatedCoordinates(member({ meta: { is_on_boat: true }, stats: { world: 330 } }));
+    const points = map.trailLayer.modelOf("Alice").points;
+    expect(points[points.length - 1]).toMatchObject({ boat: true, world: 330 });
+  });
+
+  it("shows when and where the player was for the trail point under the pointer", () => {
+    const map = createMapInstance();
+    map.style = {};
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    map.setTrail("Alice", serverTrail(), STYLE);
+    centerCameraOn(map, 3210, 3201);
+    const [x, y] = map.tileCenterOnScreen(3210, 3201);
+
+    expect(map.getTrailAtClient(x, y + 3)).toMatchObject({ name: "Alice", index: 1 });
+    expect(map.getTrailAtClient(x, y + 60)).toBeNull();
+
+    mockShowTooltip.mockClear();
+    map.onPointerMove({ clientX: x, clientY: y + 3 });
+    expect(mockShowTooltip).toHaveBeenCalledTimes(1);
+    expect(mockShowTooltip.mock.calls[0][0]).toContain("Alice");
+    expect(mockShowTooltip.mock.calls[0][0]).toMatch(/\d{1,2}[:.]\d{2}/);
+
+    mockHideTooltip.mockClear();
+    map.onPointerMove({ clientX: x, clientY: y + 60 });
+    expect(mockHideTooltip).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays the trails at a time, and goes back to live", () => {
+    const map = createMapInstance();
+    map.setTrail("Alice", serverTrail(), STYLE);
+    const { tMin, tMax } = map.trailTimeline();
+    expect(tMax - tMin).toBe(120);
+    map.updateRequested = 0;
+    map.setReplayTime(tMin + 60);
+    expect(map.trailLayer.replayTime).toBe(tMin + 60);
+    expect(map.updateRequested).toBeGreaterThan(0);
+    map.setReplayTime(null);
+    expect(map.trailLayer.replayTime).toBeNull();
+  });
+
+  it("draws the trails under the camera", () => {
+    const map = createMapInstance();
+    map.setTrail("Alice", serverTrail(), STYLE);
+    centerCameraOn(map, 3210, 3201);
+    const view = map.trailView();
+    const [x, y] = [3210 * 4 + 2, -3201 * 4 + 258];
+    expect(view).toMatchObject({ zoom: 1, plane: 0 });
+    // The camera centres on a tile to within the tile itself.
+    expect(Math.abs((view.minX + view.maxX) / 2 - x)).toBeLessThanOrEqual(4);
+    expect(Math.abs((view.minY + view.maxY) / 2 - y)).toBeLessThanOrEqual(4);
+    expect(view.maxX - view.minX).toBe(800);
+    expect(view.maxY - view.minY).toBe(600);
+  });
+
+  it("leaves the canvas alone while there are no trails", () => {
+    const map = createMapInstance();
+    map.ctx = {};
+    expect(map.drawTrails()).toBe(false);
   });
 });
