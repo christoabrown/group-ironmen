@@ -74,6 +74,20 @@ describe("group-data", () => {
     expect(published).toEqual([["Alice", "Bob"], ["Alice"]]);
   });
 
+  it("counts an item per member and inventory, for the item tooltip", () => {
+    const data = new GroupData();
+    data.update({
+      cursor: "2026-09-30T10:00:00.000Z",
+      roster: roster(["Bob"]),
+      members: [{ name: "Bob", inventory: [4151, 1, 4151, 2], equipment: [4151, 1] }],
+    });
+
+    expect(data.inventoryQuantityForItem(4151, "Bob", "inventory")).toBe(3);
+    expect(data.inventoryQuantityForItem(4151, "Bob", "equipment")).toBe(1);
+    expect(data.inventoryQuantityForItem(995, "Bob", "inventory")).toBe(0);
+    expect(data.inventoryQuantityForItem(4151, "Nobody", "inventory")).toBe(0);
+  });
+
   it("returns the server's cursor", () => {
     const data = new GroupData();
     const next = data.update({
