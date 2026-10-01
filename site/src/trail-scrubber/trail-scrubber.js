@@ -4,6 +4,7 @@ import { ReplayClock } from "./replay-clock";
 
 // More ticks than this on the timeline are only clutter.
 const MAX_TICKS = 300;
+const FOLLOW_KEY = "map-replay-follow";
 // The speed a replay starts at, by how many days of trail are shown.
 const SPEED_FOR_DAYS = [
   [1, 300],
@@ -13,9 +14,13 @@ const SPEED_FOR_DAYS = [
 
 /**
  * The replay controls of the map's trails: a timeline to drag, play and
- * pause, a speed, and whether to skip the time in which nothing happened.
- * Dispatches "replay-change" with `{time}`: the time to show the trails at
- * (unix seconds), or null when the replay is closed and the map is live again.
+ * pause, a speed, whether to skip the time in which nothing happened and
+ * whether the map should follow the player.
+ * Dispatches "replay-change" with `{time, follow}`: the time to show the
+ * trails at (unix seconds), or null when the replay is closed and the map is
+ * live again; `follow` when the map should keep the player in view, which it
+ * is asked to whenever a time is looked up or played, not when the replay
+ * opens or the trails grow.
  *
  * `setTimeline({tMin, tMax, ticks})` gives it the span of the trails and the
  * moments to mark; `nextChange(time)`, when set, says when something next
@@ -27,6 +32,7 @@ export class TrailScrubber extends BaseElement {
     this.clock = new ReplayClock();
     this.timeline = { tMin: null, tMax: null, ticks: [] };
     this.nextChange = null;
+    this.follow = wantsFollow();
   }
 
   html() {
@@ -42,7 +48,9 @@ export class TrailScrubber extends BaseElement {
     this.timeLabel = this.querySelector(".trail-scrubber__time");
     this.speedSelect = this.querySelector(".trail-scrubber__speed");
     this.skipInput = this.querySelector(".trail-scrubber__skip input");
+    this.followInput = this.querySelector(".trail-scrubber__follow input");
     this.speedSelect.value = String(this.clock.speed);
+    this.followInput.checked = this.follow;
 
     this.eventListener(this.playButton, "click", () => this.togglePlaying());
     this.eventListener(this.range, "input", () => this.seek(Number(this.range.value)));
@@ -68,8 +76,10 @@ export class TrailScrubber extends BaseElement {
     this.hidden = false;
     this.clock.pause();
     this.clock.seek(this.clock.tMax);
+    // Dragging the map only let go of the player for the replay it happened in.
+    this.setFollow(wantsFollow());
     this.show();
-    this.emit();
+    this.emit(false);
   }
 
   /** Hides the controls and lets the map show the trails live again. */
@@ -79,7 +89,7 @@ export class TrailScrubber extends BaseElement {
     this.stopFrames();
     this.hidden = true;
     this.show();
-    if (wasOpen) this.dispatchEvent(new CustomEvent("replay-change", { detail: { time: null } }));
+    if (wasOpen) this.dispatchEvent(new CustomEvent("replay-change", { detail: { time: null, follow: false } }));
   }
 
   setTimeline(timeline) {
@@ -92,7 +102,13 @@ export class TrailScrubber extends BaseElement {
     this.clock.setRange(timeline.tMin, timeline.tMax);
     this.renderTicks();
     this.show();
-    if (this.isOpen && this.clock.time !== before) this.emit();
+    if (this.isOpen && this.clock.time !== before) this.emit(false);
+  }
+
+  /** Switches following on or off for this replay, as dragging the map does. */
+  setFollow(follow) {
+    this.follow = follow;
+    if (this.followInput) this.followInput.checked = follow;
   }
 
   /** Picks the speed that suits a trail of this many days. */
@@ -136,6 +152,16 @@ export class TrailScrubber extends BaseElement {
   handleChange(event) {
     if (event.target === this.speedSelect) this.clock.speed = Number(this.speedSelect.value);
     if (event.target === this.skipInput) this.clock.skipIdle = this.skipInput.checked;
+    if (event.target === this.followInput) {
+      // Chosen by hand, so it holds for the next replay too.
+      this.follow = this.followInput.checked;
+      try {
+        localStorage.setItem(FOLLOW_KEY, String(this.follow));
+      } catch {
+        // Not remembered in private mode.
+      }
+      if (this.follow && this.isOpen) this.emit();
+    }
   }
 
   handleKeyDown(event) {
@@ -146,8 +172,8 @@ export class TrailScrubber extends BaseElement {
     this.togglePlaying();
   }
 
-  emit() {
-    this.dispatchEvent(new CustomEvent("replay-change", { detail: { time: this.clock.time } }));
+  emit(follow = this.follow) {
+    this.dispatchEvent(new CustomEvent("replay-change", { detail: { time: this.clock.time, follow } }));
   }
 
   /** Brings the controls in line with the clock. */
@@ -184,6 +210,15 @@ export class TrailScrubber extends BaseElement {
           return mark;
         })
     );
+  }
+}
+
+/** Whether the map follows the player in a replay, unless that was switched off by hand. */
+function wantsFollow() {
+  try {
+    return localStorage.getItem(FOLLOW_KEY) !== "false";
+  } catch {
+    return true;
   }
 }
 

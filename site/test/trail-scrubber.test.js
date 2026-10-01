@@ -174,6 +174,76 @@ describe("trail scrubber", () => {
     expect(changes[changes.length - 1]).toBe(reached);
   });
 
+  describe("following", () => {
+    let follows;
+    const box = () => scrubber.querySelector(".trail-scrubber__follow input");
+    const untick = (checked) => {
+      box().checked = checked;
+      box().dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    beforeEach(() => {
+      follows = [];
+      scrubber.addEventListener("replay-change", (event) => follows.push(event.detail.follow));
+    });
+
+    it("is asked of the map when a time is looked up, not when the replay merely opens", () => {
+      scrubber.open();
+      expect(box().checked).toBe(true);
+      scrubber.seek(T + 600);
+      expect(follows).toEqual([false, true]);
+    });
+
+    it("is asked of the map on every step while playing", () => {
+      vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+      scrubber.open();
+      playButton().click();
+      vi.advanceTimersByTime(100);
+      expect(follows.length).toBeGreaterThan(2);
+      expect(follows.slice(1).every((follow) => follow === true)).toBe(true);
+    });
+
+    it("can be switched off, and on again: the map then catches up at once", () => {
+      scrubber.open();
+      untick(false);
+      scrubber.seek(T + 600);
+      expect(follows).toEqual([false, false]);
+      untick(true);
+      expect(follows).toEqual([false, false, true]);
+      expect(changes[changes.length - 1]).toBe(T + 600);
+    });
+
+    it("stops when the map was moved by hand, until the next replay", () => {
+      scrubber.open();
+      scrubber.setFollow(false);
+      expect(box().checked).toBe(false);
+      scrubber.seek(T + 600);
+      expect(follows[follows.length - 1]).toBe(false);
+
+      scrubber.close();
+      scrubber.open();
+      expect(box().checked).toBe(true);
+    });
+
+    it("stays off for the next replay when it was switched off by choice", () => {
+      scrubber.open();
+      untick(false);
+      scrubber.close();
+      scrubber.open();
+      expect(box().checked).toBe(false);
+      untick(true);
+      scrubber.close();
+      scrubber.open();
+      expect(box().checked).toBe(true);
+    });
+
+    it("isn't asked for when the replay closes", () => {
+      scrubber.open();
+      scrubber.close();
+      expect(follows).toEqual([false, false]);
+    });
+  });
+
   it("plays faster at a higher speed", () => {
     const speed = scrubber.querySelector(".trail-scrubber__speed");
     expect([...speed.options].map((option) => option.value)).toEqual(["60", "300", "1800", "7200"]);

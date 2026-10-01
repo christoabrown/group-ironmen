@@ -125,6 +125,7 @@ Where the implementation differs from the plan above:
 - **A trail the server had to cut short says so**: its chip reads "(since 26 Sep)". This happens when the teleports alone exceed 3000 points, which the mock route does on 30 days.
 - **Hovering** where a trail passes more than once reports the latest visit.
 - **A player who logs out** keeps the live points seen until then; the trail ends with a hollow cap instead of the glow.
+- **The replay follows the player** (added after the first review of the feature). The scrubber has a "Follow" box, on by default: every time that is played or looked up comes with `follow`, and the map centres the camera on the ghost of the selected player (or of the first trail when the selected player has none), switching floors with them. Dragging the map dispatches `map-dragged`, which unticks the box for that replay; unticking it by hand is remembered. Opening the replay and the trails growing at the live end don't move the camera.
 
 ## Risks and limits
 - Thresholds (158 / 275 tiles at 60 s) are estimates; calibrate on real trails once deployed.

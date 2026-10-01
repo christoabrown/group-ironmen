@@ -75,6 +75,7 @@ trail-scrubber[hidden] {
   font-variant-numeric: tabular-nums;
 }
 
+.trail-scrubber__follow,
 .trail-scrubber__skip {
   display: flex;
   align-items: center;
@@ -83,6 +84,7 @@ trail-scrubber[hidden] {
   cursor: pointer;
 }
 
+.trail-scrubber__follow input,
 .trail-scrubber__skip input {
   margin: 0;
 }

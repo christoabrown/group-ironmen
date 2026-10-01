@@ -156,6 +156,14 @@ describe("TrailLayer", () => {
     expect(layer.hitTest(x, y + 40, 8, 2)).toBeNull();
   });
 
+  it("says where a player was at a time of the replay", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    const [x, y] = tileCenter(3210, 3201);
+    expect(layer.ghostAt("Alice", T + 60, 2)).toEqual({ x, y, plane: 0 });
+    expect(layer.ghostAt("Alice", T - 100, 2)).toBeNull();
+    expect(layer.ghostAt("Nobody", T + 60, 2)).toBeNull();
+  });
+
   it("says whether the hovered point changed", () => {
     layer.setHistory("Alice", history(), COLORS);
     const [x, y] = tileCenter(3210, 3201);

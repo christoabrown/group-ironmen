@@ -1564,6 +1564,66 @@ describe("CanvasMap trails", () => {
     expect(map.trailNextChange(tMax + 30)).toBeNull();
   });
 
+  describe("following the replay", () => {
+    const worldPixel = (x, y) => [x * 4 + 2, -y * 4 + 258];
+    const elsewhere = () => {
+      const end = Math.floor(Date.now() / 1000) - 300;
+      return { step: 60, points: [0, 1, 2].map((i) => [2600 + i * 10, 3300, 1, end - (2 - i) * 60]) };
+    };
+
+    it("leaves the camera alone unless asked to follow", () => {
+      const map = createMapInstance();
+      map.setTrail("Alice", serverTrail(), STYLE);
+      const before = [map.camera.x.target, map.camera.y.target];
+      map.setReplayTime(map.trailTimeline().tMin + 60);
+      expect([map.camera.x.target, map.camera.y.target]).toEqual(before);
+    });
+
+    it("centres the camera on the ghost when asked to", () => {
+      const map = createMapInstance();
+      map.setTrail("Alice", serverTrail(), STYLE);
+      map.followingPlayer = { name: "Bob", coordinates: { x: 1, y: 1, plane: 0 } };
+      map.setReplayTime(map.trailTimeline().tMin + 60, { follow: true });
+      const [x, y] = worldPixel(3210, 3201);
+      // The canvas is 800 by 600 at zoom 1.
+      expect(map.camera.x.target).toBeCloseTo(x - 400, 3);
+      expect(map.camera.y.target).toBeCloseTo(300 - y, 3);
+      // The live player it was following would pull the camera back.
+      expect(map.followingPlayer.name).toBeNull();
+    });
+
+    it("follows the selected player when several trails are shown, on their floor", () => {
+      const map = createMapInstance();
+      map.setTrail("Alice", serverTrail(), STYLE);
+      map.setTrail("Bob", elsewhere(), STYLE);
+      map.selectedName = "Bob";
+      map.setReplayTime(map.trailTimeline().tMin + 60, { follow: true });
+      const [x] = worldPixel(2610, 3301);
+      expect(map.camera.x.target).toBeCloseTo(x - 400, 3);
+      expect(map.plane).toBe(2);
+
+      map.selectedName = "Someone without a trail";
+      map.setReplayTime(map.trailTimeline().tMin + 60, { follow: true });
+      expect(map.camera.x.target).toBeCloseTo(worldPixel(3210, 3201)[0] - 400, 3);
+    });
+
+    it("stays where it is while the followed player's trail has yet to start", () => {
+      const map = createMapInstance();
+      map.setTrail("Alice", serverTrail(), STYLE);
+      const before = [map.camera.x.target, map.camera.y.target];
+      map.setReplayTime(map.trailTimeline().tMin - 500, { follow: true });
+      expect([map.camera.x.target, map.camera.y.target]).toEqual(before);
+    });
+
+    it("says when the map is moved by hand", () => {
+      const map = createMapInstance();
+      const dragged = vi.fn();
+      map.addEventListener("map-dragged", dragged);
+      map.startDragging(10, 10);
+      expect(dragged).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("draws the trails under the camera", () => {
     const map = createMapInstance();
     map.setTrail("Alice", serverTrail(), STYLE);

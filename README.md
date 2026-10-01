@@ -33,8 +33,8 @@ of Group Ironman teams:
 - **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days). A
   trail ends on the player's marker and grows as they move, fading with age. Teleports are drawn as arcs,
   boat trips as waves, deaths as a red cross, and parts on another floor faintly. Hover a trail to see
-  when the player was where, or press Replay to play the routes back on a timeline. The trails you had
-  on are still there after a reload.
+  when the player was where, or press Replay to play the routes back on a timeline; the map follows the
+  player while it plays, until you drag it. The trails you had on are still there after a reload.
 - **Clan page**: who's online and where (click a place to see it on the map), which worlds, the top XP
   gainers, the biggest drops of the day, week or month, and the event feed.
 - **Players page**: a sortable table of everyone, with type, owner, totals and carried value.

@@ -272,6 +272,34 @@ export function pointOnRun(run, { i, frac }) {
   return [x + (run.xy[i * 2 + 2] - x) * frac, y + (run.xy[i * 2 + 3] - y) * frac];
 }
 
+/**
+ * Where on the map the player is drawn at a time of the replay, in map pixels:
+ * `{x, y, plane}`, or null before the trail starts. On a run that is a place
+ * on its line; during a teleport it rides the arc; during any other jump it
+ * waits where the player left.
+ */
+export function placeAtTime(geometry, time) {
+  let place = null;
+  for (const run of geometry.runs) {
+    const end = vertexAtTime(run, time);
+    if (!end) continue;
+    const [x, y] = pointOnRun(run, end);
+    place = { x, y, plane: run.plane[end.i] };
+  }
+  for (const jump of geometry.jumps) {
+    if (time < jump.tA || time >= jump.tB) continue;
+    place = { x: jump.ax, y: jump.ay, plane: jump.planeA };
+    if (jump.arc) {
+      const along = ((time - jump.tA) / (jump.tB - jump.tA)) * (jump.arc.length / 2 - 1);
+      const i = Math.floor(along);
+      const frac = along - i;
+      place.x = jump.arc[i * 2] + (jump.arc[i * 2 + 2] - jump.arc[i * 2]) * frac;
+      place.y = jump.arc[i * 2 + 1] + (jump.arc[i * 2 + 3] - jump.arc[i * 2 + 1]) * frac;
+    }
+  }
+  return place;
+}
+
 function outside(box, x, y, radius) {
   return x < box[0] - radius || y < box[1] - radius || x > box[2] + radius || y > box[3] + radius;
 }

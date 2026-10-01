@@ -14,6 +14,8 @@ export const ICON_SPRITE_SIZE = 15;
 const TRAIL_HOVER_PX = 8;
 // Moving parts of a trail are redrawn about 25 times a second, not every frame.
 const TRAIL_FRAME_MS = 40;
+// How long the camera takes to catch up with the replay's ghost.
+const REPLAY_FOLLOW_MS = 100;
 
 // Below this zoom, players closer than CLUSTER_CELL_PX on screen are drawn as
 // one bubble with a count.
@@ -625,10 +627,35 @@ export class CanvasMap extends BaseElement {
     this.trailsChanged();
   }
 
-  /** Shows the trails as they were at a time (unix seconds), or live again for null. */
-  setReplayTime(time) {
+  /**
+   * Shows the trails as they were at a time (unix seconds), or live again for
+   * null. With `follow` the camera goes along with the player's ghost.
+   */
+  setReplayTime(time, { follow = false } = {}) {
     this.trailLayer.setReplay(time);
+    if (follow && time !== null) this.followReplay(time);
     this.requestUpdate();
+  }
+
+  /**
+   * Centres the camera on the ghost of the selected player, or of the first
+   * player with a trail when the selected one has none.
+   */
+  followReplay(time) {
+    const names = this.trailNames();
+    const name = names.includes(this.selectedName) ? this.selectedName : names[0];
+    const zoom = this.camera.zoom.current;
+    const ghost = this.trailLayer.ghostAt(name, time, zoom);
+    if (!ghost) return;
+    // Following the player where they are now would pull the camera back.
+    this.stopFollowingPlayer();
+    this.showPlane(ghost.plane + 1);
+    const x = ghost.x * zoom - this.canvas.width / 2;
+    const y = this.canvas.height / 2 - ghost.y * zoom;
+    if (this.camera.x.target !== x) this.camera.x.goTo(x, REPLAY_FOLLOW_MS);
+    if (this.camera.y.target !== y) this.camera.y.goTo(y, REPLAY_FOLLOW_MS);
+    this.cursor.dx = 0;
+    this.cursor.dy = 0;
   }
 
   /** `{tMin, tMax, ticks}` of the trails shown, for the replay timeline. */
@@ -1456,6 +1483,8 @@ export class CanvasMap extends BaseElement {
 
   startDragging(x, y) {
     this.hideTrailTooltip();
+    // Whoever was moving the camera for the user (the replay) should let go.
+    this.dispatchEvent(new CustomEvent("map-dragged"));
     this.classList.add("dragging");
     this.camera.isDragging = true;
     this.camera.x.cancelAnimation();

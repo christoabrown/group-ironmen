@@ -1,4 +1,4 @@
-import { pointOnRun, tileCenter, vertexAtTime } from "./trail-geometry";
+import { placeAtTime, pointOnRun, tileCenter, vertexAtTime } from "./trail-geometry";
 
 // Draws one trail on the map's canvas, in the map's own pixels (the camera
 // transform is already set), so every size is divided by the zoom to come out
@@ -402,11 +402,9 @@ function drawReplay(ctx, view, trail, mode) {
   }
 
   // What has happened by now, brightly.
-  let ghost = null;
   for (const run of geometry.runs) {
     const end = vertexAtTime(run, time);
     if (!end) continue;
-    ghost = { position: pointOnRun(run, end), plane: run.plane[end.i] };
     if (run.count < 2 || !boxInView(view, run.bbox, pad)) continue;
     for (const [color, width, alpha] of [
       [OUTLINE, 6, 0.7],
@@ -425,20 +423,13 @@ function drawReplay(ctx, view, trail, mode) {
     if (time < jump.tA) continue;
     const progress = jump.tB > jump.tA ? Math.min(1, (time - jump.tA) / (jump.tB - jump.tA)) : 1;
     drawJump(ctx, view, trail, jump, 1, progress, false);
-    if (progress < 1) {
-      // Under way: the ghost rides the arc, or waits where the player left.
-      const at = jump.arc ? Math.floor(progress * (jump.arc.length / 2 - 1)) : 0;
-      ghost = {
-        position: jump.arc ? [jump.arc[at * 2], jump.arc[at * 2 + 1]] : [jump.ax, jump.ay],
-        plane: jump.planeA,
-      };
-    }
   }
 
   drawDeaths(ctx, view, trail, (death) => (death.t <= time ? 1 : 0.25));
 
-  if (ghost && inView(view, ghost.position[0], ghost.position[1], pad)) {
-    const [x, y] = ghost.position;
+  const ghost = placeAtTime(geometry, time);
+  if (ghost && inView(view, ghost.x, ghost.y, pad)) {
+    const { x, y } = ghost;
     ctx.setLineDash([]);
     dot(ctx, x, y, 6.5 / view.zoom);
     ctx.globalAlpha = floorAlpha(ghost.plane, view) < 1 ? 0.5 : 1;

@@ -1,5 +1,5 @@
 import { buildTrailModel, decodeTrail, mergeTrail, nextChangeAfter, observeLive, timelineTicks } from "./trail-model";
-import { buildGeometry, hitTest, lodForZoom } from "./trail-geometry";
+import { buildGeometry, hitTest, lodForZoom, placeAtTime } from "./trail-geometry";
 import { drawTrail } from "./trail-renderer";
 
 const DAY_S = 86400;
@@ -130,6 +130,15 @@ export class TrailLayer {
     }
     ticks.sort((a, b) => a.t - b.t);
     return { tMin, tMax, ticks };
+  }
+
+  /**
+   * Where a player's ghost is drawn at a time of the replay, in map pixels:
+   * `{x, y, plane}`; null when they have no trail or it starts later.
+   */
+  ghostAt(name, time, zoom) {
+    const trail = this.trails.get(name);
+    return trail ? placeAtTime(this.geometryOf(trail, lodForZoom(zoom)), time) : null;
   }
 
   /**

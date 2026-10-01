@@ -6,6 +6,7 @@ import {
   buildGeometry,
   hitTest,
   lodForZoom,
+  placeAtTime,
   pointOnRun,
   smoothRun,
   tileCenter,
@@ -185,6 +186,52 @@ describe("vertexAtTime", () => {
     expect(vertexAtTime(run, T - 1)).toBeNull();
     expect(pointOnRun(run, vertexAtTime(run, T + 30))[0]).toBeCloseTo(tileCenter(3205, 3200)[0], 3);
     expect(vertexAtTime(run, T + 999)).toEqual({ i: run.count - 1, frac: 0 });
+  });
+});
+
+describe("placeAtTime", () => {
+  const points = [
+    at(3200, 3200, 0),
+    at(3210, 3200, 1),
+    // A teleport on the surface, a short walk, then off into an instance.
+    at(2662, 3305, 2),
+    at(2670, 3305, 3),
+    at(6500, 3305, 4, { plane: 1 }),
+  ];
+  const geometry = buildGeometry(buildTrailModel(points), 2);
+
+  it("is nowhere before the trail starts", () => {
+    expect(placeAtTime(geometry, T - 1)).toBeNull();
+  });
+
+  it("is on the line while the player walks", () => {
+    const [x, y] = tileCenter(3205, 3200);
+    const place = placeAtTime(geometry, T + 30);
+    expect(place.x).toBeCloseTo(x, 3);
+    expect(place.y).toBeCloseTo(y, 3);
+    expect(place.plane).toBe(0);
+  });
+
+  it("rides the arc of a teleport", () => {
+    const [ax, ay] = tileCenter(3210, 3200);
+    const [bx, by] = tileCenter(2662, 3305);
+    const place = placeAtTime(geometry, T + 90);
+    expect(place.x).toBeLessThan(ax);
+    expect(place.x).toBeGreaterThan(bx);
+    // Off the straight line between the two ends: on the bulge of the arc.
+    expect(Math.abs(place.y - (ay + by) / 2)).toBeGreaterThan(20);
+    const later = placeAtTime(geometry, T + 91);
+    expect(later.x).toBeLessThan(place.x);
+  });
+
+  it("waits where the player left for a jump to another part of the map", () => {
+    const [x, y] = tileCenter(2670, 3305);
+    expect(placeAtTime(geometry, T + 210)).toEqual({ x, y, plane: 0 });
+  });
+
+  it("is at the last point once the trail is over", () => {
+    const [x, y] = tileCenter(6500, 3305);
+    expect(placeAtTime(geometry, T + 9999)).toEqual({ x, y, plane: 1 });
   });
 });
 

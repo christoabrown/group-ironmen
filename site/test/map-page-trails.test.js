@@ -272,15 +272,23 @@ describe("map page trails", () => {
       replayButton().click();
       expect(scrubber().hidden).toBe(false);
       expect(replayButton().getAttribute("aria-pressed")).toBe("true");
-      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S, { follow: false });
 
       scrubber().seek(NOW_S - 600);
-      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S - 600);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S - 600, { follow: true });
 
       replayButton().click();
       expect(scrubber().hidden).toBe(true);
       expect(replayButton().getAttribute("aria-pressed")).toBe("false");
-      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null, { follow: false });
+    });
+
+    it("stops following the player once the map is dragged", () => {
+      replayButton().click();
+      worldMap.dispatchEvent(new CustomEvent("map-dragged"));
+      expect(scrubber().querySelector(".trail-scrubber__follow input").checked).toBe(false);
+      scrubber().seek(NOW_S - 600);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(NOW_S - 600, { follow: false });
     });
 
     it("closes when the last trail is switched off", () => {
@@ -288,7 +296,7 @@ describe("map page trails", () => {
       selection.clearTrails();
       worldMap.dispatchEvent(new CustomEvent("trail-timeline-changed"));
       expect(scrubber().hidden).toBe(true);
-      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null);
+      expect(worldMap.setReplayTime).toHaveBeenLastCalledWith(null, { follow: false });
     });
 
     it("asks the map what happens next on the trails", () => {

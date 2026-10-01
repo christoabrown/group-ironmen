@@ -147,6 +147,8 @@ export class MapPage extends BaseElement {
     this.eventListener(this.worldMap, "trail-timeline-changed", () =>
       this.scrubber.setTimeline(this.worldMap.trailTimeline())
     );
+    // The replay follows the player until the map is moved by hand.
+    this.eventListener(this.worldMap, "map-dragged", () => this.scrubber.setFollow(false));
     this.eventListener(this.querySelector(".map-page__trails-clear"), "click", () => selection.clearTrails());
     this.eventListener(this.querySelector(".map-page__roster-toggle"), "click", () =>
       document.body.classList.toggle("roster-open")
@@ -226,10 +228,10 @@ export class MapPage extends BaseElement {
 
   /** The replay shows a time on the trails, or was closed (null) and the map is live again. */
   handleReplayChange(event) {
-    const { time } = event.detail;
+    const { time, follow } = event.detail;
     this.replayButton.setAttribute("aria-pressed", String(time !== null));
     this.replayButton.classList.toggle("active", time !== null);
-    this.worldMap.setReplayTime(time);
+    this.worldMap.setReplayTime(time, { follow: Boolean(follow) });
   }
 
   /**
