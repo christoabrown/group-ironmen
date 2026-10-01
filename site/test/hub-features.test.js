@@ -42,6 +42,7 @@ describe("hub features", () => {
     await api.getPlayerWealth("Iron Man");
     await api.getPlayerGearHistory("Iron Man");
     await api.getPlayerEvents("Iron Man", 20);
+    await api.getTrailEvents("Iron Man", 7, 100000);
 
     const urls = globalThis.fetch.mock.calls.map(([url]) => url);
     expect(urls).toEqual([
@@ -55,6 +56,7 @@ describe("hub features", () => {
       "/api/group/hub/players/Iron%20Man/wealth?days=30",
       "/api/group/hub/players/Iron%20Man/equipment-history?days=30",
       "/api/group/hub/players/Iron%20Man/events?limit=20",
+      "/api/group/hub/players/Iron%20Man/events?days=7&min_loot=100000",
     ]);
   });
 

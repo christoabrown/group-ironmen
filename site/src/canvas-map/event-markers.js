@@ -78,6 +78,39 @@ export function clusterPoints(points, cellPx) {
   });
 }
 
+/**
+ * Stacks screen points that are within `px` of each other: `points` are
+ * `{x, y, plane, ...}`; returns `{x, y, plane, members}`, each at the place of
+ * its first member. One pass over the points, whatever their number: a
+ * month of a trail's events is thousands of them.
+ */
+export function stackPoints(points, px) {
+  const cells = new Map();
+  const stacks = [];
+  for (const point of points) {
+    const cellX = Math.floor(point.x / px);
+    const cellY = Math.floor(point.y / px);
+    let stack = null;
+    // A stack this close has its first member in this cell or one next to it.
+    for (let dx = -1; dx <= 1 && !stack; dx++) {
+      for (let dy = -1; dy <= 1 && !stack; dy++) {
+        const near = cells.get(`${point.plane}:${cellX + dx}:${cellY + dy}`);
+        stack = near?.find((other) => Math.abs(other.x - point.x) < px && Math.abs(other.y - point.y) < px) || null;
+      }
+    }
+    if (stack) {
+      stack.members.push(point);
+      continue;
+    }
+    stack = { x: point.x, y: point.y, plane: point.plane, members: [point] };
+    stacks.push(stack);
+    const key = `${point.plane}:${cellX}:${cellY}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(stack);
+  }
+  return stacks;
+}
+
 /** How strongly a marker on the live map is drawn at an age: 1, fading towards its end, then 0. */
 export function markerAlpha(ageMs) {
   if (ageMs >= EVENT_MARKER_MS) return 0;
@@ -202,9 +235,10 @@ export class EventMarkers {
   /**
    * What to draw: every marker the filters let through, with how it is
    * shown at `now`. `replayTime` (unix seconds, or null when live) is the
-   * time the trails are shown at.
+   * time the trails are shown at. `within(x, y)`, when given, says whether a
+   * place in the game is in view: what isn't is left out early.
    */
-  visible({ filters, now, replayTime = null }) {
+  visible({ filters, now, replayTime = null, within = null }) {
     const shown = [];
     const onTrail = new Set();
     const trailNow = replayTime === null ? now : replayTime * 1000;
@@ -212,6 +246,7 @@ export class EventMarkers {
       for (const mark of marks) {
         if (onTrail.has(mark.id) || !eventPasses(mark.event, filters)) continue;
         onTrail.add(mark.id);
+        if (within && !within(mark.x, mark.y)) continue;
         const age = trailNow - mark.at;
         // Not yet reached by the replay.
         const ahead = age < 0;
@@ -227,6 +262,7 @@ export class EventMarkers {
     }
     for (const marker of this.live.values()) {
       if (onTrail.has(marker.id) || !eventPasses(marker.event, filters)) continue;
+      if (within && !within(marker.x, marker.y)) continue;
       const alpha = markerAlpha(now - marker.at);
       if (alpha > 0) shown.push(this.display(marker, now, { alpha, compact: false, arrived: marker.arrived }));
     }
@@ -284,7 +320,7 @@ export function layoutMarkers(markers, view) {
     if (x > view.width + OFFSCREEN_PAD || y > view.height + OFFSCREEN_PAD) continue;
     points.push({ ...marker, x, y, tileX: marker.x, tileY: marker.y });
   }
-  const items = clusterPoints(points, EVENT_STACK_PX).map((group) => {
+  const items = stackPoints(points, EVENT_STACK_PX).map((group) => {
     const members = group.members.slice().sort((a, b) => b.tier - a.tier || b.at - a.at);
     const top = members[0];
     const compact = members.every((member) => member.compact);

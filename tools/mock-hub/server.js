@@ -11,8 +11,10 @@
 // Serves /me, /snapshot (ETag/If-None-Match and `since`, with game_state),
 // /accounts/{id} and its /xp, /gains, /sessions, /wealth, /equipment-history
 // and /locations, the bulk /xp and /locations, /leaderboards/gains,
-// /leaderboards/loot and /events (cursor, types, accounts, min_value), following
-// the hub's docs/API.md as of D-94. Something happens every few seconds
+// /leaderboards/loot and /events (the cursor feed, and with from/to a time
+// range read newest first; types, accounts, min_value), following the hub's
+// docs/API.md as of D-98. MOCK_HUB_EVENTS_RANGE=off mimics a hub from before
+// the range read, which ignores from and to. Something happens every few seconds
 // (MOCK_HUB_EVENT_MS, default 4000): mostly small drops and levels, now and
 // then a big drop, PK loot, a collection log slot, a diary, a combat task, a
 // superior spawn or a death.
@@ -30,6 +32,7 @@ const API_KEY = process.env.MOCK_HUB_KEY || "ohub_mock_key";
 const ACCOUNT_COUNT = Math.max(1, parseInt(process.env.MOCK_HUB_ACCOUNTS || "12", 10));
 const EVENT_EVERY_MS = parseInt(process.env.MOCK_HUB_EVENT_MS || "4000", 10);
 const TRAIL_HOURS = Math.max(1, parseInt(process.env.MOCK_HUB_TRAIL_HOURS || "6", 10));
+const EVENTS_RANGE = process.env.MOCK_HUB_EVENTS_RANGE !== "off";
 const SKILLS = [
   "Agility", "Attack", "Construction", "Cooking", "Crafting", "Defence", "Farming", "Firemaking",
   "Fishing", "Fletching", "Herblore", "Hitpoints", "Hunter", "Magic", "Mining", "Prayer", "Ranged",
@@ -473,6 +476,17 @@ const ref = (account) => ({ id: account.id, name: account.name });
 const findAccount = (id) => accounts.find((a) => a.id === decodeURIComponent(id));
 const fromParam = (url, days) => new Date(url.searchParams.get("from") || Date.now() - days * 86400_000).getTime();
 
+// The cursor of a time-range read of /events: the last event served.
+const rangeCursor = (event) =>
+  Buffer.from(`r1:${Date.parse(event.occurred_at)}:${event.seq}`).toString("base64url");
+
+function parseRangeCursor(cursor) {
+  const match = /^r1:(\d+):(\d+)$/.exec(Buffer.from(cursor, "base64url").toString());
+  return match ? { at: Number(match[1]), seq: Number(match[2]) } : null;
+}
+
+const invalid = (res, message) => send(res, 400, { error: { code: "invalid", message } });
+
 function periodStart(period) {
   const now = new Date();
   if (period === "day") return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).getTime();
@@ -668,7 +682,7 @@ const server = http.createServer((req, res) => {
 
   if (path === "/events") {
     const cursor = url.searchParams.get("cursor");
-    const limit = parseInt(url.searchParams.get("limit") || "100", 10);
+    const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get("limit") || "100", 10)));
     const types = (url.searchParams.get("types") || "").split(",").filter(Boolean);
     const ids = (url.searchParams.get("accounts") || "").split(",").filter(Boolean);
     const minValue = url.searchParams.get("min_value");
@@ -678,6 +692,31 @@ const server = http.createServer((req, res) => {
         (!ids.length || ids.includes(e.account.id)) &&
         (minValue === null || (e.value_gp ?? -1) >= Number(minValue))
     );
+    // With from or to: the events that occurred in the range, newest first,
+    // paged on (occurred_at, seq) until next_cursor is null (hub D-98).
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    if (EVENTS_RANGE && (from !== null || to !== null)) {
+      const after = cursor === null ? null : cursor === "now" ? undefined : parseRangeCursor(cursor);
+      if (after === undefined || (cursor !== null && !after)) return invalid(res, "cursor is not a cursor of a time range");
+      const end = to === null ? Date.now() : Date.parse(to);
+      const start = from === null ? end - 30 * 86400_000 : Date.parse(from);
+      if (Number.isNaN(start) || Number.isNaN(end) || start > end) return invalid(res, "from must be before to");
+      const at = (e) => Date.parse(e.occurred_at);
+      const older = matching
+        .filter((e) => at(e) >= start && at(e) <= end)
+        .filter((e) => !after || at(e) < after.at || (at(e) === after.at && e.seq < after.seq))
+        .sort((a, b) => at(b) - at(a) || b.seq - a.seq);
+      const range = older.slice(0, limit);
+      return ok(
+        res,
+        range.map((e) => ({ ...e, seq: undefined })),
+        { count: range.length, next_cursor: older.length > limit ? rangeCursor(range[range.length - 1]) : null }
+      );
+    }
+    if (EVENTS_RANGE && cursor && cursor !== "now" && parseRangeCursor(cursor)) {
+      return invalid(res, "cursor is not a cursor from this feed");
+    }
     let page;
     if (cursor === "now") {
       page = [];

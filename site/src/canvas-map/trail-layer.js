@@ -26,6 +26,7 @@ export class TrailLayer {
     this.seen = new Map();
     this.events = new Map();
     this.eventFilter = null;
+    this.eventFilterVersion = 0;
     this.replayTime = null;
     this.hover = null;
   }
@@ -102,6 +103,12 @@ export class TrailLayer {
    */
   setEventFilter(passes) {
     this.eventFilter = passes;
+    this.eventFilterChanged();
+  }
+
+  /** The filter answers differently from now on: what was worked out with it is done again. */
+  eventFilterChanged() {
+    this.eventFilterVersion += 1;
   }
 
   /** The events on a player's trail, whatever the filter; see placeMarks. */
@@ -112,9 +119,18 @@ export class TrailLayer {
     return trail.marks;
   }
 
+  /** The events on a player's trail that the filter lets through, oldest first. */
   shownMarksOn(name) {
     const marks = this.marksOn(name);
-    return this.eventFilter ? marks.filter((mark) => this.eventFilter(mark.event)) : marks;
+    if (!this.eventFilter) return marks;
+    const trail = this.trails.get(name);
+    // Kept until the marks or the filter change: a replay asks every frame.
+    if (trail.shownOf !== marks || trail.shownVersion !== this.eventFilterVersion) {
+      trail.shown = marks.filter((mark) => this.eventFilter(mark.event));
+      trail.shownOf = marks;
+      trail.shownVersion = this.eventFilterVersion;
+    }
+    return trail.shown;
   }
 
   colorOf(name) {
@@ -199,7 +215,16 @@ export class TrailLayer {
     for (const [name, trail] of this.trails) {
       const change = nextChangeAfter(trail.model, time);
       if (change !== null && (next === null || change < next)) next = change;
-      const mark = this.shownMarksOn(name).find((candidate) => candidate.t >= time);
+      // The first mark at or after the time; they are in order.
+      const marks = this.shownMarksOn(name);
+      let low = 0;
+      let high = marks.length;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        if (marks[middle].t >= time) high = middle;
+        else low = middle + 1;
+      }
+      const mark = marks[low];
       if (mark && (next === null || mark.t < next)) next = mark.t;
     }
     return next;

@@ -38,9 +38,10 @@ of Group Ironman teams:
   gear changes; recent events. The map follows the player while it's open.
 - **Trails** of up to eight players at once, each in the player's colour (24 hours, 7 or 30 days). A
   trail ends on the player's marker and grows as they move, fading with age. Teleports are drawn as arcs,
-  boat trips as waves, and parts on another floor faintly. The player's events are marked along it
-  (their newest 200; an event that doesn't say where it happened goes where the trail has the player at
-  the time). Hover a trail to see when the player was where, or press Replay to play the routes back on
+  boat trips as waves, and parts on another floor faintly. The player's events are marked along it,
+  over the whole length of the trail (an event that doesn't say where it happened goes where the trail
+  has the player at the time; of a very busy player the oldest may be missing, as at most 2000 drops
+  and 2000 other events are read). Hover a trail to see when the player was where, or press Replay to play the routes back on
   a timeline with a tick for every event; the map follows the player while it plays, until you drag it,
   waits a moment wherever they teleport or go underground, and each event rings as the replay passes
   it. The trails you had on are still there after a reload.
@@ -101,7 +102,8 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    - `events` and `location_history` for the Clan page, the events on the map and trails.
 
    The Clan page's "Biggest drops" and the profile's game state need a hub with D-94
-   (`/leaderboards/loot`, `game_state`); an older hub gets drops from recent events only.
+   (`/leaderboards/loot`, `game_state`); an older hub gets drops from recent events only. The events
+   along a trail need a hub with D-98 (`/events?from=`); an older hub gives a player's newest 500.
 3. Set these for the backend (it refuses to start without them):
    ```env
    HUB_BASE_URL=https://hub.example.com # without /api/v1

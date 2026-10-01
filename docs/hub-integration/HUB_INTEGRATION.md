@@ -19,7 +19,8 @@ for local development.
 | `GET /accounts/{id}/sessions` | Profile → Activity (play time) | 1 min |
 | `GET /accounts/{id}/wealth` | Profile → Wealth | 5 min |
 | `GET /accounts/{id}/equipment-history` | Profile → Gear | 2 min |
-| `GET /events?accounts=` | Profile → Activity (a player's recent events); the events marked on a trail (the newest 200, asked for once per trail and again every 10 min) | 30 s |
+| `GET /events?accounts=` | Profile → Activity (a player's recent events) | 30 s |
+| `GET /events?accounts=&from=` | The events marked on a trail, over its length: pages of 500, newest first, until `next_cursor` is null or 2000 events. Drops (`types=loot,pk_loot&min_value=`, from the smallest drop the map shows) are read apart from the other kinds, so each trail costs 2 to 8 requests. The site asks once per trail and again every 10 min. A hub from before D-98 ignores `from` and hands back a feed cursor; the backend then keeps that one page | 2 min |
 
 ## Snapshot fields
 
@@ -49,5 +50,6 @@ tabs and trails show "not shared". The map reads `categories` to tell "not share
 | `inventory_slot` on items | D-86 | earlier |
 | `game_state` on `/snapshot` | D-94 | branch `red/map-loot-leaderboard` |
 | `GET /leaderboards/loot` | D-94 | branch `red/map-loot-leaderboard` |
+| `from`/`to` on `GET /events`: a time range, newest first | D-98 | osrs-data-hub PR #43 |
 
 Push to keys (webhooks or a key-authenticated stream) was deferred (D-93); polling stays the contract.

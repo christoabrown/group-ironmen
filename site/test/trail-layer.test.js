@@ -186,6 +186,20 @@ describe("TrailLayer", () => {
     expect(layer.marksOn("Alice")).toHaveLength(2);
   });
 
+  it("follows the filter when what it lets through changes", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    layer.setEvents("Alice", [event("d", 30), event("l", 60, { type: "level_up" })]);
+    let hidden = "death";
+    layer.setEventFilter((candidate) => candidate.type !== hidden);
+    expect(layer.timeline().ticks.map((tick) => tick.kind)).toEqual(["level"]);
+    hidden = "level_up";
+    layer.eventFilterChanged();
+    expect(layer.timeline().ticks.map((tick) => tick.kind)).toEqual(["death"]);
+    // New events are filtered too.
+    layer.setEvents("Alice", [event("d", 30), event("d2", 90)]);
+    expect(layer.timeline().ticks.map((tick) => tick.kind)).toEqual(["death", "death"]);
+  });
+
   it("counts an event as something that happens, so a replay doesn't skip it", () => {
     layer.setHistory(
       "Alice",
