@@ -17,6 +17,9 @@ The full list of settings is [`.env.example`](../.env.example); it is not repeat
 - Published only when a release is cut (Actions → Cut release, or a pushed `v*` tag), by
   [`release.yml`](../.github/workflows/release.yml). Git tag `v1.2.3` gives image tags `1.2.3`, `1.2`
   and `latest`. Nothing is published on a push to `master`.
+- A patch release also cuts itself on Wednesday 15:00 and Sunday 09:00 (Europe/Amsterdam) when Renovate
+  has merged a dependency update under `server/` or `site/` since the last release and CI is green on
+  `master`. It releases `master` as it is, so a feature merged in the meantime ships with it.
 - Pull by exact version. `latest` exists for Compose users only.
 - `linux/amd64` only.
 - Both packages are public, so pulls need no credentials.

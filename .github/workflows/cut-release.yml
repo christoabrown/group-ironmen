@@ -3,10 +3,17 @@ name: Cut release
 # The release button: Actions → Cut release → Run workflow (on master) → patch, minor or major.
 # It computes the next version from the latest `v*` tag, creates the tag on master's head and a GitHub
 # Release with generated notes (the PRs merged since the previous tag), then publishes both images
-# through release.yml. Nothing is automatic on merge: one release per feature, when you say so.
+# through release.yml. Nothing is automatic on merge.
+#
+# The schedule does the same twice a week, as a patch release, so the dependency updates Renovate
+# merges on its own reach an image without anyone clicking. It releases master's head as it is: a
+# feature merged since the last release ships with it, under a patch number. Cut a minor or major by
+# hand when the number should say so.
 #
 # Guards: refuses to run from any branch but master, a head that is already tagged, or a head whose CI
-# run on master did not succeed. A tag pushed by hand still works and needs none of this.
+# run on master did not succeed. From the button a refusal fails the run; on the schedule it ends the
+# run green with a notice, and so does a run that finds no Renovate commit under server/ or site/
+# since the last release. A tag pushed by hand still works and needs none of this.
 on:
   workflow_dispatch:
     inputs:
@@ -16,6 +23,11 @@ on:
         required: true
         default: patch
         options: [patch, minor, major]
+  schedule:
+    - cron: '0 15 * * 3' # Wednesday 15:00
+      timezone: Europe/Amsterdam
+    - cron: '0 9 * * 0' # Sunday 09:00
+      timezone: Europe/Amsterdam
 
 # One release at a time; a second click queues.
 concurrency:
@@ -25,16 +37,20 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # A scheduled run has no inputs.
+  BUMP: ${{ inputs.bump || 'patch' }}
+
 jobs:
   tag:
-    name: Tag the next ${{ inputs.bump }} version
+    name: Tag the next ${{ inputs.bump || 'patch' }} version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write # push the tag, create the release
       actions: read # look up the CI run for this commit
     outputs:
-      tag: ${{ steps.next.outputs.tag }}
+      tag: ${{ steps.next.outputs.tag }} # empty when the schedule found nothing to release
     steps:
       - name: Only from master
         if: github.ref != 'refs/heads/master'
@@ -46,50 +62,79 @@ jobs:
         with:
           fetch-depth: 0 # all tags, to find the latest version
 
-      - name: CI passed on this commit
+      - name: Something to release
+        id: gate
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -eu
+          # The button fails with the reason; the schedule ends green, having released nothing.
+          stop() {
+            if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+              echo "::notice::Nothing released: $1"
+              echo "release=false" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::$1"
+            exit 1
+          }
+
+          tags=$(git tag --points-at HEAD 'v*' | tr '\n' ' ')
+          [ -z "$tags" ] || stop "${tags}already points at this commit; nothing to release."
+
+          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          latest=${latest:-v0.0.0}
+
+          # The schedule exists for Renovate's merges, and only for those that change an image:
+          # server/ and site/ are the two build contexts. An update to an action or to the Postgres
+          # image is not one.
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            [ "$latest" != v0.0.0 ] || stop "there is no release yet; cut the first one by hand."
+            bumps=$(git log --oneline --author='renovate\[bot\]' "$latest..HEAD" -- server site | wc -l)
+            [ "$bumps" -gt 0 ] || stop "no Renovate commit under server/ or site/ since $latest."
+            echo "$bumps Renovate commit(s) under server/ or site/ since $latest."
+          fi
+
           ok=$(gh run list --workflow ci.yml --branch master --commit "$GITHUB_SHA" \
                  --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
-          if [ "${ok:-0}" -lt 1 ]; then
-            echo "::error::No successful CI run for $GITHUB_SHA on master yet. Wait for it, or fix it."
-            exit 1
-          fi
+          [ "${ok:-0}" -ge 1 ] || stop "No successful CI run for $GITHUB_SHA on master yet. Wait for it, or fix it."
+
+          echo "release=true" >>"$GITHUB_OUTPUT"
+          echo "latest=$latest" >>"$GITHUB_OUTPUT"
 
       - name: Next version
         id: next
+        if: steps.gate.outputs.release == 'true'
+        env:
+          LATEST: ${{ steps.gate.outputs.latest }}
         run: |
           set -eu
-          if [ -n "$(git tag --points-at HEAD 'v*')" ]; then
-            echo "::error::$(git tag --points-at HEAD 'v*' | tr '\n' ' ')already points at this commit; nothing to release."
-            exit 1
-          fi
-          latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
-          latest=${latest:-v0.0.0}
-          IFS=. read -r major minor patch <<<"${latest#v}"
-          case "${{ inputs.bump }}" in
+          IFS=. read -r major minor patch <<<"${LATEST#v}"
+          case "$BUMP" in
             major) major=$((major + 1)); minor=0; patch=0 ;;
             minor) minor=$((minor + 1)); patch=0 ;;
             patch) patch=$((patch + 1)) ;;
           esac
           tag="v$major.$minor.$patch"
-          echo "Latest $latest, ${{ inputs.bump }} bump: $tag"
+          echo "Latest $LATEST, $BUMP bump: $tag"
           echo "tag=$tag" >>"$GITHUB_OUTPUT"
-          echo "previous=$latest" >>"$GITHUB_OUTPUT"
+          echo "previous=$LATEST" >>"$GITHUB_OUTPUT"
 
       # The tag is annotated so `git describe` and the Releases page show who cut it and when. Pushed
       # with the workflow token, so it does not trigger release.yml itself: the publish job below does.
       - name: Create and push the tag
+        if: steps.gate.outputs.release == 'true'
         env:
           TAG: ${{ steps.next.outputs.tag }}
+          CUT_BY: ${{ github.event_name == 'schedule' && 'the schedule' || github.actor }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a "$TAG" -m "$TAG (${{ inputs.bump }} release cut by ${{ github.actor }})"
+          git tag -a "$TAG" -m "$TAG ($BUMP release cut by $CUT_BY)"
           git push origin "refs/tags/$TAG"
 
       - name: GitHub Release with generated notes
+        if: steps.gate.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.next.outputs.tag }}
@@ -102,6 +147,7 @@ jobs:
   publish:
     name: Publish
     needs: tag
+    if: needs.tag.outputs.tag != ''
     uses: ./.github/workflows/release.yml
     permissions:
       contents: read
