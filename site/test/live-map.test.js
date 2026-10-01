@@ -7,6 +7,7 @@ vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
 
 import { CanvasMap } from "../src/canvas-map/canvas-map";
 import { EVENT_FRAME_MS, EVENT_MARKER_MS, EVENT_WAKE_MS } from "../src/canvas-map/event-markers";
+import { EVENT_PLACES_KEY } from "../src/canvas-map/event-places";
 import { api } from "../src/data/api";
 import { defaultEventFilters } from "../src/data/event-view";
 import { groupData } from "../src/data/group-data";
@@ -198,6 +199,55 @@ describe("events on the map", () => {
     expect(map.eventMarkers.find("bob")).toBeNull();
     map.handleUpdatedMembers([{ name: "Bob", coordinates: { x: 3100, y: 3100, plane: 0 }, color: "blue" }]);
     expect(map.eventMarkers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
+  });
+
+  describe("after a reload", () => {
+    /** The map as a reload leaves it: nothing in memory, the player somewhere else by now. */
+    function reloaded() {
+      const fresh = createMap();
+      fresh.ctx = anyContext();
+      fresh.playerMarkers.set("Alice", { ...alice, coordinates: { x: 2500, y: 2500, plane: 0 } });
+      return fresh;
+    }
+
+    it("are back where they were put when they happened", () => {
+      const event = drop("a", 2000);
+      map.handleLiveEvents({ events: [], added: [], initial: true });
+      map.handleLiveEvents({ events: [event], added: [event], initial: false });
+
+      vi.setSystemTime(NOW + 5 * MINUTE);
+      const fresh = reloaded();
+      fresh.handleLiveEvents({ events: [event], added: [], initial: true });
+      expect(fresh.eventMarkers.find("a")).toMatchObject({ x: 3000, y: 3001, plane: 0, approximate: false });
+      // Put back, not announced.
+      expect(fresh.eventMarkers.find("a").arrived).toBeNull();
+    });
+
+    it("are where the player is now, as a guess, when this browser never saw them happen", () => {
+      const fresh = reloaded();
+      fresh.handleLiveEvents({ events: [drop("a", 5 * MINUTE)], added: [], initial: true });
+      expect(fresh.eventMarkers.find("a")).toMatchObject({ x: 2500, y: 2500, approximate: true });
+      expect(localStorage.getItem(EVENT_PLACES_KEY)).toBeNull();
+    });
+
+    it("forget the places of events whose time is up", () => {
+      const first = drop("first", 1000);
+      map.handleLiveEvents({ events: [], added: [], initial: true });
+      map.handleLiveEvents({ events: [first], added: [first], initial: false });
+      expect(Object.keys(JSON.parse(localStorage.getItem(EVENT_PLACES_KEY)))).toEqual(["first"]);
+
+      vi.setSystemTime(NOW + EVENT_MARKER_MS);
+      const second = { ...drop("second", 0), occurred_at: new Date(NOW + EVENT_MARKER_MS - 1000).toISOString() };
+      map.handleLiveEvents({ events: [second, first], added: [second], initial: false });
+      expect(Object.keys(JSON.parse(localStorage.getItem(EVENT_PLACES_KEY)))).toEqual(["second"]);
+    });
+
+    it("do without what was remembered when it can't be read", () => {
+      localStorage.setItem(EVENT_PLACES_KEY, "{not json");
+      const fresh = reloaded();
+      fresh.handleLiveEvents({ events: [drop("a", 5 * MINUTE)], added: [], initial: true });
+      expect(fresh.eventMarkers.find("a")).toMatchObject({ x: 2500, approximate: true });
+    });
   });
 
   it("start over when the feed does", () => {

@@ -11,6 +11,7 @@ import { escapeHtml, eventPasses, eventPlace, eventTooltipHtml, loadEventFilters
 import { EventMarkers, REPLAY_POP_MAX, clusterPoints, layoutMarkers } from "./event-markers";
 import { drawEventMarkers } from "./event-marker-renderer";
 import { IconCache } from "./icon-cache";
+import { EventPlaces } from "./event-places";
 import { TrailLayer } from "./trail-layer";
 import { formatTrailTime } from "./trail-model";
 
@@ -1014,6 +1015,11 @@ export class CanvasMap extends BaseElement {
     return this.eventIconsInstance;
   }
 
+  get eventPlaces() {
+    if (!this.eventPlacesInstance) this.eventPlacesInstance = new EventPlaces();
+    return this.eventPlacesInstance;
+  }
+
   /** Which events the map shows; see defaultEventFilters. The map page's controls set them. */
   get eventFilters() {
     if (!this.eventFiltersValue) this.eventFiltersValue = loadEventFilters();
@@ -1045,23 +1051,28 @@ export class CanvasMap extends BaseElement {
   /** Puts the live events on the map that aren't on it yet. */
   placeLiveEvents() {
     if (!this.liveEvents?.length) return;
+    const now = api.serverNow();
     const added = this.eventMarkers.add(this.liveEvents, {
-      now: api.serverNow(),
+      now,
       place: (event) => this.placeOfEvent(event),
       news: Boolean(this.liveEventsAreNews),
     });
-    if (added.length) this.requestUpdate();
+    if (!added.length) return;
+    // Where the player was when it happened is only known now: after a reload it would be a guess.
+    const placedByPlayer = added.filter((marker) => !marker.approximate && !marker.event.location);
+    if (placedByPlayer.length) this.eventPlaces.remember(placedByPlayer, now);
+    this.requestUpdate();
   }
 
   /**
    * Where an event goes on the map, and in which colour: where it says it
-   * happened, or else where its player is now (`known: false`). Null when
-   * neither is known.
+   * happened or where it was put when it did, or else where its player is
+   * now (`known: false`). Null when none of those is known.
    */
   placeOfEvent(event) {
     const player = this.playerMarkers?.get(event.member);
     const color = player?.color || colorForName(event.member).color;
-    const place = eventPlace(event);
+    const place = eventPlace(event) || this.eventPlaces.get(event.id);
     if (place) return { ...place, color, known: true };
     if (!this.isValidCoordinates(player?.coordinates)) return null;
     const { x, y, plane } = player.coordinates;
