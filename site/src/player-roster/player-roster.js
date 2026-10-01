@@ -195,7 +195,8 @@ export class PlayerRoster extends BaseElement {
           <span class="player-roster__place"></span>
           <span class="player-roster__level"></span>
         </div>
-        <div class="player-roster__hp"><div class="player-roster__hp-fill"></div></div>
+        <div class="player-roster__bar player-roster__bar--hitpoints"><div class="player-roster__bar-fill"></div></div>
+        <div class="player-roster__bar player-roster__bar--prayer"><div class="player-roster__bar-fill"></div></div>
       </div>
       <button type="button" class="player-roster__trail" title="Show trail" aria-label="Show trail"></button>`;
     row.style.setProperty("--player-color", member.color);
@@ -205,7 +206,8 @@ export class PlayerRoster extends BaseElement {
     row.worldEl = row.querySelector(".player-roster__world");
     row.levelEl = row.querySelector(".player-roster__level");
     row.badgeEl = row.querySelector(".player-roster__badge");
-    row.hpFill = row.querySelector(".player-roster__hp-fill");
+    row.hitpointsBar = row.querySelector(".player-roster__bar--hitpoints");
+    row.prayerBar = row.querySelector(".player-roster__bar--prayer");
     row.trailButton = row.querySelector(".player-roster__trail");
     row.trailButton.classList.toggle("active", selection.hasTrail(member.name));
     if (selection.selected === member.name) row.classList.add("player-roster__row--selected");
@@ -233,9 +235,16 @@ export class PlayerRoster extends BaseElement {
     row.badgeEl.title = badge?.title || "";
     row.badgeEl.dataset.type = member.meta?.type ?? "";
 
-    const hitpoints = member.stats?.hitpoints;
-    const ratio = member.online && hitpoints?.max ? Math.max(0, Math.min(1, hitpoints.current / hitpoints.max)) : 0;
-    row.hpFill.style.transform = `scaleX(${ratio})`;
+    this.updateBar(row.hitpointsBar, "Hitpoints", member.online && member.stats?.hitpoints);
+    this.updateBar(row.prayerBar, "Prayer", member.online && member.stats?.prayer);
+  }
+
+  /** `stat` is `{ current, max }`; anything else empties the bar. */
+  updateBar(bar, label, stat) {
+    const known = Boolean(stat?.max);
+    const ratio = known ? Math.max(0, Math.min(1, stat.current / stat.max)) : 0;
+    bar.firstElementChild.style.transform = `scaleX(${ratio})`;
+    bar.title = known ? `${label} ${stat.current} / ${stat.max}` : "";
   }
 
   placeText(member, now = new Date()) {
