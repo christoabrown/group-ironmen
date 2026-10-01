@@ -6,7 +6,6 @@ const fs = require("fs");
 const compression = require("compression");
 const axios = require("axios");
 const app = express();
-const port = 4000;
 
 const args = process.argv.map((arg) => arg.trim());
 function getArgValue(arg) {
@@ -15,6 +14,8 @@ function getArgValue(arg) {
   return args[i + 1];
 }
 
+// --port lets a second copy run beside one that already has 4000 (see docs/DEV-STACK.md).
+const port = parseInt(getArgValue("--port"), 10) || 4000;
 const backend = getArgValue("--backend") === undefined ? process.env.HOST_URL : getArgValue("--backend");
 
 // Kubernetes probes. Answered by this process alone, ahead of the request log, the static files and

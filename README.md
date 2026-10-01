@@ -200,6 +200,10 @@ MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, k
 HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
 ```
 
+[docs/DEV-STACK.md](docs/DEV-STACK.md) has the whole recipe for a throwaway copy on port 4100 (its own
+database, the mock hub) that runs beside a stack on port 4000, and how a Claude agent tests a change
+with it in a browser.
+
 Tests:
 
 ```bash
@@ -244,7 +248,7 @@ server/            Rust backend (actix-web, tokio-postgres)
 site/              Frontend (web components bundled with esbuild) and its Express server
 tools/mock-hub/    Stand-in for the osrs-data-hub API
 backup/            Database backup script
-docs/              Deployment contract (DEPLOYMENT.md) and integration notes (hub-integration: what the map uses from the hub)
+docs/              Deployment contract (DEPLOYMENT.md), the dev stack (DEV-STACK.md) and integration notes (hub-integration: what the map uses from the hub)
 ```
 
 ## Credits and license

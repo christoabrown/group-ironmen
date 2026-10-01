@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "map-dev-site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["site/scripts/server.js", "--backend", "http://127.0.0.1:8080", "--port", "4100"],
+      "port": 4100
+    }
+  ]
+}
