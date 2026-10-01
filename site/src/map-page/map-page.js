@@ -1,9 +1,18 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
-import { groupData, GroupData } from "../data/group-data";
+import { groupData } from "../data/group-data";
 import { selection } from "../data/selection";
 import { colorForName } from "../data/player-colors";
-import { formatGp } from "../data/hub-format";
+import {
+  EVENT_FILTERS_KEY,
+  EVENT_KINDS,
+  MIN_LOOT_OPTIONS,
+  eventKind,
+  eventLabel,
+  eventPasses,
+  eventPlace,
+  loadEventFilters,
+} from "../data/event-view";
 import { deathMarks } from "../canvas-map/trail-model";
 // The page drives these two from the moment it is connected, so they have to
 // be defined before it is.
@@ -18,7 +27,6 @@ const TRAIL_STALE_S = 180;
 const TRAIL_DAYS_KEY = "map-trail-days";
 // As many deaths as the server will give: it keeps the latest events only.
 const TRAIL_DEATHS_LIMIT = 500;
-const FILTERS_KEY = "map-event-filters";
 
 /** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
 function staleNotice(asOf) {
@@ -44,71 +52,25 @@ function storedTrailDays(select) {
   return [...select.options].some((option) => option.value === stored) ? stored : select.value;
 }
 
-/** Which hub events show on the map, and how. */
-export const PING_KINDS = [
-  { key: "loot", label: "Loot", types: ["loot", "pk_loot"] },
-  { key: "level", label: "Levels", types: ["level_up"] },
-  { key: "death", label: "Deaths", types: ["death"] },
-  { key: "other", label: "Other", types: ["collection_log", "achievement_diary", "combat_task", "superior_spawn"] },
-];
-
-export const MIN_LOOT_OPTIONS = [
-  [0, "Any drop"],
-  [100000, "100K+"],
-  [1000000, "1M+"],
-  [10000000, "10M+"],
-];
-
-export function defaultPingFilters() {
-  return { loot: true, level: true, death: true, other: true, minLoot: 100000 };
-}
-
-export function loadPingFilters() {
-  try {
-    return { ...defaultPingFilters(), ...JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}") };
-  } catch {
-    return defaultPingFilters();
-  }
-}
-
 /** The ping for a hub event, or null when the filters hide it or its place is unknown. */
 export function pingForEvent(event, member, filters) {
-  const kind = PING_KINDS.find((candidate) => candidate.types.includes(event.type));
-  if (!kind || !filters[kind.key]) return null;
-  if (kind.key === "loot" && (event.value_gp || 0) < (filters.minLoot || 0)) return null;
-
-  let position = null;
-  if (event.location) {
-    position = GroupData.transformCoordinatesFromStorage([
-      event.location.x,
-      event.location.y,
-      event.location.plane || 0,
-    ]);
-  } else if (member?.online && member.coordinates) {
-    position = member.coordinates;
-  }
+  if (!eventPasses(event, filters)) return null;
+  const position = eventPlace(event) || (member?.online && member.coordinates) || null;
   if (!position) return null;
-
-  let label = null;
-  if (kind.key === "loot") label = `${formatGp(event.value_gp)} gp`;
-  else if (event.type === "level_up") label = `${event.level ?? ""} ${event.skill ?? ""}`.trim();
-  else if (event.type === "collection_log") label = "New collection log";
-  else if (event.type === "achievement_diary") label = "Diary";
-  else if (event.type === "combat_task") label = "Combat task";
   return {
     x: position.x,
     y: position.y,
     plane: position.plane,
     color: member?.color || "#ff981f",
-    kind: kind.key,
-    label,
+    kind: eventKind(event),
+    label: eventLabel(event),
   };
 }
 
 export class MapPage extends BaseElement {
   constructor() {
     super();
-    this.filters = loadPingFilters();
+    this.filters = loadEventFilters();
     this.trailData = new Map();
     this.deathEvents = [];
   }
@@ -347,7 +309,7 @@ export class MapPage extends BaseElement {
   renderEventControls() {
     const toggles = this.querySelector(".map-page__event-kinds");
     toggles.replaceChildren(
-      ...PING_KINDS.map((kind) => {
+      ...EVENT_KINDS.map((kind) => {
         const label = document.createElement("label");
         label.className = "map-page__event-kind";
         const input = document.createElement("input");
@@ -371,7 +333,7 @@ export class MapPage extends BaseElement {
       this.filters[target.name] = target.checked;
     }
     try {
-      localStorage.setItem(FILTERS_KEY, JSON.stringify(this.filters));
+      localStorage.setItem(EVENT_FILTERS_KEY, JSON.stringify(this.filters));
     } catch {
       // Not remembered in private mode.
     }

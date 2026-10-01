@@ -5,6 +5,7 @@ import { Animation } from "./animation";
 import { selection } from "../data/selection";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
+import { escapeHtml } from "../data/event-view";
 import { TrailLayer } from "./trail-layer";
 import { formatTrailTime } from "./trail-model";
 
@@ -33,10 +34,6 @@ export const PING_RING_MS = 2400;
 export const PING_LABEL_MS = 20000;
 
 export const DEATH_MARKER_MS = 10 * 60 * 1000;
-
-function escapeHtml(text) {
-  return String(text).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
 
 export class CanvasMap extends BaseElement {
   html() {

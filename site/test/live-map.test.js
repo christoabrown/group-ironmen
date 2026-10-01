@@ -6,7 +6,8 @@ vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
 }));
 
 import { CanvasMap, DEATH_MARKER_MS, PING_LABEL_MS, PING_RING_MS } from "../src/canvas-map/canvas-map";
-import { pingForEvent, defaultPingFilters } from "../src/map-page/map-page";
+import { pingForEvent } from "../src/map-page/map-page";
+import { defaultEventFilters } from "../src/data/event-view";
 import { LiveEvents } from "../src/data/live-events";
 import { pubsub } from "../src/data/pubsub";
 import { selection } from "../src/data/selection";
@@ -137,7 +138,7 @@ describe("event pings", () => {
   });
 
   it("are placed at the event's location, or else where the player is", () => {
-    const filters = defaultPingFilters();
+    const filters = defaultEventFilters();
     const member = { online: true, color: "red", coordinates: { x: 3000, y: 3001, plane: 0 } };
     const death = pingForEvent({ type: "death", location: { x: 3200, y: 3200, plane: 1 } }, member, filters);
     expect(death).toMatchObject({ x: 3200, y: 3201, plane: 1, kind: "death", color: "red" });
