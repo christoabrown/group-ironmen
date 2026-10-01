@@ -168,6 +168,7 @@ function edged(ctx, view, color, width, alpha) {
 /**
  * A jump, as far as `progress` (0..1) of it has happened: the mark where the
  * player left, the link to where they turned up and, once there, its mark.
+ * Returns whether it drew dashes that move (`animate`, an arc on screen).
  */
 function drawJump(ctx, view, trail, jump, alpha, progress, animate) {
   const { ax, ay, bx, by, kind } = jump;
@@ -175,6 +176,7 @@ function drawJump(ctx, view, trail, jump, alpha, progress, animate) {
   const arrived = progress >= 1;
   const alphaA = alpha * floorAlpha(jump.planeA, view);
   const alphaB = alpha * floorAlpha(jump.planeB, view);
+  let moving = false;
 
   if (kind === "unknown" || jump.arc) {
     const box = [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)];
@@ -190,6 +192,7 @@ function drawJump(ctx, view, trail, jump, alpha, progress, animate) {
         for (let s = 1; s <= upTo; s++) ctx.lineTo(jump.arc[s * 2], jump.arc[s * 2 + 1]);
         setDash(ctx, view, [6, 6]);
         if (animate) ctx.lineDashOffset = -((view.nowMs / 40) % 12) / view.zoom;
+        moving = animate;
         edged(ctx, view, trail.light, 2, Math.max(alphaA, alphaB));
       } else {
         ctx.lineTo(ax + (bx - ax) * progress, ay + (by - ay) * progress);
@@ -199,7 +202,7 @@ function drawJump(ctx, view, trail, jump, alpha, progress, animate) {
       ctx.lineDashOffset = 0;
     }
   }
-  if (kind === "unknown") return;
+  if (kind === "unknown") return moving;
 
   for (const [x, y, endAlpha, shown] of [
     [ax, ay, alphaA, true],
@@ -213,6 +216,7 @@ function drawJump(ctx, view, trail, jump, alpha, progress, animate) {
       burst(ctx, view, x, y, trail.light, endAlpha);
     }
   }
+  return moving;
 }
 
 function drawDeaths(ctx, view, trail, alphaOf) {
@@ -250,17 +254,22 @@ function drawChevrons(ctx, view, trail, mode) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
-  for (const run of trail.geometry.runs) {
+  // Newest first, so that the limit is spent near the player.
+  const runs = trail.geometry.runs;
+  for (let r = runs.length - 1; r >= 0; r--) {
+    const run = runs[r];
     if (run.count < 2) continue;
     const total = run.cum[run.count - 1];
     // Counted back from the end of the run, so new points don't shift them.
     const first = total - (spacing - moved);
-    for (const chunk of run.chunks) {
+    for (let c = run.chunks.length - 1; c >= 0; c--) {
+      const chunk = run.chunks[c];
       if (!boxInView(view, chunk.bbox, spacing)) continue;
       let i = chunk.i0;
-      const from = Math.ceil((first - run.cum[chunk.i1]) / spacing);
+      // The chevrons that fall on this chunk are numbers `from` to `to`, counting from the end.
+      const from = Math.max(Math.ceil((first - run.cum[chunk.i1]) / spacing), 0);
       const to = Math.floor((first - run.cum[chunk.i0]) / spacing);
-      for (let k = Math.max(to, 0); k >= Math.max(from, 0) && drawn < MAX_CHEVRONS; k--) {
+      for (let k = to; k >= from && drawn < MAX_CHEVRONS; k--) {
         const along = first - k * spacing;
         while (i < chunk.i1 - 1 && run.cum[i + 1] < along) i += 1;
         const length = run.cum[i + 1] - run.cum[i];
@@ -294,7 +303,7 @@ function drawLive(ctx, view, trail, mode) {
   for (const jump of geometry.jumps) {
     const alpha = ribbonStyle(ageBand(jump.tB, view, mode), selected).alpha;
     const animate = selected && !view.reducedMotion && Boolean(jump.arc);
-    drawJump(ctx, view, trail, jump, alpha, 1, animate);
+    animating = drawJump(ctx, view, trail, jump, alpha, 1, animate) || animating;
   }
 
   ctx.lineJoin = "round";
@@ -331,9 +340,8 @@ function drawLive(ctx, view, trail, mode) {
   }
 
   if (selected && geometry.lod < 2) {
-    animating = drawChevrons(ctx, view, trail, mode) && !view.reducedMotion;
+    animating = (drawChevrons(ctx, view, trail, mode) && !view.reducedMotion) || animating;
   }
-  if (selected && !view.reducedMotion && geometry.jumps.some((jump) => jump.arc)) animating = true;
 
   const runs = geometry.runs;
   if (runs.length) {

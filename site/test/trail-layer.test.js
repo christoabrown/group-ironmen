@@ -62,6 +62,22 @@ describe("TrailLayer", () => {
     expect(layer.isOnline("Alice")).toBe(false);
   });
 
+  it("shows the time a player was logged out as a gap, not as standing still", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    now = T + 300;
+    layer.observe("Alice", tile(3230), true);
+    now = T + 400;
+    layer.observe("Alice", tile(3230), false);
+    now = T + 1500;
+    layer.observe("Alice", tile(3230), true);
+    const model = layer.modelOf("Alice");
+    expect(model.points.slice(-2).map((point) => [point.x, point.t0])).toEqual([
+      [3230, T + 300],
+      [3230, T + 1500],
+    ]);
+    expect(model.kinds[model.kinds.length - 1]).toBe("unknown");
+  });
+
   it("keeps the live points when the history is fetched again", () => {
     layer.setHistory("Alice", history(), COLORS);
     for (const [seconds, x] of [

@@ -69,7 +69,8 @@ export class TrailLayer {
     let moved = false;
     if (position) {
       seen.position = position;
-      if (seen.online) moved = observeLive(seen.buffer, position, this.now());
+      // Coming back online starts a new stay: the time away isn't time spent there.
+      if (seen.online) moved = observeLive(seen.buffer, position, this.now(), { fresh: !wasOnline });
     }
     if (!this.trails.has(name)) return false;
     if (moved || wasOnline !== seen.online) {

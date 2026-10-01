@@ -199,7 +199,9 @@ export class MapPage extends BaseElement {
   handleFeatures(features) {
     const history = Boolean(features?.hub_history);
     this.eventControls.hidden = !history;
+    const switchedOn = history && this.historyEnabled === false;
     this.historyEnabled = history;
+    if (switchedOn) this.loadTrails();
     this.renderTrailChips();
   }
 
@@ -246,7 +248,8 @@ export class MapPage extends BaseElement {
     for (const name of [...this.trailData.keys()]) {
       if (!selection.hasTrail(name)) this.trailData.delete(name);
     }
-    if (!names.length) {
+    // Nothing to fetch, or (once the server has said so) no history to fetch it from.
+    if (!names.length || this.historyEnabled === false) {
       this.trailError = null;
       this.trailFailures = 0;
       this.renderTrailChips();

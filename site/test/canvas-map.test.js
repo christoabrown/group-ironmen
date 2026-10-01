@@ -1531,6 +1531,24 @@ describe("CanvasMap trails", () => {
     expect(mockHideTooltip).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the tooltip while the hovered point is still there", () => {
+    const map = createMapInstance();
+    map.style = {};
+    map.canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    map.setTrail("Alice", serverTrail(), STYLE);
+    centerCameraOn(map, 3210, 3201);
+    const [x, y] = map.tileCenterOnScreen(3210, 3201);
+    map.onPointerMove({ clientX: x, clientY: y + 3 });
+
+    mockHideTooltip.mockClear();
+    map.setTrailDeaths("Alice", []);
+    expect(mockHideTooltip).not.toHaveBeenCalled();
+
+    // A fresh trail may have other points: what was hovered is gone.
+    map.setTrail("Alice", serverTrail(), STYLE);
+    expect(mockHideTooltip).toHaveBeenCalledTimes(1);
+  });
+
   it("replays the trails at a time, and goes back to live", () => {
     const map = createMapInstance();
     map.setTrail("Alice", serverTrail(), STYLE);

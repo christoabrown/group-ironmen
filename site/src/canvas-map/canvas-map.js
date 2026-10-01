@@ -642,7 +642,8 @@ export class CanvasMap extends BaseElement {
   }
 
   trailsChanged() {
-    this.hideTrailTooltip();
+    // The hovered point is forgotten when its trail is rebuilt or taken off.
+    if (!this.trailLayer.hover) this.hideTrailTooltip();
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
   }

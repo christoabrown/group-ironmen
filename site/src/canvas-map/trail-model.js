@@ -162,12 +162,18 @@ function sameTile(a, b) {
 
 /**
  * Notes where a player is now in their buffer of live points. Returns whether
- * they moved to another tile.
+ * that added a point: they moved to another tile, or (`fresh`) they are back
+ * from having been away, which starts a new stay even on the same tile.
  */
-export function observeLive(buffer, coordinates, nowS, { maxPoints = LIVE_MAX_POINTS, maxAgeS = LIVE_MAX_AGE_S } = {}) {
+export function observeLive(
+  buffer,
+  coordinates,
+  nowS,
+  { maxPoints = LIVE_MAX_POINTS, maxAgeS = LIVE_MAX_AGE_S, fresh = false } = {}
+) {
   const last = buffer[buffer.length - 1];
   let moved = false;
-  if (last && sameTile(last, coordinates) && last.boat === Boolean(coordinates.boat)) {
+  if (!fresh && last && sameTile(last, coordinates) && last.boat === Boolean(coordinates.boat)) {
     last.t1 = Math.max(last.t1, nowS);
   } else {
     const time = last ? Math.max(nowS, last.t1) : nowS;
@@ -198,9 +204,11 @@ export function observeLive(buffer, coordinates, nowS, { maxPoints = LIVE_MAX_PO
 export function mergeTrail(history, live, head) {
   const merged = history.slice();
   const cutoff = history.length ? history[history.length - 1].t1 + BUCKET_S : -Infinity;
-  const append = (point) => {
+  // Two visits to a tile with an absence in between stay two points; the
+  // marker of an online player continues the stay however long it has lasted.
+  const append = (point, continues = point.t0 - merged[merged.length - 1]?.t1 <= GAP_S) => {
     const last = merged[merged.length - 1];
-    if (last && sameTile(last, point) && last.boat === point.boat) {
+    if (last && continues && sameTile(last, point) && last.boat === point.boat) {
       merged[merged.length - 1] = { ...last, t1: Math.max(last.t1, point.t1) };
     } else {
       const t0 = last ? Math.max(point.t0, last.t1) : point.t0;
@@ -212,7 +220,7 @@ export function mergeTrail(history, live, head) {
   }
   if (head) {
     const { t, ...position } = head;
-    append({ world: null, ...position, boat: Boolean(head.boat), t0: t, t1: t, live: true });
+    append({ world: null, ...position, boat: Boolean(head.boat), t0: t, t1: t, live: true }, true);
   }
   return merged;
 }
@@ -266,18 +274,19 @@ export function positionAt(model, t) {
 
 /**
  * When something next happens on the trail at or after t: t itself while the
- * player is under way, the end of the stay or of the gap in the data while
+ * player is under way, the end of the stay or of the absence while
  * nothing is happening, null after the last point.
  */
 export function nextChangeAfter(model, t) {
-  const { points, kinds, gapS } = model;
+  const { points, gapS } = model;
   if (!points.length) return null;
   const index = indexAt(points, t);
   if (index < 0) return points[0].t0;
   const next = points[index + 1];
   if (!next) return null;
   if (t <= points[index].t1) return points[index].t1;
-  if (kinds[index] === "unknown" && next.t0 - points[index].t1 > gapS) return next.t0;
+  // A long absence, whatever the step turned out to be when the player came back.
+  if (next.t0 - points[index].t1 > gapS) return next.t0;
   return t;
 }
 

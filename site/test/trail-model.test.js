@@ -192,6 +192,24 @@ describe("mergeTrail", () => {
     expect(history[1].t1).toBe(T + 60);
   });
 
+  it("keeps a return to the same tile after an absence apart from the stay before it", () => {
+    const before = { ...live(3220, 3200, 200), t1: T + 260 };
+    const merged = mergeTrail(history, [before, live(3220, 3200, 9000)], null);
+    expect(merged.map((point) => [point.t0, point.t1])).toEqual([
+      [T, T],
+      [T + 60, T + 60],
+      [T + 200, T + 260],
+      [T + 9000, T + 9000],
+    ]);
+  });
+
+  it("counts an online player as still there, however long ago they were last seen to move", () => {
+    const head = { x: 3210, y: 3201, plane: 0, boat: false, world: 302, t: T + 9000 };
+    const merged = mergeTrail(history, [], head);
+    expect(merged).toHaveLength(2);
+    expect(merged[1].t1).toBe(T + 9000);
+  });
+
   it("is only the live points when the hub has none yet", () => {
     expect(mergeTrail([], [live(3200, 3200, 10)], null)).toHaveLength(1);
   });
@@ -208,6 +226,16 @@ describe("observeLive", () => {
     expect(buffer).toEqual([
       { x: 3200, y: 3201, plane: 0, boat: false, world: 302, t0: T, t1: T + 5, live: true },
       { x: 3201, y: 3201, plane: 0, boat: false, world: 302, t0: T + 10, t1: T + 10, live: true },
+    ]);
+  });
+
+  it("starts a new stay on the same tile when told the player was away", () => {
+    const buffer = [];
+    observeLive(buffer, coords(3200, 3201), T);
+    expect(observeLive(buffer, coords(3200, 3201), T + 1500, { fresh: true })).toBe(true);
+    expect(buffer.map((point) => [point.t0, point.t1])).toEqual([
+      [T, T],
+      [T + 1500, T + 1500],
     ]);
   });
 
@@ -237,6 +265,13 @@ describe("time on a trail", () => {
     expect(nextChangeAfter(model, T + 30)).toBe(T + 30);
     expect(nextChangeAfter(model, T + 100)).toBe(T + 180);
     expect(nextChangeAfter(model, T + 9999)).toBeNull();
+  });
+
+  it("waits out a long absence however the player came back", () => {
+    // Logged out in an instance, back on the surface eight hours later.
+    const away = buildTrailModel([at(6500, 3200, 0), at(3222, 3218, 480)]);
+    expect(away.kinds).toEqual(["teleport"]);
+    expect(nextChangeAfter(away, T + 100)).toBe(T + 480 * 60);
   });
 
   it("waits out a gap in the data", () => {

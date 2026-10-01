@@ -162,6 +162,20 @@ describe("map page trails", () => {
     expect(page.querySelector('[data-name="Bob"]').textContent).toContain("not shared");
   });
 
+  it("doesn't ask for trails while the server has the hub's history switched off", async () => {
+    vi.spyOn(api, "getTrails").mockResolvedValue(trailsResponse(["Alice"]));
+    pubsub.publish("features", { hub_history: false });
+    mount();
+    selection.toggleTrail("Alice");
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(api.getTrails).not.toHaveBeenCalled();
+
+    pubsub.publish("features", { hub_history: true });
+    await settle();
+    expect(api.getTrails).toHaveBeenCalledTimes(1);
+    expect(worldMap.trailNames()).toEqual(["Alice"]);
+  });
+
   it("says from when a trail runs that was too long to show whole", async () => {
     const response = trailsResponse(["Alice", "Bob"]);
     response.trails[0].truncated = true;

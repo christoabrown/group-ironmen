@@ -229,6 +229,36 @@ describe("drawTrail, live", () => {
     expect(still).toBe(false);
   });
 
+  it("puts no chevron on a run that is too short for one", () => {
+    const ctx = recordingContext();
+    const short = [at(3200, 3200, 1), at(3202, 3200, 0)];
+    expect(drawTrail(ctx, viewOf(3201, 3200), trailOf(short, { selected: true }), LIVE)).toBe(false);
+    // A chevron is a path of three points.
+    expect(ctx.strokes.filter((stroke) => stroke.style === LIGHT && stroke.path.length % 3 === 0)).toHaveLength(0);
+  });
+
+  it("keeps every chevron on the line", () => {
+    const ctx = recordingContext();
+    drawTrail(ctx, viewOf(3215, 3202), trailOf(walk, { selected: true }), LIVE);
+    const chevrons = ctx.strokes.filter((stroke) => stroke.style === LIGHT && stroke.path.length % 3 === 0);
+    expect(chevrons).toHaveLength(1);
+    const [left] = tileCenter(3200, 3200);
+    const [right] = tileCenter(3230, 3204);
+    for (let i = 1; i < chevrons[0].path.length; i += 3) {
+      expect(chevrons[0].path[i][0]).toBeGreaterThanOrEqual(left);
+      expect(chevrons[0].path[i][0]).toBeLessThanOrEqual(right);
+    }
+  });
+
+  it("only asks for frames for a teleport's moving dashes while they are on screen", () => {
+    const points = [at(3200, 3200, 2), at(3210, 3200, 1), at(3210, 2900, 0)];
+    const selected = () => trailOf(points, { selected: true });
+    const [cx, cy] = tileCenter(3210, 2905);
+    const atLanding = { ...viewOf(3210, 2905), minX: cx - 60, maxX: cx + 60, minY: cy - 60, maxY: cy + 60 };
+    expect(drawTrail(recordingContext(), atLanding, selected(), LIVE)).toBe(true);
+    expect(drawTrail(recordingContext(), viewOf(1200, 1200), selected(), LIVE)).toBe(false);
+  });
+
   it("glows at the head while the player is online, and caps the end when not", () => {
     const [x, y] = tileCenter(3230, 3204);
     const atHead = (shape) => shape.path.length === 1 && shape.path[0][0] === x && shape.path[0][1] === y;
