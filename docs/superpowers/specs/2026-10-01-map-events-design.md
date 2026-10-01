@@ -151,4 +151,4 @@ Checked in a browser against the mock hub: markers, stacks, the tooltip, click a
 ## Risks and limits
 - Whether `occurred_at` and the browser clock agree well enough for the 90 s freshness test is unverified.
 - Which `item_id` a real `collection_log` event carries, and the hub's `tier` strings, are unverified; the mock invents both.
-- Events older than a player's newest 200 are missing on long trails.
+- ~~Events older than a player's newest 200 are missing on long trails.~~ Lifted with the hub's time-range read of `/events` (hub D-98): the backend now reads a trail's events over its whole length, at most 2000 drops and 2000 other events per player. Markers are stacked in one pass and culled to the view first, so that many of them don't slow the map.
