@@ -6,6 +6,7 @@ import { selection } from "../data/selection";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
 import { escapeHtml } from "../data/event-view";
+import { clusterPoints } from "./event-markers";
 import { TrailLayer } from "./trail-layer";
 import { formatTrailTime } from "./trail-model";
 
@@ -750,45 +751,9 @@ export class CanvasMap extends BaseElement {
     return [screenX, top + tile / 2];
   }
 
-  /**
-   * Groups screen points that are close together. `points` are
-   * `{x, y, plane, ...}`; returns `{x, y, plane, members}` with the members'
-   * average position. Only points on the same plane are grouped.
-   */
+  /** Groups screen points that are close together; see clusterPoints. */
   static clusterMarkers(points, cellPx = CLUSTER_CELL_PX) {
-    const cells = new Map();
-    for (const point of points) {
-      const key = `${point.plane}:${Math.floor(point.x / cellPx)}:${Math.floor(point.y / cellPx)}`;
-      if (!cells.has(key)) cells.set(key, []);
-      cells.get(key).push(point);
-    }
-    // Merge neighbouring cells whose groups are within one cell of each other.
-    const groups = [...cells.values()].map((members) => ({ members }));
-    const center = (members) => [
-      members.reduce((sum, m) => sum + m.x, 0) / members.length,
-      members.reduce((sum, m) => sum + m.y, 0) / members.length,
-    ];
-    let merged = true;
-    while (merged) {
-      merged = false;
-      outer: for (let i = 0; i < groups.length; i++) {
-        for (let j = i + 1; j < groups.length; j++) {
-          if (groups[i].members[0].plane !== groups[j].members[0].plane) continue;
-          const [ax, ay] = center(groups[i].members);
-          const [bx, by] = center(groups[j].members);
-          if (Math.abs(ax - bx) < cellPx && Math.abs(ay - by) < cellPx) {
-            groups[i].members.push(...groups[j].members);
-            groups.splice(j, 1);
-            merged = true;
-            break outer;
-          }
-        }
-      }
-    }
-    return groups.map(({ members }) => {
-      const [x, y] = center(members);
-      return { x, y, plane: members[0].plane, members };
-    });
+    return clusterPoints(points, cellPx);
   }
 
   /**
