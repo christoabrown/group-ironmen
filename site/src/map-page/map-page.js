@@ -136,7 +136,6 @@ export class MapPage extends BaseElement {
     this.renderEventControls();
     this.scrubber.nextChange = (time) => this.worldMap.trailNextChange(time);
     this.scrubber.nextHold = (from, to) => this.worldMap.trailNextHop(from, to);
-    this.scrubber.setWindowDays(parseInt(this.trailDaysSelect.value, 10));
 
     this.eventListener(this.planeSelect, "change", this.handlePlaneSelect.bind(this));
     this.eventListener(this.planeSelect, "wheel", this.handlePlaneWheel.bind(this), { passive: false });
@@ -218,7 +217,6 @@ export class MapPage extends BaseElement {
     } catch {
       // Not remembered in private mode.
     }
-    this.scrubber.setWindowDays(parseInt(this.trailDaysSelect.value, 10));
     this.loadTrails();
   }
 

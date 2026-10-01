@@ -310,12 +310,17 @@ describe("map page trails", () => {
       expect(worldMap.trailNextHop).toHaveBeenCalledWith(NOW_S - 100, NOW_S - 70);
     });
 
-    it("starts at a speed that suits the length of the trails", async () => {
+    it("keeps the speed that was picked when the length of the trails changes", async () => {
+      const speed = scrubber().querySelector(".trail-scrubber__speed");
+      expect(speed.value).toBe("300");
+      speed.value = "120";
+      speed.dispatchEvent(new Event("change", { bubbles: true }));
       const select = page.querySelector(".map-page__trail-days");
       select.value = "30";
       select.dispatchEvent(new Event("change"));
       await settle();
-      expect(scrubber().clock.speed).toBe(7200);
+      expect(scrubber().clock.speed).toBe(120);
+      expect(speed.value).toBe("120");
     });
 
     it("leaves the map live when the page is left", () => {

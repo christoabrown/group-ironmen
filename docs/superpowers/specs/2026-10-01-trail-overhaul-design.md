@@ -126,6 +126,7 @@ Where the implementation differs from the plan above:
 - **Hovering** where a trail passes more than once reports the latest visit.
 - **A player who logs out** keeps the live points seen until then; the trail ends with a hollow cap instead of the glow.
 - **The replay follows the player** (added after the first review of the feature). The scrubber has a "Follow" box, on by default: every time that is played or looked up comes with `follow`, and the map centres the camera on the ghost of the selected player (or of the first trail when the selected player has none), switching floors with them. Dragging the map dispatches `map-dragged`, which unticks the box for that replay; unticking it by hand is remembered. Opening the replay and the trails growing at the live end don't move the camera.
+- **Replay speeds** are 1, 2, 5 and 30 min/s and 1 and 2 h/s. It always starts at 5 min/s; the speed no longer depends on how many days of trail are shown.
 - **The replay holds after a hop.** While playing, the clock stops at the moment the watched player (the one the camera would follow) lands after a teleport, an entrance or an unexplained jump, and stands still for 1.5 s before going on. Looking up a time by hand or pausing cancels the hold.
 
 ## Risks and limits

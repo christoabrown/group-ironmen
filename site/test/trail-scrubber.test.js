@@ -302,11 +302,22 @@ describe("trail scrubber", () => {
     });
   });
 
+  it("offers six speeds and starts at five minutes a second", () => {
+    const speed = scrubber.querySelector(".trail-scrubber__speed");
+    expect([...speed.options].map((option) => [option.value, option.textContent])).toEqual([
+      ["60", "1 min/s"],
+      ["120", "2 min/s"],
+      ["300", "5 min/s"],
+      ["1800", "30 min/s"],
+      ["3600", "1 h/s"],
+      ["7200", "2 h/s"],
+    ]);
+    expect(speed.value).toBe("300");
+    expect(scrubber.clock.speed).toBe(300);
+  });
+
   it("plays faster at a higher speed", () => {
     const speed = scrubber.querySelector(".trail-scrubber__speed");
-    expect([...speed.options].map((option) => option.value)).toEqual(["60", "300", "1800", "7200"]);
-    scrubber.setWindowDays(7);
-    expect(speed.value).toBe("1800");
     speed.value = "7200";
     speed.dispatchEvent(new Event("change", { bubbles: true }));
     expect(scrubber.clock.speed).toBe(7200);

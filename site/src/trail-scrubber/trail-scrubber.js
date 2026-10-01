@@ -5,12 +5,6 @@ import { ReplayClock } from "./replay-clock";
 // More ticks than this on the timeline are only clutter.
 const MAX_TICKS = 300;
 const FOLLOW_KEY = "map-replay-follow";
-// The speed a replay starts at, by how many days of trail are shown.
-const SPEED_FOR_DAYS = [
-  [1, 300],
-  [7, 1800],
-  [Infinity, 7200],
-];
 
 /**
  * The replay controls of the map's trails: a timeline to drag, play and
@@ -111,12 +105,6 @@ export class TrailScrubber extends BaseElement {
   setFollow(follow) {
     this.follow = follow;
     if (this.followInput) this.followInput.checked = follow;
-  }
-
-  /** Picks the speed that suits a trail of this many days. */
-  setWindowDays(days) {
-    this.clock.speed = SPEED_FOR_DAYS.find(([upTo]) => days <= upTo)[1];
-    if (this.speedSelect) this.speedSelect.value = String(this.clock.speed);
   }
 
   seek(time) {
