@@ -11,7 +11,6 @@ import {
   eventPasses,
   loadEventFilters,
 } from "../data/event-view";
-import { deathMarks } from "../canvas-map/trail-model";
 // The page drives these two from the moment it is connected, so they have to
 // be defined before it is.
 import "../canvas-map/canvas-map";
@@ -24,8 +23,11 @@ const TRAIL_RETRY_MS = 5000;
 // Hub data older than this is the server's stale copy: the hub isn't answering.
 const TRAIL_STALE_S = 180;
 const TRAIL_DAYS_KEY = "map-trail-days";
-// As many deaths as the server will give: it keeps the latest events only.
-const TRAIL_DEATHS_LIMIT = 500;
+// As many of a player's events as the server will give, to mark on their
+// trail. What happened doesn't change, and what happens next comes with the
+// live feed, so they are only asked for again now and then.
+const TRAIL_EVENTS_LIMIT = 200;
+const TRAIL_EVENTS_REFRESH_MS = 10 * 60 * 1000;
 
 /** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
 function staleNotice(asOf) {
@@ -56,7 +58,8 @@ export class MapPage extends BaseElement {
     super();
     this.filters = loadEventFilters();
     this.trailData = new Map();
-    this.deathEvents = [];
+    this.trailEvents = new Map();
+    this.liveEvents = [];
   }
 
   html() {
@@ -105,8 +108,8 @@ export class MapPage extends BaseElement {
     this.eventListener(this.toasts, "toast-activated", (event) => this.focusEvent(event.detail.event));
     this.subscribe("features", this.handleFeatures.bind(this));
     this.subscribe("trails-changed", () => this.loadTrails());
-    // Only events that arrive while the map is open ping; not the last batch again.
-    this.subscribe("live-events", this.handleLiveEvents.bind(this), false);
+    this.receivedLive = false;
+    this.subscribe("live-events", this.handleLiveEvents.bind(this));
     this.subscribe("player-selected", () => document.body.classList.remove("roster-open"));
   }
 
@@ -198,6 +201,9 @@ export class MapPage extends BaseElement {
     for (const name of [...this.trailData.keys()]) {
       if (!selection.hasTrail(name)) this.trailData.delete(name);
     }
+    for (const name of [...this.trailEvents.keys()]) {
+      if (!selection.hasTrail(name)) this.trailEvents.delete(name);
+    }
     // Nothing to fetch, or (once the server has said so) no history to fetch it from.
     if (!names.length || this.historyEnabled === false) {
       this.trailError = null;
@@ -223,8 +229,8 @@ export class MapPage extends BaseElement {
       }
       this.trailFailures = 0;
       this.trailError = staleNotice(data.as_of);
-      this.showTrailDeaths();
-      this.loadTrailDeaths();
+      this.showTrailEvents();
+      this.loadTrailEvents();
     } catch (error) {
       if (!this.isConnected || requestId !== this.trailRequestId) return;
       // What is drawn stays; it is only getting older.
@@ -236,22 +242,47 @@ export class MapPage extends BaseElement {
     this.trailRefresh = window.setTimeout(() => this.loadTrails(), retryIn);
   }
 
-  /** Fetches the deaths the server still knows of, to mark them on the trails. */
-  async loadTrailDeaths() {
-    try {
-      this.deathEvents = await api.getHubEvents({ types: ["death"], limit: TRAIL_DEATHS_LIMIT });
-    } catch {
-      // The trails are shown without them.
-      return;
-    }
-    if (this.isConnected) this.showTrailDeaths();
+  /**
+   * Fetches the events of the players whose trails are shown, where that
+   * hasn't been done lately, to mark them on the trails.
+   */
+  async loadTrailEvents() {
+    const now = Date.now();
+    const due = this.worldMap.trailNames().filter((name) => {
+      const fetched = this.trailEvents.get(name);
+      return !fetched || now - fetched.at >= TRAIL_EVENTS_REFRESH_MS;
+    });
+    if (!due.length) return;
+    await Promise.all(
+      due.map(async (name) => {
+        // Noted before the answer, so a slow one isn't asked for twice.
+        const known = this.trailEvents.get(name)?.events || [];
+        this.trailEvents.set(name, { events: known, at: now });
+        try {
+          const events = await api.getPlayerEvents(name, TRAIL_EVENTS_LIMIT);
+          if (this.trailEvents.has(name)) this.trailEvents.set(name, { events, at: now });
+        } catch {
+          // Not shared, or the hub is busy: the trail is shown with what the live feed has.
+        }
+      })
+    );
+    if (this.isConnected) this.showTrailEvents();
   }
 
-  /** Marks the deaths on the trails shown, unless deaths are filtered out of the map. */
-  showTrailDeaths() {
-    for (const name of this.worldMap.trailNames()) {
-      this.worldMap.setTrailDeaths(name, this.filters.death ? deathMarks(this.deathEvents, name) : []);
+  /** Marks on the trails shown what is known of their players' events: fetched, and from the live feed. */
+  showTrailEvents() {
+    const names = this.worldMap.trailNames();
+    if (!names.length) return;
+    const eventsByName = new Map();
+    for (const name of names) {
+      const events = new Map();
+      for (const event of this.trailEvents.get(name)?.events || []) events.set(event.id, event);
+      for (const event of this.liveEvents) {
+        if (event.member === name) events.set(event.id, event);
+      }
+      eventsByName.set(name, [...events.values()]);
     }
+    this.worldMap.setTrailEvents(eventsByName);
   }
 
   renderTrailChips() {
@@ -331,23 +362,23 @@ export class MapPage extends BaseElement {
       // Not remembered in private mode.
     }
     this.worldMap.setEventFilters(this.filters);
-    this.showTrailDeaths();
   }
 
-  handleLiveEvents({ added }) {
+  handleLiveEvents({ events, added, initial }) {
+    this.liveEvents = events;
+    // The first call replays the last poll (or is the first load): no news.
+    const first = !this.receivedLive || initial;
+    const news = first ? [] : added;
+    this.receivedLive = true;
+    if (first || news.some((event) => selection.hasTrail(event.member))) this.showTrailEvents();
     // The map puts the events on itself; this page announces them.
     const now = api.serverNow();
-    for (const event of added) {
+    for (const event of news) {
       const member = groupData.members.get(event.member);
       // What turns up late (the tab was hidden, say) is no news any more.
       if (this.filters.toasts && eventPasses(event, this.filters) && eventIsFresh(event, now)) {
         this.toasts.show(event, { color: member?.lightColor || colorForName(event.member).light });
       }
-    }
-    const deaths = added.filter((event) => event.type === "death");
-    if (deaths.length) {
-      this.deathEvents = [...deaths, ...this.deathEvents];
-      this.showTrailDeaths();
     }
   }
 

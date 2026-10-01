@@ -7,7 +7,7 @@ import { api } from "../data/api";
 import { regionName } from "../data/regions";
 import { colorForName } from "../data/player-colors";
 import { groupData } from "../data/group-data";
-import { escapeHtml, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
+import { escapeHtml, eventPasses, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
 import { EventMarkers, clusterPoints, layoutMarkers } from "./event-markers";
 import { drawEventMarkers } from "./event-marker-renderer";
 import { IconCache } from "./icon-cache";
@@ -590,6 +590,8 @@ export class CanvasMap extends BaseElement {
   get trailLayer() {
     if (!this.trailLayerInstance) {
       this.trailLayerInstance = new TrailLayer({ now: () => api.serverNow() / 1000 });
+      // The events the map hides aren't on the replay's timeline either.
+      this.trailLayerInstance.setEventFilter((event) => eventPasses(event, this.eventFilters));
     }
     return this.trailLayerInstance;
   }
@@ -622,9 +624,13 @@ export class CanvasMap extends BaseElement {
     return this.trailLayer.names();
   }
 
-  /** Marks a player's deaths on their trail: `[{id, x, y, plane, t}]`. */
-  setTrailDeaths(name, deaths) {
-    this.trailLayer.setDeaths(name, deaths);
+  /**
+   * Marks the hub's events on the trails: `eventsByName` maps a player to
+   * their events. They go where they say they happened, or where the trail
+   * has the player at the time.
+   */
+  setTrailEvents(eventsByName) {
+    for (const [name, events] of eventsByName) this.trailLayer.setEvents(name, events);
     this.trailsChanged();
   }
 
@@ -681,6 +687,14 @@ export class CanvasMap extends BaseElement {
   trailsChanged() {
     // The hovered point is forgotten when its trail is rebuilt or taken off.
     if (!this.trailLayer.hover) this.hideTrailTooltip();
+    // A trail's events move with it, and go when it does.
+    const names = this.trailLayer.names();
+    if (names.length || this.eventMarkersInstance) {
+      for (const name of names) {
+        this.eventMarkers.setTrailMarks(name, this.trailLayer.marksOn(name), this.trailLayer.colorOf(name));
+      }
+      this.eventMarkers.keepTrails(names);
+    }
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
   }
@@ -998,6 +1012,8 @@ export class CanvasMap extends BaseElement {
   setEventFilters(filters) {
     this.eventFiltersValue = { ...filters };
     this.requestUpdate();
+    // The replay's timeline marks the events that are shown.
+    if (this.trailLayerInstance?.names().length) this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
   }
 
   /**

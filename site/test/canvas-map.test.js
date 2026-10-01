@@ -1465,6 +1465,35 @@ describe("CanvasMap trails", () => {
     ...extra,
   });
 
+  it("marks a player's events on their trail, for as long as it is shown", () => {
+    const map = createMapInstance();
+    const trail = serverTrail();
+    const t = trail.points[1][3];
+    const level = { id: "l", type: "level_up", member: "Alice", occurred_at: new Date(t * 1000).toISOString() };
+    const changed = vi.fn();
+    map.addEventListener("trail-timeline-changed", changed);
+
+    map.setTrail("Alice", trail, STYLE);
+    map.setTrailEvents(new Map([["Alice", [level]]]));
+    expect(map.eventMarkers.find("l")).toMatchObject({
+      x: 3210,
+      y: 3201,
+      plane: 0,
+      color: STYLE.color,
+      trail: "Alice",
+    });
+    expect(map.trailTimeline().ticks).toEqual([{ t, kind: "level", tier: 0, color: STYLE.color }]);
+    expect(changed).toHaveBeenCalledTimes(2);
+
+    // The timeline follows the filters; the map is told to draw again.
+    map.setEventFilters({ loot: true, level: false, death: true, other: true, minLoot: 0 });
+    expect(map.trailTimeline().ticks).toEqual([]);
+    expect(changed).toHaveBeenCalledTimes(3);
+
+    map.clearTrail("Alice");
+    expect(map.eventMarkers.find("l")).toBeNull();
+  });
+
   it("shows a trail from the server's answer and takes it off again", () => {
     const map = createMapInstance();
     const changed = vi.fn();
@@ -1541,7 +1570,7 @@ describe("CanvasMap trails", () => {
     map.onPointerMove({ clientX: x, clientY: y + 3 });
 
     mockHideTooltip.mockClear();
-    map.setTrailDeaths("Alice", []);
+    map.setTrailEvents(new Map([["Alice", []]]));
     expect(mockHideTooltip).not.toHaveBeenCalled();
 
     // A fresh trail may have other points: what was hovered is gone.

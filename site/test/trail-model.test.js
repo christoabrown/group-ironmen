@@ -3,7 +3,7 @@ import {
   band,
   buildTrailModel,
   classifyStep,
-  deathMarks,
+  placeMarks,
   decodeTrail,
   formatTrailTime,
   mergeTrail,
@@ -280,39 +280,69 @@ describe("time on a trail", () => {
   });
 });
 
-describe("deaths and the timeline", () => {
-  const events = [
-    {
-      id: "a",
-      type: "death",
-      member: "Alice",
-      occurred_at: new Date((T + 90) * 1000).toISOString(),
-      location: { x: 3142, y: 9958, plane: 0 },
-    },
-    {
-      id: "b",
-      type: "death",
-      member: "Bob",
-      occurred_at: new Date((T + 95) * 1000).toISOString(),
-      location: { x: 1, y: 1, plane: 0 },
-    },
-    { id: "c", type: "loot", member: "Alice", occurred_at: new Date((T + 99) * 1000).toISOString() },
-    { id: "d", type: "death", member: "Alice", occurred_at: new Date((T + 400) * 1000).toISOString() },
-  ];
+describe("events and the timeline", () => {
+  const event = (id, seconds, extra = {}) => ({
+    id,
+    type: "loot",
+    member: "Alice",
+    value_gp: 2500000,
+    occurred_at: new Date((T + seconds) * 1000).toISOString(),
+    ...extra,
+  });
+  // A walk east, a teleport to Ardougne, a few steps there.
+  const model = () => buildTrailModel([at(3200, 3200, 0), at(3210, 3200, 1), at(2662, 3305, 2), at(2670, 3305, 3)]);
 
-  it("marks a player's deaths that have a place", () => {
-    expect(deathMarks(events, "Alice")).toEqual([{ id: "a", x: 3142, y: 9959, plane: 0, t: T + 90 }]);
+  it("marks an event where it says it happened", () => {
+    const death = event("a", 90, { type: "death", location: { x: 3142, y: 9958, plane: 0 } });
+    expect(placeMarks([death], "Alice", model())).toEqual([
+      { id: "a", event: death, x: 3142, y: 9959, plane: 0, t: T + 90, approximate: false },
+    ]);
   });
 
-  it("lists teleports and deaths on the timeline, in order", () => {
-    const model = buildTrailModel([at(3200, 3200, 0), at(2662, 3305, 1), at(2670, 3305, 2)]);
-    expect(timelineTicks(model, deathMarks(events, "Alice"))).toEqual([
-      { t: T + 60, kind: "teleport" },
-      { t: T + 90, kind: "death" },
+  it("marks any other event where the trail has the player at the time", () => {
+    const [onTile, underWay] = placeMarks([event("tile", 0), event("walk", 30)], "Alice", model());
+    expect(onTile).toMatchObject({ id: "tile", x: 3200, y: 3201, plane: 0, approximate: false });
+    expect(underWay).toMatchObject({ id: "walk", x: 3205, y: 3201, approximate: false });
+  });
+
+  it("calls the place a guess while the player was between two places the trail can't join", () => {
+    const [mark] = placeMarks([event("tele", 90)], "Alice", model());
+    expect(mark).toMatchObject({ x: 3210, y: 3201, approximate: true });
+  });
+
+  it("leaves out other players, other times and types the map doesn't show", () => {
+    const events = [
+      event("bob", 30, { member: "Bob" }),
+      event("before", -3600),
+      event("after", 3600),
+      event("odd", 30, { type: "something_new" }),
+      event("timeless", 30, { occurred_at: "never" }),
+      event("just-after", 200),
+    ];
+    expect(placeMarks(events, "Alice", model()).map((mark) => mark.id)).toEqual(["just-after"]);
+    expect(placeMarks(events, "Alice", buildTrailModel([]))).toEqual([]);
+  });
+
+  it("puts the marks in the order they happened", () => {
+    const marks = placeMarks([event("later", 100), event("sooner", 20)], "Alice", model());
+    expect(marks.map((mark) => mark.id)).toEqual(["sooner", "later"]);
+  });
+
+  it("lists teleports and events on the timeline, in order", () => {
+    const events = [
+      event("drop", 20, { value_gp: 35000000 }),
+      event("death", 150, { type: "death" }),
+      event("level", 170, { type: "level_up" }),
+    ];
+    const trail = model();
+    expect(timelineTicks(trail, placeMarks(events, "Alice", trail))).toEqual([
+      { t: T + 20, kind: "loot", tier: 2 },
+      { t: T + 120, kind: "teleport" },
+      { t: T + 150, kind: "death", tier: 0 },
+      { t: T + 170, kind: "level", tier: 0 },
     ]);
   });
 });
-
 describe("formatTrailTime", () => {
   it("shows one time for a passing point and a range for a stay", () => {
     expect(formatTrailTime(T, T, T + 600)).toMatch(/^\d{1,2}[:.]\d{2}( [AP]M)?$/i);
