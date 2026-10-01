@@ -19,7 +19,7 @@ function fakeWorldMap() {
     clearTrails: vi.fn(() => drawn.clear()),
     trailNames: () => [...drawn],
     setTrailDeaths: vi.fn(),
-    addPing: vi.fn(),
+    setEventFilters: vi.fn(),
     setReplayTime: vi.fn(),
     trailNextChange: vi.fn(() => null),
     trailNextHop: vi.fn(() => null),

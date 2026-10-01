@@ -134,6 +134,11 @@ export class EventMarkers {
     return added;
   }
 
+  /** Takes every live marker off the map; the ones on trails stay. */
+  clearLive() {
+    this.live.clear();
+  }
+
   /** Forgets the live markers that have had their time. */
   prune(now) {
     for (const [id, marker] of this.live) {
@@ -264,7 +269,8 @@ export class EventMarkers {
  * Returns `{items, nextMs}`. An item is one marker or a stack of them:
  * `{x, y, r, anchorX, anchorY, members, top, count, alpha, compact, tier,
  * color, ringAge, label, labelAlpha, approximate}` with `x, y` the centre of
- * its badge and `members` the most notable first. `nextMs` is when the map
+ * its badge and `members` the most notable first, each with its place in the
+ * game as `tileX, tileY`. `nextMs` is when the map
  * should be drawn again for their sake, or null when nothing changes.
  */
 export function layoutMarkers(markers, view) {
@@ -273,7 +279,7 @@ export function layoutMarkers(markers, view) {
     const [x, y] = view.toScreen(marker.x, marker.y);
     if (x < -OFFSCREEN_PAD || y < -OFFSCREEN_PAD) continue;
     if (x > view.width + OFFSCREEN_PAD || y > view.height + OFFSCREEN_PAD) continue;
-    points.push({ ...marker, x, y });
+    points.push({ ...marker, x, y, tileX: marker.x, tileY: marker.y });
   }
   const items = clusterPoints(points, EVENT_STACK_PX).map((group) => {
     const members = group.members.slice().sort((a, b) => b.tier - a.tier || b.at - a.at);

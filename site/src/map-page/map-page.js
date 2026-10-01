@@ -8,8 +8,6 @@ import {
   EVENT_KINDS,
   MIN_LOOT_OPTIONS,
   eventIsFresh,
-  eventKind,
-  eventLabel,
   eventPasses,
   eventPlace,
   loadEventFilters,
@@ -54,21 +52,6 @@ function storedTrailDays(select) {
   return [...select.options].some((option) => option.value === stored) ? stored : select.value;
 }
 
-/** The ping for a hub event, or null when the filters hide it or its place is unknown. */
-export function pingForEvent(event, member, filters) {
-  if (!eventPasses(event, filters)) return null;
-  const position = eventPlace(event) || (member?.online && member.coordinates) || null;
-  if (!position) return null;
-  return {
-    x: position.x,
-    y: position.y,
-    plane: position.plane,
-    color: member?.color || "#ff981f",
-    kind: eventKind(event),
-    label: eventLabel(event),
-  };
-}
-
 export class MapPage extends BaseElement {
   constructor() {
     super();
@@ -99,6 +82,7 @@ export class MapPage extends BaseElement {
     this.planeSelect.value = this.worldMap.plane || 1;
     this.trailDaysSelect.value = storedTrailDays(this.trailDaysSelect);
     this.renderEventControls();
+    this.worldMap.setEventFilters(this.filters);
     this.scrubber.nextChange = (time) => this.worldMap.trailNextChange(time);
     this.scrubber.nextHold = (from, to) => this.worldMap.trailNextHop(from, to);
 
@@ -307,7 +291,7 @@ export class MapPage extends BaseElement {
   }
 
   // ---------------------------------------------------------------------------
-  // Event pings
+  // Events
   // ---------------------------------------------------------------------------
 
   renderEventControls() {
@@ -347,15 +331,15 @@ export class MapPage extends BaseElement {
     } catch {
       // Not remembered in private mode.
     }
+    this.worldMap.setEventFilters(this.filters);
     this.showTrailDeaths();
   }
 
   handleLiveEvents({ added }) {
+    // The map puts the events on itself; this page announces them.
     const now = api.serverNow();
     for (const event of added) {
       const member = groupData.members.get(event.member);
-      const ping = pingForEvent(event, member, this.filters);
-      if (ping) this.worldMap.addPing(ping);
       // What turns up late (the tab was hidden, say) is no news any more.
       if (this.filters.toasts && eventPasses(event, this.filters) && eventIsFresh(event, now)) {
         this.toasts.show(event, { color: member?.lightColor || colorForName(event.member).light });
