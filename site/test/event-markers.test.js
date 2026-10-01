@@ -14,6 +14,7 @@ import {
   clusterPoints,
   layoutMarkers,
   markerAlpha,
+  stackPoints,
 } from "../src/canvas-map/event-markers";
 import { defaultEventFilters } from "../src/data/event-view";
 
@@ -56,6 +57,43 @@ describe("clusterPoints", () => {
       34
     );
     expect(groups.map((group) => group.members.length).sort()).toEqual([1, 1, 2]);
+  });
+});
+
+describe("stackPoints", () => {
+  it("stacks points that are close, per plane, at the place of the first", () => {
+    const stacks = stackPoints(
+      [
+        { name: "a", x: 100, y: 100, plane: 0 },
+        { name: "b", x: 110, y: 105, plane: 0 },
+        { name: "c", x: 400, y: 100, plane: 0 },
+        { name: "d", x: 101, y: 101, plane: 1 },
+      ],
+      24
+    );
+    expect(stacks.map((stack) => stack.members.map((member) => member.name).join())).toEqual(["a,b", "c", "d"]);
+    expect(stacks[0]).toMatchObject({ x: 100, y: 100, plane: 0 });
+  });
+
+  it("stacks two points on either side of a cell border", () => {
+    expect(
+      stackPoints(
+        [
+          { x: 23, y: 10, plane: 0 },
+          { x: 25, y: 10, plane: 0 },
+        ],
+        24
+      )
+    ).toHaveLength(1);
+  });
+
+  it("takes thousands of points in its stride", () => {
+    const points = [];
+    for (let i = 0; i < 20000; i++) points.push({ x: (i * 37) % 1600, y: (i * 91) % 900, plane: 0 });
+    const started = performance.now();
+    const stacks = stackPoints(points, 24);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(stacks.reduce((sum, stack) => sum + stack.members.length, 0)).toBe(20000);
   });
 });
 
@@ -209,6 +247,22 @@ describe("EventMarkers", () => {
       expect(byId.b.ringAge).toBeNull();
       markers.prune(NOW + EVENT_RING_MS);
       expect(visible(NOW + EVENT_RING_MS, { replayTime: to })[0].ringAge).toBeNull();
+    });
+
+    it("leaves out early what isn't in view, without showing its live twin instead", () => {
+      markers.add([event("a", 1000), event("far", 1000)], {
+        now: NOW,
+        place: (e) => (e.id === "far" ? { ...here(), x: 9000 } : here()),
+      });
+      // On the trail, "a" is out of view; where the live map put it is not.
+      markers.setTrailMarks("Alice", [mark("a", 1000, { x: 9000 })], "blue");
+      const within = (x) => x < 5000;
+      expect(visible(NOW, { within })).toEqual([]);
+      expect(
+        visible(NOW)
+          .map((marker) => marker.id)
+          .sort()
+      ).toEqual(["a", "far"]);
     });
 
     it("finds a marker by its event", () => {

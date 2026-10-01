@@ -1032,6 +1032,7 @@ export class CanvasMap extends BaseElement {
 
   setEventFilters(filters) {
     this.eventFiltersValue = { ...filters };
+    this.trailLayerInstance?.eventFilterChanged();
     this.requestUpdate();
     // The replay's timeline marks the events that are shown.
     if (this.trailLayerInstance?.names().length) this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
@@ -1089,14 +1090,21 @@ export class CanvasMap extends BaseElement {
     if (!store) return;
     const now = api.serverNow();
     store.prune(now);
+    const { width, height } = this.canvas;
+    // A long trail has thousands of events; only those in view are laid out.
+    const pad = 80;
     const markers = store.visible({
       filters: this.eventFilters,
       now,
       replayTime: this.trailLayerInstance?.replayTime ?? null,
+      within: (x, y) => {
+        const [screenX, screenY] = this.tileCenterOnScreen(x, y);
+        return screenX > -pad && screenY > -pad && screenX < width + pad && screenY < height + pad;
+      },
     });
     const { items, nextMs } = layoutMarkers(markers, {
-      width: this.canvas.width,
-      height: this.canvas.height,
+      width,
+      height,
       plane: this.plane - 1,
       tile: this.pixelsPerGameTile * this.camera.zoom.current,
       reducedMotion: Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
@@ -1685,7 +1693,7 @@ export class CanvasMap extends BaseElement {
       this.hideTrailTooltip();
       // Shown once per marker, not on every move: the tooltip holds an image,
       // and follows the pointer by itself.
-      const key = marker.members.map((member) => member.id).join();
+      const key = `${marker.top.id}:${marker.count}`;
       if (this.hoveredEvent !== key) {
         this.hoveredEvent = key;
         this.eventTooltipShown = true;
