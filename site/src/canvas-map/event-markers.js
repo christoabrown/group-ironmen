@@ -21,6 +21,9 @@ export const EVENT_WAKE_MS = 10000;
 
 export const EVENT_FRAME_MS = 40;
 
+// A replay that passes several events at once rings for the last few only.
+export const REPLAY_POP_MAX = 3;
+
 // The radius of a marker: an everyday event, a big drop, and one from longer
 // ago on a trail.
 export const MARKER_RADIUS = 13;

@@ -8,7 +8,7 @@ import { regionName } from "../data/regions";
 import { colorForName } from "../data/player-colors";
 import { groupData } from "../data/group-data";
 import { escapeHtml, eventPasses, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
-import { EventMarkers, clusterPoints, layoutMarkers } from "./event-markers";
+import { EventMarkers, REPLAY_POP_MAX, clusterPoints, layoutMarkers } from "./event-markers";
 import { drawEventMarkers } from "./event-marker-renderer";
 import { IconCache } from "./icon-cache";
 import { TrailLayer } from "./trail-layer";
@@ -639,7 +639,18 @@ export class CanvasMap extends BaseElement {
    * null. With `follow` the camera goes along with the player's ghost.
    */
   setReplayTime(time, { follow = false } = {}) {
+    const before = this.trailLayer.replayTime;
     this.trailLayer.setReplay(time);
+    // What the replay passes on its way forward rings as it did when it happened.
+    if (time !== null && before !== null && time > before && this.eventMarkersInstance) {
+      const passed = this.eventMarkers.trailMarksBetween(before, time, this.eventFilters);
+      if (passed.length) {
+        this.eventMarkers.pop(
+          passed.slice(-REPLAY_POP_MAX).map((mark) => mark.id),
+          api.serverNow()
+        );
+      }
+    }
     if (follow && time !== null) this.followReplay(time);
     this.requestUpdate();
   }

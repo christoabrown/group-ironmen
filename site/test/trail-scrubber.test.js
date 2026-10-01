@@ -337,6 +337,36 @@ describe("trail scrubber", () => {
     expect(ticks[1].classList.contains("trail-scrubber__tick--death")).toBe(true);
   });
 
+  it("marks the other events by their kind, the notable ones more", () => {
+    const color = "hsl(1, 70%, 45%)";
+    scrubber.setTimeline({
+      ...timeline,
+      ticks: [
+        { t: T + 360, kind: "loot", tier: 0, color },
+        { t: T + 720, kind: "loot", tier: 2, color },
+        { t: T + 1080, kind: "level", tier: 0, color },
+        { t: T + 1440, kind: "other", tier: 1, color },
+      ],
+    });
+    const classes = [...scrubber.querySelectorAll(".trail-scrubber__tick")].map((tick) =>
+      tick.className.replace(/trail-scrubber__tick(--)?/g, "").trim()
+    );
+    expect(classes).toEqual(["loot", "loot notable", "level", "other notable"]);
+  });
+
+  it("keeps deaths, then notable events, then teleports when there are too many to mark", () => {
+    const color = "hsl(1, 70%, 45%)";
+    const ticks = [];
+    for (let i = 0; i < 400; i++) ticks.push({ t: T + i, kind: "level", tier: 0, color });
+    for (let i = 0; i < 100; i++) ticks.push({ t: T + 1000 + i, kind: "teleport", color });
+    for (let i = 0; i < 50; i++) ticks.push({ t: T + 2000 + i, kind: "loot", tier: 1, color });
+    for (let i = 0; i < 20; i++) ticks.push({ t: T + 3000 + i, kind: "death", tier: 0, color });
+    scrubber.setTimeline({ ...timeline, ticks });
+    const count = (kind) => scrubber.querySelectorAll(`.trail-scrubber__tick--${kind}`).length;
+    expect(scrubber.querySelectorAll(".trail-scrubber__tick")).toHaveLength(300);
+    expect([count("death"), count("notable"), count("teleport"), count("level")]).toEqual([20, 50, 100, 130]);
+  });
+
   it("follows the trails as they grow, and closes when there are none left", () => {
     scrubber.open();
     scrubber.setTimeline({ ...timeline, tMax: T + 3660 });

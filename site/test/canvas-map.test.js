@@ -1593,6 +1593,82 @@ describe("CanvasMap trails", () => {
     expect(map.trailNextChange(tMax + 30)).toBeNull();
   });
 
+  describe("events in a replay", () => {
+    const eventAt = (id, t, extra = {}) => ({
+      id,
+      type: "level_up",
+      member: "Alice",
+      occurred_at: new Date(t * 1000).toISOString(),
+      ...extra,
+    });
+    const filters = { loot: true, level: true, death: true, other: true, minLoot: 0 };
+
+    function replayMap(count = 1) {
+      const map = createMapInstance();
+      const trail = serverTrail();
+      const [, mid] = trail.points.map((point) => point[3]);
+      const events = [];
+      for (let i = 0; i < count; i++) events.push(eventAt(`e${i}`, mid + i));
+      map.setTrail("Alice", trail, STYLE);
+      map.setTrailEvents(new Map([["Alice", events]]));
+      map.setEventFilters(filters);
+      return { map, mid };
+    }
+    const shown = (map, now = Date.now()) =>
+      Object.fromEntries(
+        map.eventMarkers
+          .visible({ filters, now, replayTime: map.trailLayer.replayTime })
+          .map((marker) => [marker.id, marker])
+      );
+
+    it("are dim until the replay comes to them", () => {
+      const { map, mid } = replayMap();
+      map.setReplayTime(mid - 30);
+      expect(shown(map).e0.alpha).toBeLessThan(0.5);
+      map.setReplayTime(mid + 30);
+      expect(shown(map).e0.alpha).toBe(1);
+    });
+
+    it("ring as the replay passes them, going forward only", () => {
+      const { map, mid } = replayMap();
+      map.setReplayTime(mid - 30);
+      expect(shown(map).e0.ringAge).toBeNull();
+      map.setReplayTime(mid + 5);
+      expect(shown(map).e0.ringAge).not.toBeNull();
+
+      const { map: back, mid: time } = replayMap();
+      back.setReplayTime(time + 30);
+      back.setReplayTime(time - 30);
+      expect(shown(back).e0.ringAge).toBeNull();
+    });
+
+    it("don't ring when the replay is opened, or closed", () => {
+      const { map, mid } = replayMap();
+      map.setReplayTime(mid + 30);
+      expect(shown(map).e0.ringAge).toBeNull();
+      map.setReplayTime(null);
+      expect(shown(map).e0.ringAge).toBeNull();
+    });
+
+    it("ring for the last few only when many are passed at once", () => {
+      const { map, mid } = replayMap(6);
+      map.setReplayTime(mid - 30);
+      map.setReplayTime(mid + 30);
+      const ringing = Object.values(shown(map))
+        .filter((marker) => marker.ringAge !== null)
+        .map((marker) => marker.id);
+      expect(ringing.sort()).toEqual(["e3", "e4", "e5"]);
+    });
+
+    it("don't ring for an event the filters hide", () => {
+      const { map, mid } = replayMap();
+      map.setEventFilters({ ...filters, level: false });
+      map.setReplayTime(mid - 30);
+      map.setReplayTime(mid + 30);
+      expect(map.eventMarkers.pops.size).toBe(0);
+    });
+  });
+
   describe("following the replay", () => {
     const worldPixel = (x, y) => [x * 4 + 2, -y * 4 + 258];
     const elsewhere = () => {
