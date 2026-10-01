@@ -79,12 +79,4 @@ trail-scrubber[hidden] {
 .trail-scrubber__skip {
   display: flex;
   align-items: center;
-  gap: 3px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.trail-scrubber__follow input,
-.trail-scrubber__skip input {
-  margin: 0;
 }

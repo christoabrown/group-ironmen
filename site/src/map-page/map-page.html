@@ -12,6 +12,9 @@
     <span class="map-page__label">On the map:</span>
     <span class="map-page__event-kinds"></span>
     <select class="map-page__event-min-loot" aria-label="Smallest drop to show"></select>
+    <span class="map-page__event-kind" title="Announce what happens in the corner of the map">
+      <input type="checkbox" id="map-event-toasts" name="toasts" /><label for="map-event-toasts">Toasts</label>
+    </span>
   </div>
   <div class="map-page__trails men-control-container rsborder-tiny rsbackground" hidden>
     <span class="map-page__label">Trails:</span>
@@ -26,3 +29,4 @@
   </div>
   <trail-scrubber class="rsborder-tiny rsbackground" hidden></trail-scrubber>
 </div>
+<event-toasts></event-toasts>

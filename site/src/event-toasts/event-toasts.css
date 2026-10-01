@@ -1,0 +1,112 @@
+/* The map page's main content is below the roster and the profile drawer, so
+   the toasts step aside for whichever has the corner. */
+event-toasts {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  width: min(340px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.event-toasts__toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px 6px 6px;
+  color: white;
+  font-family: inherit;
+  font-size: 1rem;
+  text-align: left;
+  text-shadow: 1.3px 1.3px black;
+  pointer-events: auto;
+  animation: event-toasts-in 0.25s ease-out;
+}
+
+.event-toasts__toast:hover {
+  filter: brightness(1.2);
+}
+
+.event-toasts__toast--leaving {
+  opacity: 0;
+  transform: translateX(16px);
+  transition: opacity 0.25s ease-in, transform 0.25s ease-in;
+  pointer-events: none;
+}
+
+.event-toasts__icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.event-toasts__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border-left: 3px solid var(--member-color, #ff981f);
+  padding-left: 6px;
+}
+
+.event-toasts__toast--tier-1,
+.event-toasts__toast--tier-2 {
+  box-shadow: 0 0 0 1px #ffd700;
+}
+
+.event-toasts__toast--tier-2 {
+  box-shadow: 0 0 0 1px #ffd700, 0 0 14px 2px rgba(255, 215, 0, 0.55);
+  animation: event-toasts-in 0.25s ease-out, event-toasts-big 1.2s ease-in-out 0.25s 3;
+}
+
+.event-toasts__toast--tier-2 .event-toasts__text {
+  color: #ffd700;
+}
+
+.event-toasts__toast--death {
+  box-shadow: 0 0 0 1px #e0403a;
+}
+
+@keyframes event-toasts-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes event-toasts-big {
+  50% {
+    box-shadow: 0 0 0 1px #ffd700, 0 0 22px 6px rgba(255, 215, 0, 0.8);
+  }
+}
+
+@media only screen and (min-width: 701px) {
+  body.profile-open event-toasts {
+    right: 404px;
+  }
+}
+
+@media only screen and (min-width: 1001px) {
+  event-toasts.event-toasts--roster-right {
+    right: 312px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-toasts__toast,
+  .event-toasts__toast--tier-2 {
+    animation: none;
+  }
+
+  .event-toasts__toast--leaving {
+    transition: none;
+  }
+}

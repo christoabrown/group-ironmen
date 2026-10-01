@@ -251,6 +251,67 @@ describe("map page trails", () => {
     });
   });
 
+  describe("toasts", () => {
+    const drop = (id, secondsAgo, extra = {}) => ({
+      id,
+      type: "loot",
+      member: "Alice",
+      line: `Alice received drop ${id}`,
+      value_gp: 2500000,
+      occurred_at: new Date((NOW_S - secondsAgo) * 1000).toISOString(),
+      ...extra,
+    });
+    const arrive = (...added) => pubsub.publish("live-events", { events: added, added, initial: false });
+    const shown = () => [...page.querySelectorAll(".event-toasts__text")].map((text) => text.textContent);
+
+    it("announce what happens while the map is open", () => {
+      mount();
+      arrive(drop("a", 5));
+      expect(shown()).toEqual(["Alice received drop a"]);
+    });
+
+    it("leave out what the filters hide", () => {
+      mount();
+      arrive(drop("small", 5, { value_gp: 500 }), { ...drop("level", 5), type: "level_up" });
+      expect(shown()).toEqual(["Alice received drop level"]);
+    });
+
+    it("leave out what happened a while ago", () => {
+      mount();
+      arrive(drop("old", 600));
+      expect(shown()).toEqual([]);
+    });
+
+    it("can be switched off, which is remembered", () => {
+      mount();
+      const toggle = page.querySelector('.map-page__events input[name="toasts"]');
+      expect(toggle.checked).toBe(true);
+      toggle.checked = false;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      arrive(drop("a", 5));
+      expect(shown()).toEqual([]);
+
+      page.remove();
+      mount();
+      expect(page.querySelector('.map-page__events input[name="toasts"]').checked).toBe(false);
+    });
+
+    it("show the map where it happened when clicked", () => {
+      const focused = [];
+      pubsub.subscribe("map-focus", (focus) => focused.push(focus));
+      mount();
+      arrive({ ...drop("d", 5), type: "death", location: { x: 3142, y: 9958, plane: 0 } });
+      page.querySelector(".event-toasts__toast").click();
+      expect(focused).toEqual([{ x: 3142, y: 9959, plane: 0, zoom: undefined }]);
+      expect(shown()).toEqual([]);
+    });
+
+    it("start no timer until there is something to show", () => {
+      mount();
+      expect(vi.getTimerCount()).toBe(0);
+    });
+  });
+
   describe("replay", () => {
     const replayButton = () => page.querySelector(".map-page__trails-replay");
     const scrubber = () => page.querySelector("trail-scrubber");

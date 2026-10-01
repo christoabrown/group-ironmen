@@ -34,14 +34,7 @@ map-page {
 .map-page__event-kind {
   display: flex;
   align-items: center;
-  gap: 3px;
   font-size: 0.9rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.map-page__event-kind input {
-  margin: 0;
 }
 
 .map-page__trail-chips {

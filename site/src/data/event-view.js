@@ -27,6 +27,10 @@ export const EVENT_FILTERS_KEY = "map-event-filters";
 // A drop worth this much is notable (tier 1), or a big one (tier 2).
 export const EVENT_TIER_GP = [1000000, 10000000];
 
+// An event this recent is news: it gets a ring on the map and a toast. Older
+// ones that turn up (after the tab was hidden, say) are only put on the map.
+export const EVENT_FRESH_MS = 90000;
+
 // Sprites this site serves itself, so they show with the icon CDN switched off too.
 export const DEATH_ICON_URL = "/icons/1046-0.png";
 
@@ -132,6 +136,12 @@ export function eventPlace(event) {
 export function eventTimeMs(event) {
   const time = Date.parse(event.occurred_at);
   return Number.isNaN(time) ? null : time;
+}
+
+/** Whether an event happened so recently that it is news; `now` in ms, by the server's clock. */
+export function eventIsFresh(event, now) {
+  const time = eventTimeMs(event);
+  return time !== null && now - time < EVENT_FRESH_MS;
 }
 
 function iconHtml(url, className) {

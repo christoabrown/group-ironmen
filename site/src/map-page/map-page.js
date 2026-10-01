@@ -7,6 +7,7 @@ import {
   EVENT_FILTERS_KEY,
   EVENT_KINDS,
   MIN_LOOT_OPTIONS,
+  eventIsFresh,
   eventKind,
   eventLabel,
   eventPasses,
@@ -18,6 +19,7 @@ import { deathMarks } from "../canvas-map/trail-model";
 // be defined before it is.
 import "../canvas-map/canvas-map";
 import "../trail-scrubber/trail-scrubber";
+import "../event-toasts/event-toasts";
 
 const TRAIL_REFRESH_MS = 60000;
 // The first retry after a failed trail request; it doubles up to the normal refresh.
@@ -92,6 +94,7 @@ export class MapPage extends BaseElement {
     this.replayButton = this.querySelector(".map-page__trails-replay");
     this.scrubber = this.querySelector("trail-scrubber");
     this.eventControls = this.querySelector(".map-page__events");
+    this.toasts = this.querySelector("event-toasts");
 
     this.planeSelect.value = this.worldMap.plane || 1;
     this.trailDaysSelect.value = storedTrailDays(this.trailDaysSelect);
@@ -116,6 +119,7 @@ export class MapPage extends BaseElement {
       document.body.classList.toggle("roster-open")
     );
     this.eventListener(this.eventControls, "change", this.handleEventFilterChange.bind(this));
+    this.eventListener(this.toasts, "toast-activated", (event) => this.focusEvent(event.detail.event));
     this.subscribe("features", this.handleFeatures.bind(this));
     this.subscribe("trails-changed", () => this.loadTrails());
     // Only events that arrive while the map is open ping; not the last batch again.
@@ -310,16 +314,22 @@ export class MapPage extends BaseElement {
     const toggles = this.querySelector(".map-page__event-kinds");
     toggles.replaceChildren(
       ...EVENT_KINDS.map((kind) => {
-        const label = document.createElement("label");
-        label.className = "map-page__event-kind";
+        // The box is drawn before a label that follows its input.
+        const toggle = document.createElement("span");
+        toggle.className = "map-page__event-kind";
         const input = document.createElement("input");
         input.type = "checkbox";
+        input.id = `map-event-${kind.key}`;
         input.name = kind.key;
         input.checked = Boolean(this.filters[kind.key]);
-        label.append(input, document.createTextNode(kind.label));
-        return label;
+        const label = document.createElement("label");
+        label.htmlFor = input.id;
+        label.textContent = kind.label;
+        toggle.append(input, label);
+        return toggle;
       })
     );
+    this.querySelector('.map-page__events input[name="toasts"]').checked = Boolean(this.filters.toasts);
     const minLoot = this.querySelector(".map-page__event-min-loot");
     minLoot.replaceChildren(...MIN_LOOT_OPTIONS.map(([value, text]) => new Option(text, String(value))));
     minLoot.value = String(this.filters.minLoot);
@@ -341,15 +351,28 @@ export class MapPage extends BaseElement {
   }
 
   handleLiveEvents({ added }) {
+    const now = api.serverNow();
     for (const event of added) {
-      const ping = pingForEvent(event, groupData.members.get(event.member), this.filters);
+      const member = groupData.members.get(event.member);
+      const ping = pingForEvent(event, member, this.filters);
       if (ping) this.worldMap.addPing(ping);
+      // What turns up late (the tab was hidden, say) is no news any more.
+      if (this.filters.toasts && eventPasses(event, this.filters) && eventIsFresh(event, now)) {
+        this.toasts.show(event, { color: member?.lightColor || colorForName(event.member).light });
+      }
     }
     const deaths = added.filter((event) => event.type === "death");
     if (deaths.length) {
       this.deathEvents = [...deaths, ...this.deathEvents];
       this.showTrailDeaths();
     }
+  }
+
+  /** Brings an event into view and selects its player, as a click on its toast asks. */
+  focusEvent(event) {
+    const place = eventPlace(event);
+    if (place) selection.focusMap(place.x, place.y, place.plane);
+    if (groupData.members.has(event.member)) selection.select(event.member, { follow: !place });
   }
 }
 customElements.define("map-page", MapPage);
