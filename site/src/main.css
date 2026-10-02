@@ -86,7 +86,7 @@ button {
   margin: 0;
 }
 
-button.men-button {
+button.rs-button {
   font-size: 20px;
   font-family: "rssmall";
   color: var(--orange);
@@ -106,20 +106,20 @@ button.men-button {
   background: #4d4336;
 }
 
-.dark-mode button.men-button {
+.dark-mode button.rs-button {
   border-image: url(/ui/border-button-dark.png) 9 9 / 9px stretch;
   background: #282828;
 }
 
-button.men-button:hover {
+button.rs-button:hover {
   background: rgb(66, 55, 38);
 }
 
-.dark-mode button.men-button:hover {
+.dark-mode button.rs-button:hover {
   background: #383838;
 }
 
-button.men-button.small {
+button.rs-button.small {
   padding: 0.2em 0.4em;
 }
 
@@ -284,18 +284,18 @@ ul {
   padding-left: 1em;
 }
 
-.men-control-container {
+.rs-control-container {
   display: flex;
   align-items: center;
   padding: 0.4em;
   margin-left: 8px;
 }
 
-.men-control-container:first-child {
+.rs-control-container:first-child {
   margin-left: 0;
 }
 
-.men-control-container input {
+.rs-control-container input {
   margin: 0 0.5em 0 0;
 }
 

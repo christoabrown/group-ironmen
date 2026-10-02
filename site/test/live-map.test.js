@@ -10,7 +10,7 @@ import { EVENT_FRAME_MS, EVENT_MARKER_MS, EVENT_WAKE_MS } from "../src/canvas-ma
 import { EVENT_PLACES_KEY } from "../src/canvas-map/event-places";
 import { api } from "../src/data/api";
 import { defaultEventFilters } from "../src/data/event-view";
-import { groupData } from "../src/data/group-data";
+import { guildData } from "../src/data/guild-data";
 import { tooltipManager } from "../src/rs-tooltip/tooltip-manager";
 import { LiveEvents, newsTracker } from "../src/data/live-events";
 import { pubsub } from "../src/data/pubsub";
@@ -377,7 +377,7 @@ describe("events on the map", () => {
     });
 
     it("select their player and come to the middle of the map when clicked", () => {
-      groupData.members = new Map([["Alice", {}]]);
+      guildData.members = new Map([["Alice", {}]]);
       const selected = [];
       pubsub.subscribe("player-selected", (value) => selected.push(value));
       // Off to one side, but in view.
@@ -394,7 +394,7 @@ describe("events on the map", () => {
     });
 
     it("leave the selection alone when the press turns into a drag", () => {
-      groupData.members = new Map([["Alice", {}]]);
+      guildData.members = new Map([["Alice", {}]]);
       const selected = [];
       pubsub.subscribe("player-selected", (value) => selected.push(value));
       map.startDragging = vi.fn();
@@ -429,7 +429,7 @@ describe("events on the map", () => {
     });
 
     it("show where the player is now for an event that is no longer on the map", () => {
-      groupData.members = new Map([["Alice", {}]]);
+      guildData.members = new Map([["Alice", {}]]);
       const selected = [];
       pubsub.subscribe("player-selected", (value) => selected.push(value));
 

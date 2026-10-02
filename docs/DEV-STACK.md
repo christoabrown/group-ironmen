@@ -132,7 +132,7 @@ README) and the Grand Exchange prices (the backend fetches them from prices.rune
    instead, and open the tab with `preview_start` and a `url`.
 2. Log in as in step 5 above: press the button and follow the Mock Admin link. When the pane is not on
    screen a click may not arrive; `find` the link and `navigate` to its address instead.
-3. Look at the feature. The map is at `/group`; the Players list is on the left, and a click on a
+3. Look at the feature. The map is at `/guild`; the Players list is on the left, and a click on a
    row selects that player. Zezima is the one to test trails and replays with: work out the minute of
    his lap first, so you know what should be on screen.
 4. Read text and structure with `read_page` or `get_page_text`. The map itself is a canvas and needs

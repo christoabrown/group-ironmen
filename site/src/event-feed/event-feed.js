@@ -5,7 +5,7 @@ import { relativeTime } from "../data/format";
 import { eventIconUrl, eventPlace } from "../data/event-view";
 import { selection } from "../data/selection";
 import { newsTracker } from "../data/live-events";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 
 const EVENT_FILTERS = [
   { label: "All", types: [] },
@@ -70,7 +70,7 @@ export class EventFeed extends BaseElement {
       ...EVENT_FILTERS.map((filter, index) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "men-button small event-feed__filter";
+        button.className = "rs-button small event-feed__filter";
         button.classList.toggle("active", index === this.filterIndex);
         button.dataset.index = String(index);
         button.textContent = filter.label;
@@ -94,7 +94,7 @@ export class EventFeed extends BaseElement {
     if (!found) return;
     const place = eventPlace(found);
     if (place) selection.focusMap(place.x, place.y, place.plane);
-    if (!this.playerName && groupData.members.has(found.member)) {
+    if (!this.playerName && guildData.members.has(found.member)) {
       selection.select(found.member, { follow: !place });
     }
   }
@@ -152,7 +152,7 @@ export class EventFeed extends BaseElement {
 
     const text = document.createElement("span");
     text.className = "event-feed__text";
-    const member = groupData.members.get(event.member);
+    const member = guildData.members.get(event.member);
     if (member && !this.playerName) {
       text.style.setProperty("--member-color", member.lightColor);
     }

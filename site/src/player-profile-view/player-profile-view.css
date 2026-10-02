@@ -86,7 +86,7 @@ player-profile-view {
   margin-top: 8px;
 }
 
-.player-profile-view__actions .men-button:disabled {
+.player-profile-view__actions .rs-button:disabled {
   opacity: 0.5;
   cursor: default;
 }

@@ -4,7 +4,7 @@
 // game; y goes down where the game's goes up.
 //
 // Positions of game tiles are in the site's coordinates, whose y is one more
-// than the game's (see GroupData.transformCoordinatesFromStorage). That makes
+// than the game's (see GuildData.transformCoordinatesFromStorage). That makes
 // `-y * 4 + 256` the top of a tile, not its bottom.
 
 export const PIXELS_PER_GAME_TILE = 4;

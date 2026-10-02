@@ -7,7 +7,7 @@ import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { liveEvents } from "../data/live-events";
 import { selection } from "../data/selection";
 import { loadRegions } from "../data/regions";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 
 export class AppInitializer extends BaseElement {
   constructor() {
@@ -43,7 +43,7 @@ export class AppInitializer extends BaseElement {
     // The server says who is signed in. When nobody is, the login page is next.
     const [who] = await Promise.all([session.load(), Item.loadItems(), Item.loadGePrices()]);
     // Place names aren't needed to show the map; fill them in when they arrive.
-    loadRegions().then(() => groupData.refreshRegions());
+    loadRegions().then(() => guildData.refreshRegions());
 
     // Make sure this component is still connected after loading the above.
     if (this.isConnected) {
@@ -64,7 +64,7 @@ export class AppInitializer extends BaseElement {
     api.loadFeatures().then((features) => {
       if (features.hub_history && this.isConnected) liveEvents.start();
     });
-    const firstDataEvent = pubsub.waitUntilNextEvent("get-group-data", false);
+    const firstDataEvent = pubsub.waitUntilNextEvent("members-polled", false);
     await api.enable();
     await firstDataEvent;
   }

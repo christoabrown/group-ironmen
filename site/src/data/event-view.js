@@ -1,4 +1,4 @@
-import { GroupData } from "./group-data";
+import { GuildData } from "./guild-data";
 import { Item } from "./item";
 import { skillIconUrl } from "./icons";
 import { describeEvent } from "./hub-format";
@@ -146,7 +146,7 @@ export function eventLabel(event) {
 export function eventPlace(event) {
   const location = event.location;
   if (!location) return null;
-  return GroupData.transformCoordinatesFromStorage([location.x, location.y, location.plane || 0]);
+  return GuildData.transformCoordinatesFromStorage([location.x, location.y, location.plane || 0]);
 }
 
 /** When an event happened, in ms since the epoch; null when it doesn't say. */

@@ -1,4 +1,4 @@
-import { GroupData } from "../data/group-data";
+import { GuildData } from "../data/guild-data";
 import { eventKind, eventPlace, eventTier, eventTimeMs } from "../data/event-view";
 import { clockTime, shortDay } from "../data/format";
 
@@ -60,7 +60,7 @@ export function decodeTrail(raw) {
       world = worlds[nextWorld][1];
       nextWorld += 1;
     }
-    const coordinates = GroupData.transformCoordinatesFromStorage([x, y, plane]);
+    const coordinates = GuildData.transformCoordinatesFromStorage([x, y, plane]);
     if (
       [coordinates.x, coordinates.y, coordinates.plane, time].some((value) => typeof value !== "number" || isNaN(value))
     ) {

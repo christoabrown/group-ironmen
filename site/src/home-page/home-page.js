@@ -1,12 +1,12 @@
 import { BaseElement } from "../base-element/base-element";
 
-export class MenHomepage extends BaseElement {
+export class HomePage extends BaseElement {
   constructor() {
     super();
   }
 
   html() {
-    return `{{men-homepage.html}}`;
+    return `{{home-page.html}}`;
   }
 
   connectedCallback() {
@@ -19,4 +19,4 @@ export class MenHomepage extends BaseElement {
   }
 }
 
-customElements.define("men-homepage", MenHomepage);
+customElements.define("home-page", HomePage);

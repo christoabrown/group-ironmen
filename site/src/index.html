@@ -44,7 +44,7 @@
     <loading-screen></loading-screen>
     <app-route
       route-path="/"
-      route-component="men-homepage"
+      route-component="home-page"
       route-outlet=".unauthed-section__outlet"
       route-wrapper=".unauthed-section"
     ></app-route>
@@ -76,7 +76,7 @@
     <app-route route-path="/map" alias-for="/" route-wrapper=".authed-section"></app-route>
     <app-route
       route-path="/settings"
-      route-component="group-settings"
+      route-component="settings-page"
       route-outlet=".authed-section__outlet"
       route-wrapper=".authed-section"
     ></app-route>
@@ -113,7 +113,7 @@
       </template>
     </wrap-routes>
 
-    <wrap-routes class="authed-section" route-path="/group">
+    <wrap-routes class="authed-section" route-path="/guild">
       <template>
         <app-initializer></app-initializer>
         <div class="authed-section__main-content">

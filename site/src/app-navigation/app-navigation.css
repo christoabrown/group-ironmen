@@ -22,7 +22,7 @@ app-navigation {
   }
 }
 
-app-navigation .men-button img {
+app-navigation .rs-button img {
   height: 24px;
 }
 .app-navigation__nav {
@@ -37,17 +37,17 @@ app-navigation .men-button img {
   flex-grow: 1;
 }
 
-.app-navigation__nav men-link {
+.app-navigation__nav app-link {
   margin: 0;
 }
 
-.app-navigation__group-name {
+.app-navigation__guild-name {
   color: white;
   font-size: 1.5em;
   margin-right: 1em;
   font-weight: 300;
 }
 
-.app-navigation__nav men-link[hidden] {
+.app-navigation__nav app-link[hidden] {
   display: none;
 }

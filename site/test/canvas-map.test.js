@@ -16,7 +16,7 @@ vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
 import { ICON_SPRITE_SIZE } from "../src/canvas-map/canvas-map";
 import { GAME_TILES_PER_MAP_TILE } from "../src/canvas-map/map-space";
 import { centerOn as centerCameraOn, createMap as createMapInstance } from "./helpers/map";
-import { GroupData } from "../src/data/group-data";
+import { GuildData } from "../src/data/guild-data";
 
 function createMockCtx() {
   return {
@@ -1430,7 +1430,7 @@ describe("CanvasMap trails", () => {
   const member = (extra = {}) => ({
     name: "Alice",
     inactive: false,
-    coordinates: GroupData.transformCoordinatesFromStorage([3230, 3200, 0]),
+    coordinates: GuildData.transformCoordinatesFromStorage([3230, 3200, 0]),
     ...extra,
   });
 

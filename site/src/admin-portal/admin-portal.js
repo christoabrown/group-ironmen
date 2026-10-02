@@ -48,7 +48,7 @@ export class AdminPortal extends BaseElement {
     // Not known yet, or nobody: the page is on its way to the login then.
     if (!who) return;
     if (!who.is_admin) {
-      window.history.pushState("", "", "/group");
+      window.history.pushState("", "", "/guild");
       return;
     }
     if (this.shown) return;
@@ -108,7 +108,7 @@ export class AdminPortal extends BaseElement {
     }
 
     const button = document.createElement("button");
-    button.className = "men-button";
+    button.className = "rs-button";
     button.textContent = "Test connection";
     const result = document.createElement("div");
     button.addEventListener("click", async () => {
@@ -199,7 +199,7 @@ export class AdminPortal extends BaseElement {
   }
 
   actionButton(action, playerName) {
-    const button = el("button", "men-button", action[0].toUpperCase() + action.slice(1));
+    const button = el("button", "rs-button", action[0].toUpperCase() + action.slice(1));
     button.type = "button";
     button.dataset.playerAction = action;
     button.addEventListener("click", () => this.handlePlayerAction(action, playerName));

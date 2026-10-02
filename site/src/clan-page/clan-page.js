@@ -1,7 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { el } from "../dom";
 import { api } from "../data/api";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 import { eventIconUrl } from "../data/event-view";
 import { selection } from "../data/selection";
 import { groupByRegion, groupByWorld } from "../data/regions";
@@ -116,7 +116,7 @@ export class ClanPage extends BaseElement {
   }
 
   renderPresence() {
-    const members = [...groupData.members.values()];
+    const members = [...guildData.members.values()];
     const online = members.filter((member) => member.online);
     const regions = groupByRegion(members);
     const worlds = groupByWorld(members);
@@ -172,13 +172,13 @@ export class ClanPage extends BaseElement {
     const header = event.target.closest(".clan-page__region-name");
     if (!header) return;
     selection.focusMap(Number(header.dataset.x), Number(header.dataset.y), Number(header.dataset.plane), 2);
-    window.history.pushState("", "", "/group");
+    window.history.pushState("", "", "/guild");
   }
 
   handlePlayerClick(event) {
     const chip = event.target.closest("[data-name]");
     if (!chip) return false;
-    if (groupData.members.has(chip.dataset.name)) selection.select(chip.dataset.name, { follow: false });
+    if (guildData.members.has(chip.dataset.name)) selection.select(chip.dataset.name, { follow: false });
     return true;
   }
 
@@ -211,7 +211,7 @@ export class ClanPage extends BaseElement {
     this.gainsList.replaceChildren(
       ...entries.map((entry) => {
         const row = el("li", "clan-page__gain");
-        const member = groupData.members.get(entry.name);
+        const member = guildData.members.get(entry.name);
         const name = member ? this.playerChip(member) : el("span", "", entry.name);
         row.append(name, el("span", "clan-page__gain-xp", `+${entry.gain.toLocaleString()} xp`));
         return row;
@@ -268,7 +268,7 @@ export class ClanPage extends BaseElement {
     when.title = new Date(event.occurred_at).toLocaleString();
     text.append(line, when);
     const value = el("span", "clan-page__drop-value", `${formatGp(event.value_gp)}`);
-    const member = groupData.members.get(event.member);
+    const member = guildData.members.get(event.member);
     if (member) row.dataset.name = member.name;
     row.append(icon, text, value);
     return row;

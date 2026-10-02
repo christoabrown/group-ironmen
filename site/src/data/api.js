@@ -1,6 +1,6 @@
 import { pubsub } from "./pubsub";
 import { utility } from "../utility";
-import { groupData } from "./group-data";
+import { guildData } from "./guild-data";
 
 // The hub sync writes every 5 s; polling faster only costs requests.
 const POLL_INTERVAL_MS = 2000;
@@ -39,39 +39,39 @@ class Api {
 
     if (!this.enabled) {
       this.enabled = true;
-      this.getGroupInterval = pubsub.waitForAllEvents("item-data-loaded").then(() => {
-        return utility.callOnInterval(this.getGroupData.bind(this), POLL_INTERVAL_MS);
+      this.pollInterval = pubsub.waitForAllEvents("item-data-loaded").then(() => {
+        return utility.callOnInterval(this.pollMembers.bind(this), POLL_INTERVAL_MS);
       });
     }
 
-    await this.getGroupInterval;
+    await this.pollInterval;
   }
 
   async disable() {
     this.enabled = false;
-    groupData.members = new Map();
-    if (this.getGroupInterval) {
-      window.clearInterval(await this.getGroupInterval);
+    guildData.members = new Map();
+    if (this.pollInterval) {
+      window.clearInterval(await this.pollInterval);
     }
   }
 
-  async getGroupData() {
+  async pollMembers() {
     const response = await this.request(`/members?from_time=${this.nextCheck}`);
     if (!response.ok) {
       if (response.status === 401) {
         // The session ran out, or the hub no longer calls them a member.
         await this.disable();
         window.history.pushState("", "", "/login");
-        pubsub.publish("get-group-data");
+        pubsub.publish("members-polled");
       }
       return;
     }
 
-    const newGroupData = await response.json();
-    const serverTime = Date.parse(newGroupData.cursor);
+    const newGuildData = await response.json();
+    const serverTime = Date.parse(newGuildData.cursor);
     if (!isNaN(serverTime)) this.clockOffsetMs = serverTime - Date.now();
-    this.nextCheck = groupData.update(newGroupData).toISOString();
-    pubsub.publish("get-group-data", groupData);
+    this.nextCheck = guildData.update(newGuildData).toISOString();
+    pubsub.publish("members-polled", guildData);
   }
 
   getGePrices() {

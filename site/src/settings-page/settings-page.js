@@ -1,7 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { appearance } from "../appearance";
 
-export class GroupSettings extends BaseElement {
+export class SettingsPage extends BaseElement {
   constructor() {
     super();
   }
@@ -10,15 +10,15 @@ export class GroupSettings extends BaseElement {
   html() {
     const selectedPanelDockSide = appearance.getLayout();
     const style = appearance.getTheme();
-    return `{{group-settings.html}}`;
+    return `{{settings-page.html}}`;
   }
   /* eslint-enable no-unused-vars */
 
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.panelDockSide = this.querySelector(".group-settings__panels");
-    this.appearanceStyle = this.querySelector(".group-settings__style");
+    this.panelDockSide = this.querySelector(".settings-page__panels");
+    this.appearanceStyle = this.querySelector(".settings-page__style");
     this.eventListener(this.panelDockSide, "change", this.handlePanelDockSideChange.bind(this));
     this.eventListener(this.appearanceStyle, "change", this.handleStyleChange.bind(this));
   }
@@ -43,4 +43,4 @@ export class GroupSettings extends BaseElement {
   }
 }
 
-customElements.define("group-settings", GroupSettings);
+customElements.define("settings-page", SettingsPage);

@@ -135,7 +135,7 @@ describe("SkillGraph.createTable", () => {
     graph.skillName = SkillName.Attack;
     graph.period = "Day";
     graph.tableContainer = document.createElement("div");
-    graph.currentGroupData = { members: new Map() };
+    graph.currentGuildData = { members: new Map() };
 
     graph.createTable([
       {
@@ -162,9 +162,9 @@ describe("SkillGraph with players missing from the roster", () => {
     graph.period = "Week";
     graph.dates = SkillGraph.datesForPeriod("Week");
     graph.tableContainer = document.createElement("div");
-    graph.currentGroupData = { members: new Map() };
+    graph.currentGuildData = { members: new Map() };
     const snapshot = (xp) => Object.fromEntries(Object.values(SkillName).map((skillName) => [skillName, xp]));
-    graph.skillDataForGroup = [
+    graph.skillDataForGuild = [
       {
         name: "Gone Player",
         skill_data: [

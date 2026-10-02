@@ -40,7 +40,7 @@ describe("app initializer", () => {
 
     await vi.waitFor(() => expect(signedInWhenPublished).toEqual(["Alice"]));
     expect(selection.hasTrail("Alice")).toBe(true);
-    pubsub.publish("get-group-data");
+    pubsub.publish("members-polled");
   });
 
   it("goes to the login page when nobody is signed in, and starts nothing", async () => {

@@ -1,4 +1,4 @@
-men-homepage {
+home-page {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -8,7 +8,7 @@ men-homepage {
   color: white;
 }
 
-.men-homepage__container {
+.home-page__container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -17,13 +17,13 @@ men-homepage {
   flex-direction: column;
 }
 
-.men-homepage__container h1 {
+.home-page__container h1 {
   text-shadow: 3px 3px var(--black);
   font-size: min(128px, 16vw);
   margin: 0;
 }
 
-.men-homepage__links {
+.home-page__links {
   margin-top: 1.5em;
   display: flex;
 }

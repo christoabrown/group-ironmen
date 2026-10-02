@@ -1,7 +1,7 @@
 /* global Chart */
 import { BaseElement } from "../base-element/base-element";
 import { Skill, SkillName } from "../data/skill";
-import { groupData as liveGroupData } from "../data/group-data";
+import { guildData as liveGuildData } from "../data/guild-data";
 import { colorForName } from "../data/player-colors";
 
 function hslToHsla(color, alpha) {
@@ -35,7 +35,7 @@ export class SkillGraph extends BaseElement {
     this.tableContainer = this.querySelector(".skill-graph__table-container");
     this.ctx = this.querySelector("canvas").getContext("2d");
 
-    this.subscribeOnce("get-group-data", this.create.bind(this));
+    this.subscribeOnce("members-polled", this.create.bind(this));
   }
 
   disconnectedCallback() {
@@ -45,10 +45,10 @@ export class SkillGraph extends BaseElement {
     }
   }
 
-  create(groupData) {
+  create(guildData) {
     if (!this.isConnected) return;
     // A failed poll publishes without data; fall back to what we have.
-    this.currentGroupData = groupData || liveGroupData;
+    this.currentGuildData = guildData || liveGuildData;
     this.dates = SkillGraph.datesForPeriod(this.period);
     const dataSets = this.dataSets(this.skillName);
 
@@ -177,7 +177,7 @@ export class SkillGraph extends BaseElement {
       return tableData[b][this.skillName].xpGain - tableData[a][this.skillName].xpGain;
     });
 
-    let groupTotalXpGain = 0;
+    let guildTotalXpGain = 0;
     let activeCount = 0;
     let topContributor = null;
     let topXpGain = 0;
@@ -186,7 +186,7 @@ export class SkillGraph extends BaseElement {
       const name = playerNames[rankIdx];
       const x = tableData[name];
       const xpGain = x[this.skillName].xpGain;
-      groupTotalXpGain += xpGain;
+      guildTotalXpGain += xpGain;
       if (xpGain > 0) activeCount++;
       if (xpGain > topXpGain) {
         topXpGain = xpGain;
@@ -207,29 +207,29 @@ export class SkillGraph extends BaseElement {
       }
     }
 
-    const groupTotalSign = groupTotalXpGain > 0 ? "+" : "";
-    const avgGain = playerNames.length > 0 ? Math.round(groupTotalXpGain / playerNames.length) : 0;
+    const guildTotalSign = guildTotalXpGain > 0 ? "+" : "";
+    const avgGain = playerNames.length > 0 ? Math.round(guildTotalXpGain / playerNames.length) : 0;
 
-    let groupTotalLevel = 0;
+    let guildTotalLevel = 0;
     if (this.skillName === SkillName.Overall) {
       for (const name of playerNames) {
-        const member = this.currentGroupData?.members?.get(name);
+        const member = this.currentGuildData?.members?.get(name);
         if (member?.skills?.[SkillName.Overall]?.level) {
-          groupTotalLevel += member.skills[SkillName.Overall].level;
+          guildTotalLevel += member.skills[SkillName.Overall].level;
         }
       }
     }
 
     const summaryParts = [
-      `<span>Total XP: ${groupTotalSign}${groupTotalXpGain.toLocaleString()}</span>`,
-      `<span>Avg: ${groupTotalSign}${avgGain.toLocaleString()}</span>`,
+      `<span>Total XP: ${guildTotalSign}${guildTotalXpGain.toLocaleString()}</span>`,
+      `<span>Avg: ${guildTotalSign}${avgGain.toLocaleString()}</span>`,
       `<span>Active: ${activeCount}/${playerNames.length}</span>`,
     ];
     if (topContributor) {
       summaryParts.push(`<span>Top: ${topContributor} (+${topXpGain.toLocaleString()})</span>`);
     }
-    if (groupTotalLevel > 0) {
-      summaryParts.push(`<span>Combined total level: ${groupTotalLevel.toLocaleString()}</span>`);
+    if (guildTotalLevel > 0) {
+      summaryParts.push(`<span>Combined total level: ${guildTotalLevel.toLocaleString()}</span>`);
     }
 
     this.tableContainer.innerHTML = `
@@ -340,10 +340,10 @@ export class SkillGraph extends BaseElement {
 
   dataSets(skillName) {
     const result = [];
-    for (const playerSkillData of this.skillDataForGroup || []) {
+    for (const playerSkillData of this.skillDataForGuild || []) {
       if (!playerSkillData?.skill_data?.length) continue;
       const [totalXpData, changeData, cumulativeChangeData] = this.dataForPlayer(playerSkillData, skillName);
-      const member = this.currentGroupData?.members?.get(playerSkillData.name);
+      const member = this.currentGuildData?.members?.get(playerSkillData.name);
       const color = member?.color ?? colorForName(playerSkillData.name).color;
 
       result.push({
@@ -369,7 +369,7 @@ export class SkillGraph extends BaseElement {
   }
 
   dataForPlayer(playerSkillData, skillName) {
-    const latestSkillData = this.currentGroupData?.members?.get(playerSkillData.name)?.skills;
+    const latestSkillData = this.currentGuildData?.members?.get(playerSkillData.name)?.skills;
     const completeTimeSeries = this.generateCompleteTimeSeries(playerSkillData.skill_data, latestSkillData, skillName);
     const changeData = [0];
     const cumulativeChangeData = [0];

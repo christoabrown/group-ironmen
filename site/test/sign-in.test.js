@@ -92,7 +92,7 @@ describe("coming back from Discord", () => {
 
     expect(api.discordCallback).toHaveBeenCalledWith("the-code", "the-state");
     expect(session.current).toEqual({ name: "Alice", is_admin: false });
-    expect(pushState).toHaveBeenCalledWith("", "", "/group");
+    expect(pushState).toHaveBeenCalledWith("", "", "/guild");
     // Nothing of the session is kept where a script could read it.
     expect(localStorage.length).toBe(0);
   });
@@ -143,7 +143,7 @@ describe("signing out", () => {
 describe("the navigation", () => {
   it("shows the name and the Admin link once it is known who is signed in", () => {
     const nav = mount("app-navigation");
-    const name = nav.querySelector(".app-navigation__group-name");
+    const name = nav.querySelector(".app-navigation__guild-name");
     const admin = nav.querySelector(".app-navigation__admin");
     expect(admin.hidden).toBe(true);
 
@@ -184,7 +184,7 @@ describe("the admin page", () => {
 
     session.set({ name: "Alice", is_admin: false });
     await settle();
-    expect(pushState).toHaveBeenCalledWith("", "", "/group");
+    expect(pushState).toHaveBeenCalledWith("", "", "/guild");
     expect(api.adminListPlayers).not.toHaveBeenCalled();
   });
 

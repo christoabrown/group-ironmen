@@ -1,7 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { el } from "../dom";
 import { api } from "../data/api";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 import { selection, MAX_TRAILS } from "../data/selection";
 import { Item } from "../data/item";
 import { Skill, SkillName } from "../data/skill";
@@ -122,7 +122,7 @@ export class PlayerProfileView extends BaseElement {
   }
 
   get member() {
-    return groupData.members.get(this.playerName);
+    return guildData.members.get(this.playerName);
   }
 
   updateHeader() {

@@ -10,7 +10,7 @@ map-page {
   padding: 0 4px;
 }
 
-.map-page__container .men-control-container {
+.map-page__container .rs-control-container {
   margin-left: 0;
   gap: 6px;
   flex-wrap: wrap;

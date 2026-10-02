@@ -1,5 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 import { reorder } from "../dom";
 import { filterMembers, sortLabel, sortMembers, totalLevel, world } from "../data/roster-model";
 import { relativeTime } from "../data/format";
@@ -114,7 +114,7 @@ export class PlayerRoster extends BaseElement {
 
   handleRosterChanged(names) {
     for (const name of names) {
-      const member = groupData.members.get(name);
+      const member = guildData.members.get(name);
       if (member && this.rows.has(name)) this.updateRow(member);
     }
     this.refreshOrder();
@@ -233,13 +233,13 @@ export class PlayerRoster extends BaseElement {
   refreshTimes() {
     const now = new Date();
     for (const [name, row] of this.rows) {
-      const member = groupData.members.get(name);
+      const member = guildData.members.get(name);
       if (member && !member.online) row.placeEl.textContent = this.placeText(member, now);
     }
   }
 
   refreshOrder() {
-    const members = [...this.rows.keys()].map((name) => groupData.members.get(name)).filter(Boolean);
+    const members = [...this.rows.keys()].map((name) => guildData.members.get(name)).filter(Boolean);
     const visible = filterMembers(members, { text: this.text, status: this.status });
     const order = sortMembers(visible, this.sort).map((member) => member.name);
 

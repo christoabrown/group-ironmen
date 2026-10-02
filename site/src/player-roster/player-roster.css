@@ -56,7 +56,7 @@ player-roster {
   gap: 4px;
 }
 
-.player-roster__chips .men-button.active {
+.player-roster__chips .rs-button.active {
   filter: brightness(1.5);
 }
 

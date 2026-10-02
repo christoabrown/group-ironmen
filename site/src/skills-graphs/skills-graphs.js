@@ -2,7 +2,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { SkillName } from "../data/skill";
-import { GroupData, groupData } from "../data/group-data";
+import { GuildData, guildData } from "../data/guild-data";
 import { colorForName } from "../data/player-colors";
 import { sortMembers } from "../data/roster-model";
 
@@ -54,7 +54,7 @@ export class SkillsGraphs extends BaseElement {
 
     this.renderPicker();
     this.subscribe("members-updated", this.renderPlayerOptions.bind(this));
-    this.subscribeOnce("get-group-data", this.createChart.bind(this));
+    this.subscribeOnce("members-polled", this.createChart.bind(this));
   }
 
   disconnectedCallback() {
@@ -63,7 +63,7 @@ export class SkillsGraphs extends BaseElement {
 
   handleSkillSelectChange() {
     this.selectedSkill = this.skillSelect.value;
-    this.subscribeOnce("get-group-data", this.createChart.bind(this));
+    this.subscribeOnce("members-polled", this.createChart.bind(this));
   }
 
   handlePeriodChange(event) {
@@ -71,11 +71,11 @@ export class SkillsGraphs extends BaseElement {
     this.periodButtons.forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.period === this.period);
     });
-    this.subscribeOnce("get-group-data", this.createChart.bind(this));
+    this.subscribeOnce("members-polled", this.createChart.bind(this));
   }
 
   handleRefreshClicked() {
-    this.subscribeOnce("get-group-data", this.createChart.bind(this));
+    this.subscribeOnce("members-polled", this.createChart.bind(this));
   }
 
   handleChipClick(event) {
@@ -102,7 +102,7 @@ export class SkillsGraphs extends BaseElement {
   findPlayer(text, exact) {
     const query = text.trim().toLowerCase();
     if (!query) return null;
-    const candidates = groupData.sortedMembers().filter((member) => !this.selectedNames?.includes(member.name));
+    const candidates = guildData.sortedMembers().filter((member) => !this.selectedNames?.includes(member.name));
     const match =
       candidates.find((member) => member.name.toLowerCase() === query) ||
       (exact ? null : candidates.find((member) => member.name.toLowerCase().includes(query)));
@@ -119,7 +119,7 @@ export class SkillsGraphs extends BaseElement {
   setSelection(names) {
     this.selectedNames = names;
     this.renderPicker();
-    this.subscribeOnce("get-group-data", this.createChart.bind(this));
+    this.subscribeOnce("members-polled", this.createChart.bind(this));
   }
 
   renderPicker() {
@@ -152,7 +152,7 @@ export class SkillsGraphs extends BaseElement {
 
   renderPlayerOptions() {
     const selected = new Set(this.selectedNames || []);
-    const options = groupData
+    const options = guildData
       .sortedMembers()
       .filter((member) => !selected.has(member.name))
       .map((member) => new Option(member.name, member.name));
@@ -160,12 +160,12 @@ export class SkillsGraphs extends BaseElement {
   }
 
   static colorFor(name) {
-    return groupData.members.get(name)?.color ?? colorForName(name).color;
+    return guildData.members.get(name)?.color ?? colorForName(name).color;
   }
 
   /** The top gainers of the period on the hub, or the players with the most XP. */
   async defaultSelection() {
-    const known = (name) => groupData.members.size === 0 || groupData.members.has(name);
+    const known = (name) => guildData.members.size === 0 || guildData.members.has(name);
     try {
       const gains = await api.getHubGains(HUB_PERIODS[this.period] || "day");
       const board = (gains?.leaderboards || []).find((b) => String(b.skill).toLowerCase() === "overall");
@@ -178,7 +178,7 @@ export class SkillsGraphs extends BaseElement {
     } catch {
       // Fall back to the players with the most XP below.
     }
-    return sortMembers([...groupData.members.values()], "xp")
+    return sortMembers([...guildData.members.values()], "xp")
       .slice(0, DEFAULT_GRAPH_PLAYERS)
       .map((member) => member.name);
   }
@@ -213,14 +213,14 @@ export class SkillsGraphs extends BaseElement {
 
       const [skillData] = await Promise.all([api.getSkillData(this.period, this.selectedNames), this.waitForChartjs()]);
       if (generation !== this.chartGeneration) return;
-      const skillDataForGroup = (Array.isArray(skillData) ? skillData : []).filter(
+      const skillDataForGuild = (Array.isArray(skillData) ? skillData : []).filter(
         (playerSkillData) => playerSkillData?.name && playerSkillData.skill_data?.length,
       );
-      skillDataForGroup.sort((a, b) => a.name.localeCompare(b.name));
-      skillDataForGroup.forEach((playerSkillData) => {
+      skillDataForGuild.sort((a, b) => a.name.localeCompare(b.name));
+      skillDataForGuild.forEach((playerSkillData) => {
         playerSkillData.skill_data.forEach((x) => {
           x.time = new Date(x.time);
-          x.data = GroupData.transformSkillsFromStorage(x.data);
+          x.data = GuildData.transformSkillsFromStorage(x.data);
         });
         playerSkillData.skill_data.sort((a, b) => b.time - a.time);
       });
@@ -233,7 +233,7 @@ export class SkillsGraphs extends BaseElement {
       Chart.defaults.scale.grid.color = style.getPropertyValue("--graph-grid-border");
 
       const skillGraph = document.createElement("skill-graph");
-      skillGraph.skillDataForGroup = skillDataForGroup;
+      skillGraph.skillDataForGuild = skillDataForGuild;
       skillGraph.setAttribute("data-period", this.period);
       skillGraph.setAttribute("skill-name", this.selectedSkill);
       this.chartContainer.appendChild(skillGraph);

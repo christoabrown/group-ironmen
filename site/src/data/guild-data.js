@@ -3,7 +3,7 @@ import { MemberData } from "./member-data";
 import { SkillName } from "./skill";
 import { utility } from "../utility";
 
-export class GroupData {
+export class GuildData {
   constructor() {
     this.members = new Map();
   }
@@ -169,13 +169,13 @@ export class GroupData {
 }
 
 const storageFieldTransformers = [
-  ["inventory", GroupData.transformItemsFromStorage],
-  ["equipment", GroupData.transformItemsFromStorage],
-  ["skills", GroupData.transformSkillsFromStorage],
-  ["stats", GroupData.transformStatsFromStorage],
-  ["coordinates", GroupData.transformCoordinatesFromStorage],
+  ["inventory", GuildData.transformItemsFromStorage],
+  ["equipment", GuildData.transformItemsFromStorage],
+  ["skills", GuildData.transformSkillsFromStorage],
+  ["stats", GuildData.transformStatsFromStorage],
+  ["coordinates", GuildData.transformCoordinatesFromStorage],
 ];
 
-const groupData = new GroupData();
+const guildData = new GuildData();
 
-export { groupData };
+export { guildData };

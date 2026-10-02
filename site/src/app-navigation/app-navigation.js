@@ -13,7 +13,7 @@ export class AppNavigation extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    this.nameEl = this.querySelector(".app-navigation__group-name");
+    this.nameEl = this.querySelector(".app-navigation__guild-name");
     this.adminLink = this.querySelector(".app-navigation__admin");
     this.handleSession(session.current);
     this.subscribe("route-activated", this.handleRouteActivated.bind(this));

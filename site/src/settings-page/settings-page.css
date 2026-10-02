@@ -1,8 +1,8 @@
-group-settings {
+settings-page {
   display: flex;
 }
 
-.group-settings__container {
+.settings-page__container {
   padding: 8px 12px;
   max-width: 500px;
   width: 100%;

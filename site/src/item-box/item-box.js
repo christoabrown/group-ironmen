@@ -1,5 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 // eslint-disable-next-line no-unused-vars
 import { Item } from "../data/item";
 
@@ -20,7 +20,7 @@ export class ItemBox extends BaseElement {
 
     this.enableTooltip();
     const inventoryType = this.getAttribute("inventory-type");
-    const totalInventoryQuantity = groupData.inventoryQuantityForItem(this.item.id, this.playerName, inventoryType);
+    const totalInventoryQuantity = guildData.inventoryQuantityForItem(this.item.id, this.playerName, inventoryType);
     const stackHighAlch = totalInventoryQuantity * this.item.highAlch;
     const stackGePrice = totalInventoryQuantity * this.item.gePrice;
 

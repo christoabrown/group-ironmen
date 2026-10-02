@@ -5,7 +5,7 @@ import { Animation } from "./animation";
 import { selection } from "../data/selection";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 import { escapeHtml } from "../data/format";
 import { clusterPoints } from "./event-markers";
 import { EventLayer } from "./event-layer";
@@ -1013,7 +1013,7 @@ export class CanvasMap extends BaseElement {
    * shows where its player is now.
    */
   goToEvent(event) {
-    const known = groupData.members.has(event.member);
+    const known = guildData.members.has(event.member);
     // Selected first: the map keeps the event clear of the drawer that opens.
     if (known) selection.select(event.member, { follow: false });
     const shown = this.focusEvent(event.id);

@@ -1,13 +1,13 @@
 import { BaseElement } from "../base-element/base-element";
 
-export class MenLink extends BaseElement {
+export class AppLink extends BaseElement {
   constructor() {
     super();
   }
 
   html() {
     this.href = this.getAttribute("link-href");
-    return `{{men-link.html}}`;
+    return `{{app-link.html}}`;
   }
 
   connectedCallback() {
@@ -26,4 +26,4 @@ export class MenLink extends BaseElement {
   }
 }
 
-customElements.define("men-link", MenLink);
+customElements.define("app-link", AppLink);

@@ -48,7 +48,7 @@ export class DiscordCallback extends BaseElement {
       const response = await api.discordCallback(code, state);
       if (response.ok) {
         session.set(await response.json());
-        window.history.pushState("", "", "/group");
+        window.history.pushState("", "", "/guild");
       } else {
         this.fail((await response.text()) || "Discord login failed");
       }

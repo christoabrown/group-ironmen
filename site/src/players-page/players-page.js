@@ -1,6 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { reorder } from "../dom";
-import { groupData } from "../data/group-data";
+import { guildData } from "../data/guild-data";
 import { carriedValue, filterMembers, overallXp, sortMembers, totalLevel, world } from "../data/roster-model";
 import { formatGp, relativeTime } from "../data/format";
 import { selection } from "../data/selection";
@@ -128,11 +128,11 @@ export class PlayersPage extends BaseElement {
 
   /** Adds rows for new players and drops the rows of players that left. */
   syncRows() {
-    for (const member of groupData.members.values()) {
+    for (const member of guildData.members.values()) {
       if (!this.rows.has(member.name)) this.createRow(member);
     }
     for (const [name, row] of this.rows) {
-      if (!groupData.members.has(name)) {
+      if (!guildData.members.has(name)) {
         row.tr.remove();
         this.rows.delete(name);
       }
@@ -143,7 +143,7 @@ export class PlayersPage extends BaseElement {
   /** Updates only the rows of the players in `names`. */
   patchRows(names) {
     for (const name of names) {
-      const member = groupData.members.get(name);
+      const member = guildData.members.get(name);
       const row = this.rows.get(name);
       if (!member) {
         row?.tr.remove();
@@ -233,14 +233,14 @@ export class PlayersPage extends BaseElement {
 
   refreshTimes() {
     for (const [name, row] of this.rows) {
-      const member = groupData.members.get(name);
+      const member = guildData.members.get(name);
       if (member) this.patchStatus(row, member);
     }
   }
 
   /** Puts the visible rows in sort order, moving only rows that are out of place. */
   applyOrder() {
-    const members = [...groupData.members.values()];
+    const members = [...guildData.members.values()];
     const visible = sortMembers(
       filterMembers(members, { text: this.text, status: this.status }),
       this.sortKey,
