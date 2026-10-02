@@ -16,19 +16,21 @@ level = "Info"  # Info, Warn or Error
 
 [server]
 secure_cookies = true   # COOKIE_SECURE; set to false for plain-HTTP local development
-# setup_token = ""      # SETUP_TOKEN; when set, creating the first admin asks for it
 
-# Discord OAuth (DISCORD_CLIENT_ID enables it; DISCORD_CLIENT_SECRET,
-# DISCORD_REDIRECT_URI, DISCORD_AUTO_REGISTRATION, DISCORD_AUTOREG_SERVERS)
+# The Discord application people log in with (required). Discord says who
+# someone is; the hub says whether they are a member and an admin.
+# (DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI)
 [discord]
-enabled = false
 client_id = ""
 client_secret = ""
 redirect_uri = "http://localhost:4000/login/discord"
-auto_registration = false
-autoreg_servers = []
+# Development only: a stand-in for Discord, such as the mock hub's
+# (DISCORD_API_BASE, DISCORD_AUTHORIZE_URL). Whoever answers there decides
+# who logs in.
+# api_base = "http://localhost:7070/discord"
 
-# osrs-data-hub, where every player's data comes from (required).
+# osrs-data-hub, where every player's data comes from and which says who may
+# log in (required; a service key).
 # (HUB_BASE_URL, HUB_API_KEY, HUB_POLL_INTERVAL_SECS, HUB_HISTORY_ENABLED,
 # HUB_REQUEST_BUDGET, HUB_EVENTS_POLL_SECS, HUB_FULL_REFRESH_SECS, HUB_TIMEOUT_SECS)
 [hub]

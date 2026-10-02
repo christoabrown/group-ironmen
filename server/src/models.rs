@@ -1,6 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+/// The one group every member belongs to (the guild), registered as app data.
+#[derive(Clone, Copy, Debug)]
+pub struct GroupId(pub i64);
+
 /// A member's player data. As an update (to the batcher) a `None` field is
 /// left alone; in the poll response it means "unchanged since `from_time`".
 #[derive(Deserialize, Serialize, Default, Debug)]
@@ -67,117 +71,20 @@ pub struct WikiGEPrices {
     pub data: std::collections::HashMap<i32, WikiGEPrice>,
 }
 pub type GEPrices = std::collections::HashMap<i32, i64>;
-// --- User management models ---
 
-#[derive(Deserialize)]
-pub struct LoginRequest {
-    pub username: String,
-    pub password: String,
+// --- Signing in ---
+
+/// Who a session belongs to, as the hub knew them when it was last asked
+/// (see `hub::members`). Also what `GET /api/auth/me` answers with.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct Session {
+    #[serde(skip)]
+    pub discord_id: String,
+    pub name: String,
+    pub is_admin: bool,
 }
 
-#[derive(Serialize)]
-pub struct LoginResponse {
-    pub ok: bool,
-    pub session_token: String,
-    pub role: String,
-    pub username: String,
-}
-
-#[derive(Serialize)]
-pub struct SessionUser {
-    pub user_id: i64,
-    pub username: String,
-    pub role: String,
-    pub enabled: bool,
-}
-
-#[derive(Deserialize)]
-pub struct CreateUserRequest {
-    pub username: String,
-    pub password: String,
-    #[serde(default = "default_role")]
-    pub role: String,
-}
-fn default_role() -> String {
-    "member".to_string()
-}
-
-#[derive(Deserialize)]
-pub struct ChangePasswordRequest {
-    pub current_password: String,
-    pub new_password: String,
-}
-
-#[derive(Deserialize)]
-pub struct AdminChangePasswordRequest {
-    pub new_password: String,
-}
-
-#[derive(Deserialize)]
-pub struct ChangeRoleRequest {
-    pub role: String,
-}
-
-#[derive(Serialize)]
-pub struct UserInfo {
-    pub user_id: i64,
-    pub username: String,
-    pub role: String,
-    pub enabled: bool,
-    pub created_at: DateTime<Utc>,
-    pub last_seen: Option<DateTime<Utc>>,
-}
-
-#[derive(Serialize)]
-pub struct AuditLogEntry {
-    pub log_id: i64,
-    pub user_id: Option<i64>,
-    pub action: String,
-    pub target_user_id: Option<i64>,
-    pub details: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Serialize)]
-pub struct PlayerInfo {
-    pub member_id: i64,
-    pub member_name: String,
-    pub last_updated: Option<DateTime<Utc>>,
-    pub hub_linked: bool,
-    /// Set when the hub no longer shows this player's account.
-    pub hub_orphaned_at: Option<DateTime<Utc>>,
-    pub online: bool,
-    pub last_seen: Option<DateTime<Utc>>,
-    /// Hidden by an admin: left out of the map and not synced.
-    pub hidden: bool,
-}
-
-#[derive(Serialize)]
-pub struct PlayerUserLink {
-    pub user_id: i64,
-    pub username: String,
-    /// `hub` or `manual`.
-    pub source: String,
-}
-
-#[derive(Deserialize)]
-pub struct SetupRequest {
-    pub username: String,
-    pub password: String,
-    /// Required when the server has `SETUP_TOKEN`; the `X-Setup-Token` header also works.
-    #[serde(default)]
-    pub setup_token: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct SetupStatusResponse {
-    pub needs_setup: bool,
-    /// Whether `POST /api/auth/setup` asks for the `SETUP_TOKEN`.
-    pub token_required: bool,
-}
-
-// --- Discord OAuth models ---
-
+/// `POST /api/auth/discord/callback`: what Discord sent the browser back with.
 #[derive(Deserialize)]
 pub struct DiscordCallbackRequest {
     pub code: String,
@@ -195,22 +102,21 @@ pub struct DiscordTokenResponse {
 pub struct DiscordUser {
     pub id: String,
     pub username: String,
-    #[allow(dead_code)]
-    pub discriminator: String,
     #[serde(default)]
     pub global_name: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct DiscordGuild {
-    pub id: String,
-    #[allow(dead_code)]
-    pub name: String,
-}
+// --- The admin page ---
 
 #[derive(Serialize)]
-pub struct DiscordEnabledResponse {
-    pub enabled: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_url: Option<String>,
+pub struct PlayerInfo {
+    pub member_name: String,
+    pub last_updated: Option<DateTime<Utc>>,
+    pub hub_linked: bool,
+    /// Set when the hub no longer shows this player's account.
+    pub hub_orphaned_at: Option<DateTime<Utc>>,
+    pub online: bool,
+    pub last_seen: Option<DateTime<Utc>>,
+    /// Hidden by an admin: left out of the map and not synced.
+    pub hidden: bool,
 }

@@ -1,6 +1,12 @@
 # Builds both images from source. Usage:
 #   cp .env.example .env   # set COOKIE_SECURE=false for http://localhost
 #   docker compose -f docker-compose-local.yml up --build
+#
+# Against the mock hub on the host (tools/mock-hub/server.js), which also stands in for Discord, the
+# backend reaches it as host.docker.internal and the browser as localhost:
+#   HUB_BASE_URL=http://host.docker.internal:7070
+#   DISCORD_API_BASE=http://host.docker.internal:7070/discord
+#   DISCORD_AUTHORIZE_URL=http://localhost:7070/discord/oauth2/authorize
 services:
   osrs_tracker_frontend:
     build:

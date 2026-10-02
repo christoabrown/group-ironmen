@@ -9,23 +9,40 @@ describe("api", () => {
     api.enabled = false;
     api.getGroupInterval = undefined;
     api.nextCheck = undefined;
-    api.sessionToken = null;
 
     groupData.members = new Map();
 
     globalThis.fetch = vi.fn();
   });
 
-  it("exposes session-scoped urls", () => {
-    expect(api.getGroupDataUrl).toBe("/api/group/get-group-data");
-    expect(api.amILoggedInUrl).toBe("/api/auth/me");
-    expect(api.skillDataUrl).toBe("/api/group/get-skill-data");
+  it("leaves who is asking to the session cookie", async () => {
+    globalThis.fetch.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({}) });
+
+    await api.getMe();
+    await api.adminSetPlayerHidden("Iron Man", true);
+    await api.logout();
+
+    expect(globalThis.fetch.mock.calls).toEqual([
+      ["/api/auth/me", { method: "GET", credentials: "same-origin" }],
+      [
+        "/api/admin/players/Iron%20Man/hidden",
+        {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hidden: true }),
+        },
+      ],
+      ["/api/auth/logout", { method: "POST", credentials: "same-origin" }],
+    ]);
   });
 
-  it("sends the session token as a bearer header", () => {
-    expect(api.authHeaders()).toEqual({});
-    api.setSession("session-token", "alice", "member");
-    expect(api.authHeaders()).toEqual({ Authorization: "Bearer session-token" });
+  it("asks where to sign in, and says so when that can't be done", async () => {
+    globalThis.fetch.mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ auth_url: "https://d" }) });
+    await expect(api.discordStart()).resolves.toEqual({ auth_url: "https://d" });
+
+    globalThis.fetch.mockResolvedValueOnce({ ok: false, status: 502 });
+    await expect(api.discordStart()).rejects.toThrow("502");
   });
 
   it("enable waits for data-load events and starts polling once", async () => {
@@ -54,7 +71,6 @@ describe("api", () => {
   });
 
   it("getGroupData publishes updated group data after successful fetch", async () => {
-    api.setSession("session-token", "alice", "member");
     api.nextCheck = "2026-03-30T00:00:00.000Z";
 
     const payload = [{ name: "Alice" }];
@@ -67,7 +83,7 @@ describe("api", () => {
     await api.getGroupData();
 
     expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/get-group-data?from_time=2026-03-30T00:00:00.000Z", {
-      headers: { Authorization: "Bearer session-token" },
+      method: "GET",
       credentials: "same-origin",
     });
     expect(updateSpy).toHaveBeenCalledWith(payload);
@@ -113,22 +129,5 @@ describe("api", () => {
 
     expect(disableSpy).not.toHaveBeenCalled();
     expect(publishSpy).not.toHaveBeenCalled();
-  });
-
-  it("sends expected request shapes for auth helper endpoints", async () => {
-    api.setSession("session-token", "alice", "member");
-    const auth = { Authorization: "Bearer session-token" };
-
-    const response = { ok: true, json: vi.fn().mockResolvedValue({ enabled: true }) };
-    globalThis.fetch.mockResolvedValue(response);
-
-    await api.amILoggedIn();
-    await api.getGePrices();
-
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(1, "/api/auth/me", {
-      headers: auth,
-      credentials: "same-origin",
-    });
-    expect(globalThis.fetch).toHaveBeenNthCalledWith(2, "/api/ge-prices");
   });
 });

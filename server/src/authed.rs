@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::hub::HubContext;
-use crate::models::{GroupDataResponse, GroupSkillData};
+use crate::models::{GroupDataResponse, GroupId, GroupSkillData};
 use actix_web::{get, web, Error};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
@@ -17,13 +17,14 @@ pub struct GetGroupDataQuery {
 }
 #[get("/get-group-data")]
 pub async fn get_group_data(
-    auth: Authenticated,
+    _auth: Authenticated,
+    group_id: web::Data<GroupId>,
     db_pool: web::Data<Pool>,
     query: web::Query<GetGroupDataQuery>,
 ) -> Result<web::Json<GroupDataResponse>, Error> {
     let from_time = query.from_time;
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let group_data = db::get_group_data(&client, auth.group_id, &from_time).await?;
+    let group_data = db::get_group_data(&client, group_id.0, &from_time).await?;
     Ok(web::Json(group_data))
 }
 
@@ -47,7 +48,8 @@ pub struct GetSkillDataQuery {
 }
 #[get("/get-skill-data")]
 pub async fn get_skill_data(
-    auth: Authenticated,
+    _auth: Authenticated,
+    group_id: web::Data<GroupId>,
     db_pool: web::Data<Pool>,
     query: web::Query<GetSkillDataQuery>,
     config: web::Data<Config>,
@@ -69,7 +71,7 @@ pub async fn get_skill_data(
             .collect()
     });
     let mut group_skill_data =
-        db::get_skills_for_period(&client, auth.group_id, aggregate_period).await?;
+        db::get_skills_for_period(&client, group_id.0, aggregate_period).await?;
     drop(client);
     if config.hub_history_enabled() {
         group_skill_data = crate::hub::proxy::merge_skill_data(

@@ -222,10 +222,6 @@ input:focus-visible {
   border: none;
 }
 
-input.invalid {
-  border: 1px solid var(--invalid);
-}
-
 input,
 select {
   font-family: "rssmall", ui-sans-serif, Arial, sans-serif;

@@ -69,8 +69,6 @@ struct KnownAccount {
     sent: Option<MemberSections>,
     /// The presence last written, and when.
     presence: Option<(bool, Instant)>,
-    /// The owner's Discord id last linked to a user, if any.
-    linked_owner: Option<String>,
 }
 
 pub fn start(context: SyncContext) {
@@ -289,26 +287,6 @@ impl HubSync {
             .await?;
             known.presence = Some((online, Instant::now()));
         }
-
-        let owner_discord_id = account
-            .owner
-            .as_ref()
-            .and_then(|owner| owner.discord_id.clone());
-        if let Some(discord_id) = owner_discord_id {
-            if known.linked_owner.as_deref() != Some(discord_id.as_str()) {
-                if let Some(user_id) = db::get_user_id_by_discord_id(client, &discord_id).await? {
-                    db::upsert_user_player_link_with_source(
-                        client,
-                        user_id,
-                        &known.member_name,
-                        group_id,
-                        "hub",
-                    )
-                    .await?;
-                }
-                known.linked_owner = Some(discord_id);
-            }
-        }
         Ok(())
     }
 }
@@ -324,7 +302,6 @@ async fn resolve_member(
         hidden,
         sent: None,
         presence: None,
-        linked_owner: None,
     };
     if let Some(row) = db::get_member_by_hub_id(client, group_id, &account.id).await? {
         return Ok(known(row.member_name, row.hidden));

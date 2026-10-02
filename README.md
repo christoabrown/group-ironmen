@@ -14,8 +14,8 @@ of Group Ironman teams:
 - Player data comes from [osrs-data-hub](https://github.com/RedFirebreak/osrs-data-hub), which collects it
   from the [RuneLite HomeAssistant Data Exporter](https://github.com/xXD4rkDragonXx/runelite-homeassistant-data-exporter)
   plugin. Players pair the plugin with the hub and choose there what the guild may see.
-- Users log in with an account or with Discord (optionally limited to members of your Discord server), and
-  an admin portal manages users and players.
+- People log in with Discord, and the hub says who is a member of the guild and who is an admin. The map
+  keeps no accounts of its own.
 - There is no member limit, and the Group Ironman features (shared bank, combined items, quests, diaries,
   collection log) are gone: neither the hub nor the plugin sends that data.
 
@@ -52,8 +52,8 @@ of Group Ironman teams:
   gainers, the biggest drops of the day, week or month, and the event feed.
 - **Players page**: a sortable table of everyone, with type, owner, totals and carried value.
 - **Graphs**: compare the XP of up to ten players over a day, week, month or year, from the hub's history.
-- **Admin portal**: users and roles, players (hide the ones the hub shares but the map shouldn't show),
-  who they belong to, the audit log, and the hub connection.
+- **Admin page**, for the hub's admins: hide a player the hub shares but the map shouldn't show, delete
+  one the hub no longer shares, and see how the hub connection is doing.
 
 A profile tab or trail says "not shared" when the player keeps that data private on the hub.
 
@@ -79,14 +79,29 @@ RuneLite plugin ──pair/events──▶ osrs-data-hub ◀──GET /api/v1/sn
   changed, so the cost stays small with 50+ players.
 - Accounts are matched by hub account id, then by the plugin's account hash (service keys only), then by name. Renames on
   the hub are followed. Accounts that disappear from the hub are marked "not shared" and never deleted.
-- When the hub reports an account owner's Discord id, the player is linked to the map user who logged
-  in with that Discord account. Admins can also link players by hand.
 - XP graphs, trails, gains, profiles and the events feed are served by the backend from a short-lived
   cache, so the hub sees the same number of requests however many people view the site. See
   [docs/hub-integration](docs/hub-integration/HUB_INTEGRATION.md) for every endpoint the map calls.
 
 **What the hub shares is up to each player.** The hub only exposes what an account's owner shares with
 the guild, and the map shows exactly that. A player who keeps their location private stays off the map.
+
+### Who can log in
+
+The map has no accounts, passwords or roles of its own. Logging in goes through Discord, which only says
+who someone is; the backend then asks the hub whether that Discord account is a member of the guild and
+whether it is an admin (`GET /api/v1/members/{discord_id}`, hub D-100).
+
+- A member of the hub gets in. Someone the hub doesn't know is told to sign in to the hub once first:
+  that is where joining the guild happens.
+- An admin on the hub is an admin on the map, and sees the Admin page.
+- The hub is asked again every quarter of an hour for everyone who is logged in. Someone who left the
+  guild, or was removed on the hub, is logged out of the map within that time; an admin who is no
+  longer one loses the Admin page. While the hub can't be reached, whoever is logged in stays so.
+- A login lasts three days. It is a cookie the page's scripts can't read.
+
+This needs a hub with D-100 and a **service key**: the hub doesn't tell a personal key who is a member,
+so with one nobody can log in.
 
 #### Setting up the hub connection
 
@@ -95,10 +110,11 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    - belongs to the guild rather than a person, so it keeps working when whoever created it leaves;
    - reads exactly what the guild may see;
    - allows 600 requests a minute and 50 accounts per history request;
-   - is the only kind that sees the plugin's `account_hash`.
+   - is the only kind that sees the plugin's `account_hash`, and the only kind the hub tells who is a
+     member.
 
-   A personal API key from the hub's **API keys** page also works, with limits: 120 requests a minute,
-   10 accounts per request, no `account_hash` matching, and it dies with its creator's membership.
+   A personal API key from the hub's **API keys** page can read the players (120 requests a minute, 10
+   accounts per request, no `account_hash` matching), but nobody can log in to a map that uses one.
 2. Give the key at least these categories:
    - `activity` and `location_live` for the map and the player list;
    - `stats`, `equipment` and `inventory` for profiles and graphs;
@@ -113,8 +129,18 @@ the guild, and the map shows exactly that. A player who keeps their location pri
    HUB_API_KEY=ohub_xxxxxxxxxx_xxxxxxxx
    ```
    At start-up the backend asks the hub's `/me` what the key allows. It then uses 80 % of the key's
-   rate limit and the key's bulk size, and logs a warning when the key is a personal one.
-4. Open **Admin → All Players → Test connection** to check the key and see how many accounts it can read.
+   rate limit and the key's bulk size, and logs an error when the key is a personal one.
+4. Make a Discord application for the login (Discord Developer Portal → New Application → OAuth2), add
+   `https://<your site>/login/discord` as a redirect, and set:
+   ```env
+   DISCORD_CLIENT_ID=...
+   DISCORD_CLIENT_SECRET=...
+   DISCORD_REDIRECT_URI=https://<your site>/login/discord
+   ```
+   The backend refuses to start without these too. The application only needs the `identify` scope; it
+   can be the one the hub uses, with this redirect added to it.
+5. Log in as a hub admin and open **Admin → Test connection** to check the key and see how many accounts
+   it can read.
 
 **Players choose what the map sees.** On the hub, equipment and inventory are private until their owner
 shares them with the guild, and live location is shared with the guild by default. A player whose items
@@ -125,11 +151,11 @@ don't show up on the map should share them in the hub's sharing settings.
 ### Docker (recommended)
 
 ```bash
-cp .env.example .env   # set the database credentials and the hub URL and key
+cp .env.example .env   # set the database credentials, the hub URL and key, and the Discord application
 docker compose up -d
 ```
 
-The site listens on http://localhost:4000. The first visit asks you to create the admin account. Images
+The site listens on http://localhost:4000. Log in with Discord; the hub's admins get the Admin page. Images
 are published to `ghcr.io/redfirebreak/ha-osrs-map-{frontend,backend}` when a release is cut (Actions →
 Cut release), tagged with the version (`1.2.3`, `1.2`) and `latest`. Nothing is published on a push to
 `master`; twice a week a patch release cuts itself when Renovate has merged dependency updates (see
@@ -153,8 +179,7 @@ a file for local development.
 | `PG_USER`, `PG_PASSWORD`, `PG_HOST`, `PG_PORT`, `PG_DB` | | PostgreSQL connection. The schema is created on first start. |
 | `PG_POOL_MAX_SIZE` | `16` | Database connection pool size. |
 | `COOKIE_SECURE` | `true` | Mark session cookies `Secure`. Set to `false` only for plain HTTP. |
-| `SETUP_TOKEN` | | When set, creating the first admin asks for this token. Set it on any site that is public before the admin exists. |
-| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. Required. |
+| `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key (a service key). Required. |
 | `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
 | `HUB_FULL_REFRESH_SECS` | `120` | How often the snapshot is read in full instead of only what changed. |
 | `HUB_EVENTS_POLL_SECS` | `5` | How often the hub's events feed is read. |
@@ -162,9 +187,8 @@ a file for local development.
 | `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails, events and the profile's history from the hub. |
 | `HUB_REQUEST_BUDGET` | 80 % of the key's limit | Hub requests per minute this server allows itself (the hub allows 120 per personal key, 600 per service key). |
 | `RUST_LOG` | `info` | Log level of the backend (`warn`, `debug`, or per module, as `env_logger` reads it). |
-| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` | | Enables "Log in with Discord". The redirect URI is `https://<site>/login/discord`. |
-| `DISCORD_AUTO_REGISTRATION` | `false` | Let members of the servers below create an account by logging in. |
-| `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |
+| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` | | The Discord application people log in with. Required. The redirect URI is `https://<site>/login/discord`. |
+| `DISCORD_API_BASE` | `https://discord.com/api` | Only for development: a stand-in for Discord, such as the mock hub's (see [docs/DEV-STACK.md](docs/DEV-STACK.md)). Whoever answers there decides who logs in, so never set it on a real site. `DISCORD_AUTHORIZE_URL` overrides the page the browser is sent to, when the browser reaches the stand-in under another address than the backend does. |
 | `HOST_URL`, `SITE_TITLE`, `SITE_NAME` | | Frontend: backend URL for its `/api` proxy, and branding. |
 | `ICONS_BASE_URL` | `https://icons.scapekeeper.com` | Frontend: where browsers load item, skill and equipment-slot icons from (see [Icons](#icons)). Empty turns icons off. |
 
@@ -190,7 +214,8 @@ Prerequisites: Rust (stable), Node.js 22+ and PostgreSQL 17.
 ```bash
 # Backend (reads the repository's .env, server/config.toml or environment variables)
 cd server
-PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false   HUB_BASE_URL=http://localhost:3000 HUB_API_KEY=ohub_... cargo run
+PG_USER=postgres PG_HOST=localhost PG_DB=osrs_tracker COOKIE_SECURE=false   HUB_BASE_URL=http://localhost:3000 HUB_API_KEY=ohub_... \
+  DISCORD_CLIENT_ID=... DISCORD_CLIENT_SECRET=... DISCORD_REDIRECT_URI=http://localhost:4000/login/discord cargo run
 
 # Frontend (http://localhost:4000, proxies /api to 127.0.0.1:8080)
 cd site
@@ -203,11 +228,15 @@ many players it serves (default 12); every fourth keeps its inventory, equipment
 first player walks a fixed 40-minute route with everything a trail can show (teleports, a boat trip,
 stairs, a dungeon, a death, a logout) and the same events every lap (a level, a 14.5M drop, a collection
 log slot); `MOCK_HUB_TRAIL_HOURS` sets how far back trails go (default 6). Every `MOCK_HUB_EVENT_MS`
-(default 4000) a random online player gets an event of a random type.
+(default 4000) a random online player gets an event of a random type. The mock also stands in for
+Discord: with `DISCORD_API_BASE` pointed at it, "Log in with Discord" asks whether to come in as an
+admin, a member, or someone the hub doesn't know.
 
 ```bash
 MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
-HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key cargo run
+HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key \
+  DISCORD_CLIENT_ID=mock DISCORD_CLIENT_SECRET=mock DISCORD_REDIRECT_URI=http://localhost:4000/login/discord \
+  DISCORD_API_BASE=http://localhost:7070/discord cargo run
 ```
 
 [docs/DEV-STACK.md](docs/DEV-STACK.md) has the whole recipe for a throwaway copy on port 4100 (its own

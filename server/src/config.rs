@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::env;
 
 #[derive(Deserialize, Clone)]
@@ -20,33 +20,77 @@ impl LogLevel {
 pub struct LoggerConfig {
     pub level: LogLevel,
 }
-#[derive(Serialize, Deserialize, Clone)]
+/// The Discord application people sign in with. Discord only says who
+/// someone is; whether they may use the map is the hub's to say.
+#[derive(Deserialize, Clone)]
 pub struct DiscordConfig {
-    pub enabled: bool,
-    #[serde(skip_serializing)]
-    pub client_id: String,
-    #[serde(skip_serializing)]
-    pub client_secret: String,
-    pub redirect_uri: String,
-    pub auto_registration: bool,
     #[serde(default)]
-    pub autoreg_servers: Vec<String>,
+    pub client_id: String,
+    #[serde(default)]
+    pub client_secret: String,
+    /// The site's `/login/discord`, as registered in the Discord application.
+    #[serde(default)]
+    pub redirect_uri: String,
+    /// Where Discord's API is. Only something else for a stand-in (the mock hub has one).
+    #[serde(default = "default_discord_api_base")]
+    pub api_base: String,
+    /// The page a browser is sent to to sign in, when it isn't
+    /// `{api_base}/oauth2/authorize`: a stand-in the browser reaches under
+    /// another address than this server does.
+    #[serde(default)]
+    pub authorize_url: Option<String>,
+}
+impl Default for DiscordConfig {
+    fn default() -> Self {
+        DiscordConfig {
+            client_id: String::new(),
+            client_secret: String::new(),
+            redirect_uri: String::new(),
+            api_base: default_discord_api_base(),
+            authorize_url: None,
+        }
+    }
+}
+impl DiscordConfig {
+    pub fn is_configured(&self) -> bool {
+        !self.client_id.is_empty()
+            && !self.client_secret.is_empty()
+            && !self.redirect_uri.is_empty()
+    }
+
+    /// Whether this is Discord itself and not a stand-in.
+    pub fn is_discord(&self) -> bool {
+        self.api_base == DISCORD_API_BASE
+    }
+
+    pub fn authorize_url(&self) -> String {
+        self.authorize_url
+            .clone()
+            .unwrap_or_else(|| format!("{}/oauth2/authorize", self.api_base))
+    }
+
+    pub fn token_url(&self) -> String {
+        format!("{}/oauth2/token", self.api_base)
+    }
+
+    pub fn user_url(&self) -> String {
+        format!("{}/v10/users/@me", self.api_base)
+    }
+}
+const DISCORD_API_BASE: &str = "https://discord.com/api";
+fn default_discord_api_base() -> String {
+    DISCORD_API_BASE.to_string()
 }
 #[derive(Deserialize, Clone)]
 pub struct ServerConfig {
     /// Mark session cookies `Secure`. Disable only for plain-HTTP local development.
     #[serde(default = "default_true")]
     pub secure_cookies: bool,
-    /// When set, creating the first admin (`POST /api/auth/setup`) requires this
-    /// token, so a freshly deployed public site can't be claimed by a stranger.
-    #[serde(default)]
-    pub setup_token: Option<String>,
 }
 impl Default for ServerConfig {
     fn default() -> Self {
         ServerConfig {
             secure_cookies: true,
-            setup_token: None,
         }
     }
 }
@@ -114,7 +158,7 @@ pub struct Config {
     pub pg: deadpool_postgres::Config,
     #[serde(default = "default_logger_config")]
     pub logger: LoggerConfig,
-    #[serde(default = "default_discord_config")]
+    #[serde(default)]
     pub discord: DiscordConfig,
     #[serde(default)]
     pub server: ServerConfig,
@@ -126,27 +170,11 @@ fn default_logger_config() -> LoggerConfig {
         level: LogLevel::Info,
     }
 }
-fn default_discord_config() -> DiscordConfig {
-    DiscordConfig {
-        enabled: false,
-        client_id: "".to_string(),
-        client_secret: "".to_string(),
-        redirect_uri: "".to_string(),
-        auto_registration: false,
-        autoreg_servers: vec![],
-    }
-}
 
 impl Config {
     /// Normalises the hub URL and clamps intervals to sane values.
     fn validate(&mut self) {
-        // An empty token in config.toml means no token, as an unset SETUP_TOKEN does.
-        self.server.setup_token = self
-            .server
-            .setup_token
-            .take()
-            .map(|token| token.trim().to_string())
-            .filter(|token| !token.is_empty());
+        self.discord.api_base = self.discord.api_base.trim_end_matches('/').to_string();
         self.hub.base_url = self.hub.base_url.trim_end_matches('/').to_string();
         if let Some(stripped) = self.hub.base_url.strip_suffix("/api/v1") {
             self.hub.base_url = stripped.to_string();
@@ -172,6 +200,18 @@ impl Config {
             Ok(())
         } else {
             Err("HUB_BASE_URL and HUB_API_KEY are required".to_string())
+        }
+    }
+
+    /// Signing in with Discord is the only way in, so the server can't run without it.
+    pub fn require_discord(&self) -> Result<(), String> {
+        if self.discord.is_configured() {
+            Ok(())
+        } else {
+            Err(
+                "DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET and DISCORD_REDIRECT_URI are required"
+                    .to_string(),
+            )
         }
     }
 }
@@ -240,9 +280,6 @@ impl Config {
         if let Some(secure_cookies) = env_bool("COOKIE_SECURE") {
             self.server.secure_cookies = secure_cookies;
         }
-        if let Some(setup_token) = env_string("SETUP_TOKEN") {
-            self.server.setup_token = Some(setup_token);
-        }
 
         if let Some(base_url) = env_string("HUB_BASE_URL") {
             self.hub.base_url = base_url;
@@ -271,25 +308,19 @@ impl Config {
         }
 
         if let Some(client_id) = env_string("DISCORD_CLIENT_ID") {
-            self.discord.enabled = true;
             self.discord.client_id = client_id;
-
-            if let Some(client_secret) = env_string("DISCORD_CLIENT_SECRET") {
-                self.discord.client_secret = client_secret;
-            }
-            if let Some(redirect_uri) = env_string("DISCORD_REDIRECT_URI") {
-                self.discord.redirect_uri = redirect_uri;
-            }
-            if let Some(auto_registration) = env_bool("DISCORD_AUTO_REGISTRATION") {
-                self.discord.auto_registration = auto_registration;
-            }
-            if let Some(autoreg_servers) = env_string("DISCORD_AUTOREG_SERVERS") {
-                self.discord.autoreg_servers = autoreg_servers
-                    .split(',')
-                    .map(|server| server.trim().to_string())
-                    .filter(|server| !server.is_empty())
-                    .collect();
-            }
+        }
+        if let Some(client_secret) = env_string("DISCORD_CLIENT_SECRET") {
+            self.discord.client_secret = client_secret;
+        }
+        if let Some(redirect_uri) = env_string("DISCORD_REDIRECT_URI") {
+            self.discord.redirect_uri = redirect_uri;
+        }
+        if let Some(api_base) = env_string("DISCORD_API_BASE") {
+            self.discord.api_base = api_base;
+        }
+        if let Some(authorize_url) = env_string("DISCORD_AUTHORIZE_URL") {
+            self.discord.authorize_url = Some(authorize_url);
         }
     }
 }
@@ -305,11 +336,33 @@ mod tests {
     }
 
     #[test]
-    fn a_blank_setup_token_means_no_token() {
-        assert_eq!(parsed("").server.setup_token, None);
-        let blank = parsed("[server]\nsetup_token = \"  \"");
-        assert_eq!(blank.server.setup_token, None);
-        let set = parsed("[server]\nsetup_token = \" abc \"");
-        assert_eq!(set.server.setup_token.as_deref(), Some("abc"));
+    fn discord_is_discord_unless_told_otherwise() {
+        let discord = parsed("").discord;
+        assert!(discord.is_discord());
+        assert!(!discord.is_configured());
+        assert_eq!(
+            discord.authorize_url(),
+            "https://discord.com/api/oauth2/authorize"
+        );
+        assert_eq!(discord.token_url(), "https://discord.com/api/oauth2/token");
+        assert_eq!(discord.user_url(), "https://discord.com/api/v10/users/@me");
+    }
+
+    #[test]
+    fn a_stand_in_for_discord_can_be_reached_under_two_addresses() {
+        let discord = parsed(
+            "[discord]\nclient_id = \"id\"\nclient_secret = \"secret\"\n\
+             redirect_uri = \"http://localhost:4100/login/discord\"\n\
+             api_base = \"http://mock:7070/discord/\"\n\
+             authorize_url = \"http://localhost:7070/discord/oauth2/authorize\"",
+        )
+        .discord;
+        assert!(discord.is_configured());
+        assert!(!discord.is_discord());
+        assert_eq!(discord.token_url(), "http://mock:7070/discord/oauth2/token");
+        assert_eq!(
+            discord.authorize_url(),
+            "http://localhost:7070/discord/oauth2/authorize"
+        );
     }
 }

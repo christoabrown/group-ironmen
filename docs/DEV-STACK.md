@@ -45,11 +45,13 @@ site keep running, so each needs its own terminal or has to be started in the ba
    ```
 
    ```bash
-   REPO="$(pwd)" && cd "$(mktemp -d)" && PG_USER=postgres PG_PASSWORD=postgres PG_HOST=127.0.0.1 PG_PORT=55433 PG_DB=osrs_tracker COOKIE_SECURE=false HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key "$REPO/server/target/debug/server"
+   REPO="$(pwd)" && cd "$(mktemp -d)" && PG_USER=postgres PG_PASSWORD=postgres PG_HOST=127.0.0.1 PG_PORT=55433 PG_DB=osrs_tracker COOKIE_SECURE=false HUB_BASE_URL=http://localhost:7070 HUB_API_KEY=ohub_mock_key DISCORD_CLIENT_ID=mock DISCORD_CLIENT_SECRET=mock DISCORD_REDIRECT_URI=http://localhost:4100/login/discord DISCORD_API_BASE=http://localhost:7070/discord "$REPO/server/target/debug/server"
    ```
 
    Its log should say `Hub sync started: polling http://localhost:7070 every 5s`. If it names another
-   hub, stop it: it read a real configuration.
+   hub, stop it: it read a real configuration. It also warns that signing in goes through
+   `http://localhost:7070/discord` instead of Discord, which is the point here: the mock hub stands in
+   for Discord.
 
 4. **Site** (keeps running). A fresh checkout or worktree needs `npm ci` in `site/` first.
 
@@ -61,9 +63,11 @@ site keep running, so each needs its own terminal or has to be started in the ba
    node site/scripts/server.js --backend http://127.0.0.1:8080 --port 4100
    ```
 
-5. **Log in.** A new database has no users: open http://localhost:4100/setup and create the first
-   admin with a made-up name and password. The login survives backend restarts for as long as the
-   database container exists. If nobody remembers the password, remove the container and start over.
+5. **Log in.** Open http://localhost:4100 and press "Log in with Discord". The mock hub's stand-in for
+   Discord asks whom to come in as: **Mock Admin** (a member and an admin on the mock hub), **Mock
+   Member**, or **Mock Stranger**, whom the hub doesn't know and who is turned away. There is no
+   password anywhere. The login survives backend restarts for as long as the database container
+   exists.
 
 ## What the mock hub serves
 
@@ -98,6 +102,12 @@ the real one.
   `MOCK_HUB_EVENTS_RANGE=off` makes it ignore that, like a hub from before it.
 - **Skills, XP series, sessions, wealth, equipment**: formulas over the account's number, the same
   on every request.
+- **People**: three Discord accounts, `100000000000000001` (Mock Admin), `…002` (Mock Member) and
+  `…003` (Mock Stranger). `/members/{discord_id}` says the first two are members and the first an
+  admin, as the hub's does; `MOCK_HUB_MEMBERS=off` leaves the endpoint out, like a hub from before
+  it, and then nobody can log in. Under `/discord` the mock answers the three calls of Discord's
+  OAuth the backend makes. `MOCK_DISCORD_AUTO=100000000000000001` logs in as that one without
+  asking.
 
 Not from the mock hub: the map tiles and labels (in `site/public`), the icons (the icon CDN, see the
 README) and the Grand Exchange prices (the backend fetches them from prices.runescape.wiki).
@@ -116,9 +126,12 @@ README) and the Grand Exchange prices (the backend fetches them from prices.rune
    site with `preview_start` and the name `map-dev-site` from `.claude/launch.json` instead of a
    shell command, so it opens in the Browser pane. `preview_start` reads the `launch.json` of the
    folder the session was opened on: in a session opened on a parent folder, put a copy in that
-   folder's `.claude/` with the path to `server.js` prefixed, and delete it afterwards.
-2. Log in through `/setup`. Make the credentials up, keep them in a scratch file rather than in the
-   chat, and give the user that file if they want to look for themselves.
+   folder's `.claude/` with the path to `server.js` prefixed, and delete it afterwards. **In a git
+   worktree that folder is the main checkout**, so `map-dev-site` serves the main checkout's build,
+   not the worktree's: start the worktree's `site/scripts/server.js` as a background command
+   instead, and open the tab with `preview_start` and a `url`.
+2. Log in as in step 5 above: press the button and follow the Mock Admin link. When the pane is not on
+   screen a click may not arrive; `find` the link and `navigate` to its address instead.
 3. Look at the feature. The map is at `/group`; the Players list is on the left, and a click on a
    row selects that player. Zezima is the one to test trails and replays with: work out the minute of
    his lap first, so you know what should be on screen.

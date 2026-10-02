@@ -1,7 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { Item } from "../data/item";
 import { api } from "../data/api";
-import { storage } from "../data/storage";
+import { session } from "../data/session";
 import { pubsub } from "../data/pubsub";
 import { loadingScreenManager } from "../loading-screen/loading-screen-manager";
 import { liveEvents } from "../data/live-events";
@@ -40,16 +40,15 @@ export class AppInitializer extends BaseElement {
   async initializeApp() {
     this.cleanup();
     loadingScreenManager.showLoadingScreen();
-    await Promise.all([Item.loadItems(), Item.loadGePrices()]);
+    // The server says who is signed in. When nobody is, the login page is next.
+    const [who] = await Promise.all([session.load(), Item.loadItems(), Item.loadGePrices()]);
     // Place names aren't needed to show the map; fill them in when they arrive.
     loadRegions().then(() => groupData.refreshRegions());
 
-    const session = storage.getSession();
-
     // Make sure this component is still connected after loading the above.
     if (this.isConnected) {
-      if (session.sessionToken) {
-        await this.loadWithSession(session);
+      if (who) {
+        await this.loadSignedIn();
       } else {
         window.history.pushState("", "", "/login");
       }
@@ -58,10 +57,9 @@ export class AppInitializer extends BaseElement {
     }
   }
 
-  async loadWithSession(session) {
-    api.setSession(session.sessionToken, session.username, session.role);
+  async loadSignedIn() {
     // Only now: the map page fetches the trails as soon as it hears of them,
-    // which takes the session and the rest of the page being loaded.
+    // which takes someone being signed in and the rest of the page being loaded.
     selection.restore();
     api.loadFeatures().then((features) => {
       if (features.hub_history && this.isConnected) liveEvents.start();

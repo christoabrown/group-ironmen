@@ -1,39 +1,17 @@
 <div class="admin-portal__container">
-  <div class="admin-portal__column rsborder rsbackground">
-    <h3>Users</h3>
-    <input type="search" class="admin-portal__filter admin-portal__user-filter input-small" placeholder="Filter users..." aria-label="Filter users" />
-    <div class="admin-portal__scroll-area">
-      <div class="admin-portal__create-user rsborder-tiny rsbackground">
-        <h4>Create New User</h4>
-        <men-input class="admin-portal__new-username" input-id="newUsername" placeholder-text="Username" input-label="Username"></men-input>
-        <men-input class="admin-portal__new-password" max-length="128" input-id="newPassword" placeholder-text="Password" input-label="Password" type-password></men-input>
-        <div class="admin-portal__role-select">
-          <label>Role:</label>
-          <select class="admin-portal__role-dropdown">
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <button class="men-button admin-portal__create-btn">Create User</button>
-        <div class="admin-portal__create-error validation-error"></div>
-      </div>
-      <div class="admin-portal__user-list"></div>
-    </div>
-  </div>
-
-  <div class="admin-portal__column rsborder rsbackground">
-    <h3>All Players</h3>
+  <div class="admin-portal__column admin-portal__column--wide rsborder rsbackground">
+    <h3>Players</h3>
     <input type="search" class="admin-portal__filter admin-portal__player-filter input-small" placeholder="Filter players..." aria-label="Filter players" />
     <div class="admin-portal__scroll-area">
-      <div class="admin-portal__hub-status rsborder-tiny rsbackground" hidden></div>
       <div class="admin-portal__player-list"></div>
     </div>
   </div>
 
   <div class="admin-portal__column rsborder rsbackground">
-    <h3>Audit Log</h3>
+    <h3>osrs-data-hub</h3>
     <div class="admin-portal__scroll-area">
-      <div class="admin-portal__audit-log"></div>
+      <div class="admin-portal__hub-status"></div>
+      <p class="admin-portal__note">Who may sign in here, and who is an admin, is decided on the hub.</p>
     </div>
   </div>
 </div>

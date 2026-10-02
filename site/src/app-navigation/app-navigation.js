@@ -1,32 +1,29 @@
 import { BaseElement } from "../base-element/base-element";
-import { storage } from "../data/storage";
+import { session } from "../data/session";
 
 export class AppNavigation extends BaseElement {
   constructor() {
     super();
   }
 
-  /* eslint-disable no-unused-vars */
   html() {
     return `{{app-navigation.html}}`;
-  }
-  /* eslint-enable no-unused-vars */
-
-  get displayName() {
-    const session = storage.getSession();
-    if (session && session.username) return session.username;
-    return window.siteConfig?.title || "Guild";
-  }
-
-  get isAdmin() {
-    const session = storage.getSession();
-    return session && session.role === "admin";
   }
 
   connectedCallback() {
     super.connectedCallback();
     this.render();
+    this.nameEl = this.querySelector(".app-navigation__group-name");
+    this.adminLink = this.querySelector(".app-navigation__admin");
+    this.handleSession(session.current);
     this.subscribe("route-activated", this.handleRouteActivated.bind(this));
+    // Who is signed in is only known once the server has said so.
+    this.subscribe("session", this.handleSession.bind(this));
+  }
+
+  handleSession(who) {
+    this.nameEl.textContent = who?.name || window.siteConfig?.title || "Guild";
+    this.adminLink.hidden = !who?.is_admin;
   }
 
   handleRouteActivated(route) {

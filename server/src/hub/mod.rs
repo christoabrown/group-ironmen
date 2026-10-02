@@ -7,6 +7,7 @@ pub mod client;
 pub mod convert;
 pub mod directory;
 pub mod events;
+pub mod members;
 pub mod models;
 pub mod profile;
 pub mod proxy;
@@ -137,9 +138,10 @@ pub fn apply_key_info(
             bulk_accounts
         );
     } else {
-        log::warn!(
-            "Hub key '{}' is a personal key; it stops working when its creator leaves the guild. \
-             Ask a hub admin for a service key (Admin -> Integrations).",
+        log::error!(
+            "Hub key '{}' is a personal key. Nobody can sign in to the map with it: the hub \
+             only tells a service key who is a member. Ask a hub admin for a service key \
+             (Admin -> Integrations).",
             me.key.name
         );
     }

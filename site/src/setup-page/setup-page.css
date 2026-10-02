@@ -1,8 +1,0 @@
-.setup-page__container {
-  max-width: 400px;
-  margin: 2rem auto;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}

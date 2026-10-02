@@ -9,6 +9,7 @@ for local development.
 | Hub endpoint | Map use | Cached |
 |---|---|---|
 | `GET /me` | Key kind, rate limit and bulk size at start-up; admin "Test connection" | – |
+| `GET /members/{discord_id}` | Who may log in, and who is an admin: asked when someone logs in with Discord, and again every 15 min per person with a session (at most 50 a minute). `member: false` ends their sessions; no answer leaves them. Service keys only: with a personal key, or a hub from before D-100, it is a 404 and nobody can log in | – |
 | `GET /snapshot?since=` (ETag) | Mirrored into the members table every 5 s, full refresh every 2 min | – |
 | `GET /events?cursor=` | One follower every 5 s into a 1000-event buffer: the Clan feed, the events on the map and its toasts | – |
 | `GET /xp?accounts=` (≤50) | Graphs | 5 min |
@@ -24,7 +25,7 @@ for local development.
 
 ## Snapshot fields
 
-`id`, `name`, `account_hash` (matching existing members), `owner.discord_id` (linking map users),
+`id`, `name`, `account_hash` (matching existing members),
 `online`, `last_seen`, `world`, `special_world`, `hp`, `prayer`, `location`, `skills`, `inventory`,
 `equipment`, plus the display details stored as `hub_meta`: `type`/`type_label`, `owner.name`,
 `categories`, `skills.total_level`/`overall_xp`, `inventory.value`/`equipment.value`, `spellbook`,
@@ -51,5 +52,6 @@ tabs and trails show "not shared". The map reads `categories` to tell "not share
 | `game_state` on `/snapshot` | D-94 | osrs-data-hub PRs #13 and #16 |
 | `GET /leaderboards/loot` | D-94 | PRs #13 and #16 |
 | `from`/`to` on `GET /events`: a time range, newest first | D-98 | osrs-data-hub PR #43 |
+| `GET /members/{discord_id}`: whether a Discord account is a member and an admin | D-100 | osrs-data-hub PR #46 |
 
 Push to keys (webhooks or a key-authenticated stream) was deferred (D-93); polling stays the contract.

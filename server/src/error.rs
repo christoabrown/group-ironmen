@@ -24,7 +24,6 @@ pub enum ApiError {
     #[display("Bad request: {}", _0)]
     #[from(ignore)]
     BadRequest(String),
-    BcryptError(bcrypt::BcryptError),
 }
 impl std::error::Error for ApiError {}
 fn handle_pg_error(err: &tokio_postgres::error::Error, name: &str) -> HttpResponse {
@@ -64,10 +63,6 @@ impl ResponseError for ApiError {
             }
             ApiError::Unauthorized => HttpResponse::Unauthorized().body("Unauthorized"),
             ApiError::BadRequest(ref msg) => HttpResponse::BadRequest().body(msg.clone()),
-            ApiError::BcryptError(ref err) => {
-                log::error!("BcryptError: {}", err);
-                HttpResponse::InternalServerError().finish()
-            }
         }
     }
 }

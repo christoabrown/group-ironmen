@@ -19,3 +19,11 @@ discord-callback {
   text-align: center;
   margin-top: 1em;
 }
+
+.discord-callback__retry {
+  margin: 1em 0 0.5em;
+}
+
+.discord-callback__retry[hidden] {
+  display: none;
+}

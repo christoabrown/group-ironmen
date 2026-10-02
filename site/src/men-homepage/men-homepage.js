@@ -1,5 +1,4 @@
 import { BaseElement } from "../base-element/base-element";
-import { storage } from "../data/storage";
 
 export class MenHomepage extends BaseElement {
   constructor() {
@@ -17,11 +16,6 @@ export class MenHomepage extends BaseElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-  }
-
-  get hasLogin() {
-    const session = storage.getSession();
-    return Boolean(session && session.sessionToken);
   }
 }
 

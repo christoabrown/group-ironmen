@@ -126,14 +126,14 @@ async fn start_mock_hub(state: Arc<Mutex<MockHub>>) -> String {
     format!("http://{}", address)
 }
 
-fn online_account(id: &str, name: &str, discord_id: Option<&str>) -> Value {
+fn online_account(id: &str, name: &str) -> Value {
     json!({
         "id": id,
         "name": name,
         "type": 0,
         "type_label": "Normal",
         "categories": ["stats", "activity", "location_live", "equipment", "inventory"],
-        "owner": discord_id.map(|d| json!({"name": "Owner", "discord_id": d})),
+        "owner": {"name": "Owner", "discord_id": "1"},
         "online": true,
         "world": 302,
         "special_world": false,
@@ -158,7 +158,7 @@ fn online_account(id: &str, name: &str, discord_id: Option<&str>) -> Value {
 }
 
 fn offline_account(id: &str, name: &str, last_seen: DateTime<Utc>) -> Value {
-    let mut account = online_account(id, name, None);
+    let mut account = online_account(id, name);
     account["online"] = json!(false);
     account["last_seen"] = json!(last_seen);
     account["location"]["stale"] = json!(true);
@@ -301,25 +301,11 @@ async fn imports_online_and_offline_accounts() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
 
-    // A map user whose Discord account owns the online hub account.
-    {
-        let client = h.pool.get().await.unwrap();
-        client
-            .batch_execute(
-                "INSERT INTO groupironman.users (user_id, username, password_hash, role) \
-                 VALUES (1, 'alice', '', 'member'); \
-                 INSERT INTO groupironman.discord_users (discord_id, user_id, discord_username) \
-                 VALUES ('d-alice', 1, 'alice');",
-            )
-            .await
-            .unwrap();
-    }
-
     let last_seen = (Utc::now() - ChronoDuration::days(2))
         .with_timezone(&Utc)
         .trunc_subsecs_ms();
     h.hub.lock().unwrap().accounts = vec![
-        online_account("acc-alpha", "Alpha", Some("d-alice")),
+        online_account("acc-alpha", "Alpha"),
         offline_account("acc-bravo", "Bravo", last_seen),
     ];
     h.poll().await.unwrap();
@@ -344,10 +330,6 @@ async fn imports_online_and_offline_accounts() {
         .scalar("SELECT COUNT(*) FROM groupironman.members WHERE hub_account_id IS NOT NULL")
         .await;
     assert_eq!(bound, 2);
-    let link_source: String = h
-        .scalar("SELECT source FROM groupironman.user_player_links WHERE member_name='Alpha'")
-        .await;
-    assert_eq!(link_source, "hub");
 }
 
 #[tokio::test]
@@ -380,7 +362,7 @@ async fn unchanged_snapshots_send_nothing_and_offline_changes_are_sent() {
 async fn offline_accounts_imported_later_reach_sites_that_are_already_polling() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha")];
     h.poll().await.unwrap();
     let cursor = h.cursor().await;
 
@@ -410,7 +392,7 @@ async fn offline_accounts_imported_later_reach_sites_that_are_already_polling() 
 async fn only_changed_sections_are_stamped() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha")];
     h.poll().await.unwrap();
     let first = h.member("Alpha").await.unwrap();
 
@@ -446,7 +428,7 @@ async fn only_changed_sections_are_stamped() {
 async fn presence_follows_the_hub() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha")];
     h.poll().await.unwrap();
     assert!(h.roster("Alpha").await.unwrap().online);
 
@@ -462,7 +444,7 @@ async fn presence_follows_the_hub() {
 async fn hidden_members_are_left_alone_until_shown_again() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha")];
     h.poll().await.unwrap();
     assert_eq!(h.directory.hub_id("Alpha").as_deref(), Some("acc-alpha"));
 
@@ -499,20 +481,8 @@ async fn hidden_members_are_left_alone_until_shown_again() {
 async fn follows_renames() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
-    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha", None)];
+    h.hub.lock().unwrap().accounts = vec![online_account("acc-alpha", "Alpha")];
     h.poll().await.unwrap();
-    {
-        let client = h.pool.get().await.unwrap();
-        client
-            .batch_execute(
-                "INSERT INTO groupironman.users (user_id, username, password_hash, role) \
-                 VALUES (1, 'alice', '', 'member'); \
-                 INSERT INTO groupironman.user_player_links (user_id, member_name, group_id) \
-                 SELECT 1, 'Alpha', group_id FROM groupironman.groups LIMIT 1;",
-            )
-            .await
-            .unwrap();
-    }
 
     h.hub.lock().unwrap().accounts[0]["name"] = json!("Alpha Two");
     h.poll().await.unwrap();
@@ -523,10 +493,6 @@ async fn follows_renames() {
         h.directory.hub_id("Alpha Two").as_deref(),
         Some("acc-alpha")
     );
-    let linked: String = h
-        .scalar("SELECT member_name::text FROM groupironman.user_player_links")
-        .await;
-    assert_eq!(linked, "Alpha Two");
 }
 
 #[tokio::test]
@@ -548,7 +514,7 @@ async fn rate_limits_are_reported_with_retry_after() {
 async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
     let _guard = TEST_MUTEX.lock().await;
     let mut h = harness().await;
-    let mut account = online_account("acc-alpha", "Alpha", None);
+    let mut account = online_account("acc-alpha", "Alpha");
     // Shape of osrs-data-hub PR #8: `owner` is null without an active owner and
     // inventory items carry `inventory_slot` (D-86, D-90).
     account["owner"] = Value::Null;
@@ -564,10 +530,6 @@ async fn places_inventory_by_slot_and_accepts_accounts_without_owner() {
     let inventory = h.member("Alpha").await.unwrap().inventory.unwrap();
     assert_eq!(&inventory[0..2], &[4151, 1]);
     assert_eq!(&inventory[54..56], &[385, 1]);
-    let links: i64 = h
-        .scalar("SELECT COUNT(*) FROM groupironman.user_player_links")
-        .await;
-    assert_eq!(links, 0);
 }
 
 #[tokio::test]
@@ -589,7 +551,7 @@ async fn matches_existing_member_by_account_hash() {
             .await
             .unwrap();
     }
-    let mut account = online_account("acc-alpha", "New Name", None);
+    let mut account = online_account("acc-alpha", "New Name");
     account["account_hash"] = json!("hash-123");
     h.hub.lock().unwrap().accounts = vec![account];
     h.poll().await.unwrap();

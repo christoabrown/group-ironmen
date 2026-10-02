@@ -1,5 +1,5 @@
 import { BaseElement } from "../base-element/base-element";
-import { storage } from "../data/storage";
+import { session } from "../data/session";
 import { api } from "../data/api";
 
 export class LogoutPage extends BaseElement {
@@ -13,7 +13,7 @@ export class LogoutPage extends BaseElement {
 
   async connectedCallback() {
     super.connectedCallback();
-    // Attempt server-side logout
+    // The server ends the session and takes the cookie back.
     try {
       await api.logout();
     } catch (e) {
@@ -21,7 +21,7 @@ export class LogoutPage extends BaseElement {
     }
 
     api.disable();
-    storage.clearSession();
+    session.clear();
     window.history.pushState("", "", "/");
   }
 

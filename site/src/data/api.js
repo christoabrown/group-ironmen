@@ -1,7 +1,6 @@
 import { pubsub } from "./pubsub";
 import { utility } from "../utility";
 import { groupData } from "./group-data";
-import { storage } from "./storage";
 
 // The hub sync writes every 5 s; polling faster only costs requests.
 const POLL_INTERVAL_MS = 2000;
@@ -10,9 +9,6 @@ class Api {
   constructor() {
     this.baseUrl = "/api";
     this.enabled = false;
-    this.sessionToken = null;
-    this.username = null;
-    this.role = null;
     this.clockOffsetMs = 0;
   }
 
@@ -24,65 +20,17 @@ class Api {
     return Date.now() + this.clockOffsetMs;
   }
 
-  get getGroupDataUrl() {
-    return `${this.baseUrl}/group/get-group-data`;
-  }
-
-  get amILoggedInUrl() {
-    return `${this.baseUrl}/auth/me`;
-  }
-
-  get gePricesUrl() {
-    return `${this.baseUrl}/ge-prices`;
-  }
-
-  get skillDataUrl() {
-    return `${this.baseUrl}/group/get-skill-data`;
-  }
-
-  get setupStatusUrl() {
-    return `${this.baseUrl}/auth/setup-status`;
-  }
-
-  get setupUrl() {
-    return `${this.baseUrl}/auth/setup`;
-  }
-
-  get loginUrl() {
-    return `${this.baseUrl}/auth/login`;
-  }
-
-  get logoutUrl() {
-    return `${this.baseUrl}/auth/logout`;
-  }
-
-  get changePasswordUrl() {
-    return `${this.baseUrl}/auth/change-password`;
-  }
-
-  get meUrl() {
-    return `${this.baseUrl}/auth/me`;
-  }
-
-  get discordEnabledUrl() {
-    return `${this.baseUrl}/auth/discord/enabled`;
-  }
-
-  // Auth headers using session cookie + Bearer fallback
-  authHeaders() {
-    const headers = {};
-    // Pages can mount before the app initializer has restored the session.
-    const sessionToken = this.sessionToken || storage.getSession().sessionToken;
-    if (sessionToken) {
-      headers["Authorization"] = `Bearer ${sessionToken}`;
+  /**
+   * A request to the backend; `body` is sent as JSON. Who is asking is in the
+   * session cookie, which the browser adds by itself (see data/session.js).
+   */
+  request(path, { method = "GET", body } = {}) {
+    const options = { method, credentials: "same-origin" };
+    if (body !== undefined) {
+      options.headers = { "Content-Type": "application/json" };
+      options.body = JSON.stringify(body);
     }
-    return headers;
-  }
-
-  setSession(sessionToken, username, role) {
-    this.sessionToken = sessionToken;
-    this.username = username;
-    this.role = role;
+    return fetch(`${this.baseUrl}${path}`, options);
   }
 
   async enable() {
@@ -108,13 +56,10 @@ class Api {
   }
 
   async getGroupData() {
-    const nextCheck = this.nextCheck;
-    const response = await fetch(`${this.getGroupDataUrl}?from_time=${nextCheck}`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
+    const response = await this.request(`/group/get-group-data?from_time=${this.nextCheck}`);
     if (!response.ok) {
       if (response.status === 401) {
+        // The session ran out, or the hub no longer calls them a member.
         await this.disable();
         window.history.pushState("", "", "/login");
         pubsub.publish("get-group-data");
@@ -129,269 +74,60 @@ class Api {
     pubsub.publish("get-group-data", groupData);
   }
 
-  async amILoggedIn() {
-    const response = await fetch(this.meUrl, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-
-    return response;
-  }
-
-  async getGePrices() {
-    const response = await fetch(this.gePricesUrl);
-    return response;
+  getGePrices() {
+    return this.request("/ge-prices");
   }
 
   async getSkillData(period, members) {
     const params = new URLSearchParams({ period });
     if (members?.length) params.set("members", members.join(","));
-    const response = await fetch(`${this.skillDataUrl}?${params}`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
+    const response = await this.request(`/group/get-skill-data?${params}`);
     return response.json();
   }
 
-  // --- User management API methods ---
+  // --- Signing in ---
 
-  async getSetupStatus() {
-    const response = await fetch(this.setupStatusUrl);
+  /** Who is signed in: a response with `{name, is_admin}`, or a 401. */
+  getMe() {
+    return this.request("/auth/me");
+  }
+
+  /** Where to go to sign in with Discord: `{auth_url}`. */
+  async discordStart() {
+    const response = await this.request("/auth/discord/start");
+    if (!response.ok) throw new Error(`Signing in can't be started (${response.status})`);
     return response.json();
   }
 
-  // setupToken is only sent when the server has a SETUP_TOKEN (setup-status says token_required).
-  async setup(username, password, setupToken) {
-    const response = await fetch(this.setupUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, setup_token: setupToken }),
-    });
-    return response;
+  /** Finishes signing in with what Discord sent the browser back with. */
+  discordCallback(code, state) {
+    return this.request("/auth/discord/callback", { method: "POST", body: { code, state } });
   }
 
-  async login(username, password) {
-    const response = await fetch(this.loginUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ username, password }),
-    });
-    return response;
+  logout() {
+    return this.request("/auth/logout", { method: "POST" });
   }
 
-  async logout() {
-    const response = await fetch(this.logoutUrl, {
-      method: "POST",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
+  // --- For the hub's admins ---
+
+  adminListPlayers() {
+    return this.request("/admin/players");
   }
 
-  async changePassword(currentPassword, newPassword) {
-    const response = await fetch(this.changePasswordUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    });
-    return response;
+  adminDeletePlayer(memberName) {
+    return this.request(`/admin/players/${encodeURIComponent(memberName)}`, { method: "DELETE" });
   }
 
-  async getMe() {
-    const response = await fetch(this.meUrl, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
+  adminSetPlayerHidden(memberName, hidden) {
+    return this.request(`/admin/players/${encodeURIComponent(memberName)}/hidden`, { method: "PUT", body: { hidden } });
   }
 
-  async getDiscordEnabled() {
-    const response = await fetch(this.discordEnabledUrl);
-    return response.json();
+  adminGetHubStatus() {
+    return this.request("/admin/hub/status");
   }
 
-  get discordCallbackUrl() {
-    return `${this.baseUrl}/auth/discord/callback`;
-  }
-
-  async discordCallback(code, state) {
-    const response = await fetch(this.discordCallbackUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ code, state }),
-    });
-    return response;
-  }
-
-  // --- Admin API methods ---
-
-  async adminListUsers() {
-    const response = await fetch(`${this.baseUrl}/admin/users`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminCreateUser(username, password, role) {
-    const response = await fetch(`${this.baseUrl}/admin/users`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ username, password, role }),
-    });
-    return response;
-  }
-
-  async adminChangeUserRole(userId, role) {
-    const response = await fetch(`${this.baseUrl}/admin/users/${userId}/role`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ role }),
-    });
-    return response;
-  }
-
-  async adminDisableUser(userId) {
-    const response = await fetch(`${this.baseUrl}/admin/users/${userId}/disable`, {
-      method: "PUT",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminEnableUser(userId) {
-    const response = await fetch(`${this.baseUrl}/admin/users/${userId}/enable`, {
-      method: "PUT",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminKickUser(userId) {
-    const response = await fetch(`${this.baseUrl}/admin/users/${userId}`, {
-      method: "DELETE",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminChangeUserPassword(userId, newPassword) {
-    const response = await fetch(`${this.baseUrl}/admin/users/${userId}/password`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ new_password: newPassword }),
-    });
-    return response;
-  }
-
-  async adminGetAuditLog() {
-    const response = await fetch(`${this.baseUrl}/admin/audit-log`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminListPlayers() {
-    const response = await fetch(`${this.baseUrl}/admin/players`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminDeletePlayer(memberName) {
-    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}`, {
-      method: "DELETE",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminSetPlayerHidden(memberName, hidden) {
-    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/hidden`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...this.authHeaders(),
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ hidden }),
-    });
-    return response;
-  }
-
-  async adminGetUserPlayers(userId) {
-    const response = await fetch(`${this.baseUrl}/admin/users/${userId}/players`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminGetPlayerUsers(memberName) {
-    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/users`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminLinkPlayerUser(memberName, userId) {
-    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/users/${userId}`, {
-      method: "POST",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminUnlinkPlayerUser(memberName, userId) {
-    const response = await fetch(`${this.baseUrl}/admin/players/${encodeURIComponent(memberName)}/users/${userId}`, {
-      method: "DELETE",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminGetHubStatus() {
-    const response = await fetch(`${this.baseUrl}/admin/hub/status`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
-  }
-
-  async adminTestHub() {
-    const response = await fetch(`${this.baseUrl}/admin/hub/test`, {
-      method: "POST",
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    return response;
+  adminTestHub() {
+    return this.request("/admin/hub/test", { method: "POST" });
   }
 
   // --- Hub history ---
@@ -404,10 +140,7 @@ class Api {
   async loadFeatures() {
     let features = { hub_history: false };
     try {
-      const response = await fetch(`${this.baseUrl}/group/features`, {
-        headers: this.authHeaders(),
-        credentials: "same-origin",
-      });
+      const response = await this.request("/group/features");
       if (response.ok) {
         features = await response.json();
       }
@@ -418,17 +151,19 @@ class Api {
     return features;
   }
 
-  async getHubJson(path) {
-    const response = await fetch(`${this.baseUrl}/group/hub/${path}`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
+  /** The response of a hub history request; throws with its `status` when it failed. */
+  async hubResponse(path) {
+    const response = await this.request(`/group/hub/${path}`);
     if (!response.ok) {
       const error = new Error(`Hub request failed with status ${response.status}`);
       error.status = response.status;
       throw error;
     }
-    return response.json();
+    return response;
+  }
+
+  async getHubJson(path) {
+    return (await this.hubResponse(path)).json();
   }
 
   /**
@@ -449,15 +184,7 @@ class Api {
   async getHubEventsPage(options = {}) {
     const params = new URLSearchParams({ limit: String(options.limit || 100) });
     if (options.after !== undefined && options.after !== null) params.set("after", String(options.after));
-    const response = await fetch(`${this.baseUrl}/group/hub/events?${params}`, {
-      headers: this.authHeaders(),
-      credentials: "same-origin",
-    });
-    if (!response.ok) {
-      const error = new Error(`Hub request failed with status ${response.status}`);
-      error.status = response.status;
-      throw error;
-    }
+    const response = await this.hubResponse(`events?${params}`);
     const latest = parseInt(response.headers.get("X-Events-Latest"), 10);
     return { events: await response.json(), latest: isNaN(latest) ? null : latest };
   }

@@ -1,6 +1,7 @@
-use server::auth_middleware::{LastSeenThrottle, SessionMiddlewareFactory};
+use server::auth_middleware::SessionMiddlewareFactory;
 use server::config::Config;
 use server::hub::{self, HubContext, HubStatus};
+use server::models::GroupId;
 use server::{admin_routes, auth_routes, authed, db, health, models, unauthed, update_batcher};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -19,7 +20,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let config = Config::from_env().unwrap();
-    if let Err(err) = config.require_hub() {
+    if let Err(err) = config.require_hub().and(config.require_discord()) {
         eprintln!("{}", err);
         std::process::exit(1);
     }
@@ -36,6 +37,13 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
     log::info!("Singleton group_id: {}", group_id);
+    if !config.discord.is_discord() {
+        log::warn!(
+            "Signing in goes through {} instead of Discord: anyone who can answer there can \
+             sign in as anyone. Only for a stand-in on a development machine.",
+            config.discord.api_base
+        );
+    }
 
     unauthed::start_ge_updater();
     unauthed::start_skills_aggregator(pool.clone());
@@ -78,6 +86,7 @@ async fn main() -> std::io::Result<()> {
         directory: hub_directory.clone(),
         control: sync_control.clone(),
     });
+    hub::members::start(pool.clone(), Arc::clone(&hub_client));
     if config.hub_history_enabled() {
         hub::events::start(
             Arc::clone(&hub_client),
@@ -96,33 +105,19 @@ async fn main() -> std::io::Result<()> {
         sync_control,
     });
 
-    let last_seen = LastSeenThrottle::default();
-
     HttpServer::new(move || {
-        // Admin routes (session + admin role required)
+        // For the hub's admins (the handlers ask for `AdminAuthenticated`).
         let admin_scope = web::scope("/api/admin")
-            .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
-            .service(admin_routes::list_users)
-            .service(admin_routes::create_user)
-            .service(admin_routes::change_user_role)
-            .service(admin_routes::disable_user)
-            .service(admin_routes::enable_user)
-            .service(admin_routes::kick_user)
-            .service(admin_routes::admin_change_password)
-            .service(admin_routes::get_audit_log)
+            .wrap(SessionMiddlewareFactory)
             .service(admin_routes::list_players)
             .service(admin_routes::delete_player)
             .service(admin_routes::set_player_hidden)
-            .service(admin_routes::get_user_players)
-            .service(admin_routes::get_player_users)
-            .service(admin_routes::link_player_user)
-            .service(admin_routes::unlink_player_user)
             .service(hub::routes::get_hub_status)
             .service(hub::routes::test_hub_connection);
 
-        // Session-protected group data routes
+        // For everyone who is signed in.
         let session_group_scope = web::scope("/api/group")
-            .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
+            .wrap(SessionMiddlewareFactory)
             .service(authed::get_group_data)
             .service(authed::get_skill_data)
             .service(hub::routes::get_features)
@@ -171,9 +166,9 @@ async fn main() -> std::io::Result<()> {
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
-            .app_data(web::Data::new(group_id))
+            .app_data(web::Data::new(GroupId(group_id)))
             .app_data(hub_context.clone())
-            .configure(|cfg| auth_routes::configure(cfg, last_seen.clone()))
+            .configure(auth_routes::configure)
             .service(admin_scope)
             .service(session_group_scope)
             .service(unauthed_scope)

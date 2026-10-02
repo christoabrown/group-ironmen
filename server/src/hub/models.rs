@@ -92,8 +92,18 @@ pub struct HubItems {
 pub struct HubOwner {
     #[serde(default)]
     pub name: Option<String>,
+}
+
+/// `GET /members/{discord_id}` (hub D-100): whether a Discord account is an
+/// active member of the guild, and an admin. Someone the hub doesn't know
+/// and someone on their way out both come back as `member: false`.
+#[derive(Deserialize, Debug, Clone)]
+pub struct HubMember {
+    pub member: bool,
     #[serde(default)]
-    pub discord_id: Option<String>,
+    pub is_admin: bool,
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 /// One account of `GET /snapshot`.

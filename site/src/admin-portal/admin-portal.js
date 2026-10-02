@@ -1,33 +1,8 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
-import { storage } from "../data/storage";
-import { relativeTime as shortRelativeTime } from "../data/hub-format";
+import { relativeTime } from "../data/hub-format";
 
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function relativeTime(dateStr) {
-  if (!dateStr) return "Never";
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHr = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHr / 24);
-
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin} min ago`;
-  if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? "s" : ""} ago`;
-  if (diffDay < 30) return `${diffDay} day${diffDay !== 1 ? "s" : ""} ago`;
-  const diffMonth = Math.floor(diffDay / 30);
-  return `${diffMonth} month${diffMonth !== 1 ? "s" : ""} ago`;
-}
 
 export function describeHubKey(status) {
   if (!status.key_kind) return `not checked yet (budget ${status.request_budget_per_min}/min)`;
@@ -36,6 +11,26 @@ export function describeHubKey(status) {
   return `${kind} (${limit}using ${status.request_budget_per_min}/min, ${status.bulk_accounts} per bulk request)`;
 }
 
+const ago = (time) => (time ? relativeTime(time) : "never");
+
+function el(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
+
+function badge(kind, text, title) {
+  const element = el("span", `admin-portal__badge admin-portal__badge--${kind}`, text);
+  if (title) element.title = title;
+  return element;
+}
+
+/**
+ * For the hub's admins: every player the hub shares (hide one from the map,
+ * delete one the hub no longer shares) and the state of the hub connection.
+ * Who is an admin is the hub's to say; the server checks it on every request.
+ */
 export class AdminPortal extends BaseElement {
   constructor() {
     super();
@@ -47,277 +42,60 @@ export class AdminPortal extends BaseElement {
 
   connectedCallback() {
     super.connectedCallback();
-
-    const session = storage.getSession();
-    if (session.role !== "admin") {
-      window.history.pushState("", "", "/group");
-      return;
-    }
-
-    api.setSession(session.sessionToken, session.username, session.role);
-    this.render();
-    this.loadUsers();
-    this.loadHubStatus();
-    this.loadPlayers();
-    this.loadAuditLog();
-    this.setupCreateUser();
-    this.setupFilters();
+    this.subscribe("session", this.handleSession.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.shown = false;
   }
 
-  setupCreateUser() {
-    const createBtn = this.querySelector(".admin-portal__create-btn");
-    if (createBtn) {
-      this.eventListener(createBtn, "click", this.handleCreateUser.bind(this));
+  handleSession(who) {
+    // Not known yet, or nobody: the page is on its way to the login then.
+    if (!who) return;
+    if (!who.is_admin) {
+      window.history.pushState("", "", "/group");
+      return;
     }
-  }
-
-  setupFilters() {
-    this.userFilter = this.querySelector(".admin-portal__user-filter");
+    if (this.shown) return;
+    this.shown = true;
+    this.render();
     this.playerFilter = this.querySelector(".admin-portal__player-filter");
-    this.eventListener(this.userFilter, "input", () => this.applyFilter(".admin-portal__user-list", this.userFilter));
-    this.eventListener(this.playerFilter, "input", () =>
-      this.applyFilter(".admin-portal__player-list", this.playerFilter)
-    );
+    this.eventListener(this.playerFilter, "input", () => this.applyFilter());
+    this.loadHubStatus();
+    this.loadPlayers();
   }
 
-  /** Hides the rows (and their linked lists) whose name doesn't contain the filter text. */
-  applyFilter(listSelector, input) {
-    const list = this.querySelector(listSelector);
-    if (!list || !input) return;
-    const query = input.value.trim().toLowerCase();
-    for (const row of list.querySelectorAll("[data-filter-name]")) {
-      const hidden = query !== "" && !row.dataset.filterName.toLowerCase().includes(query);
-      row.hidden = hidden;
-      const linked = row.nextElementSibling;
-      if (linked?.classList.contains("admin-portal__linked-list")) linked.hidden = hidden;
+  /** Hides the players whose name doesn't contain the filter text. */
+  applyFilter() {
+    const query = this.playerFilter.value.trim().toLowerCase();
+    for (const row of this.querySelectorAll(".admin-portal__player-list [data-filter-name]")) {
+      row.hidden = query !== "" && !row.dataset.filterName.toLowerCase().includes(query);
     }
-  }
-
-  async handleCreateUser() {
-    const usernameInput = this.querySelector(".admin-portal__new-username");
-    const passwordInput = this.querySelector(".admin-portal__new-password");
-    const roleSelect = this.querySelector(".admin-portal__role-dropdown");
-    const errorEl = this.querySelector(".admin-portal__create-error");
-
-    if (!usernameInput.valid || !passwordInput.valid) {
-      errorEl.innerHTML = "Please fill in all required fields.";
-      return;
-    }
-
-    errorEl.innerHTML = "";
-    try {
-      const response = await api.adminCreateUser(usernameInput.value, passwordInput.value, roleSelect.value);
-      if (response.ok) {
-        usernameInput.value = "";
-        passwordInput.value = "";
-        this.loadUsers();
-        this.loadAuditLog();
-      } else {
-        const body = await response.text();
-        errorEl.innerHTML = `Error: ${body}`;
-      }
-    } catch (e) {
-      errorEl.innerHTML = `Error: ${e}`;
-    }
-  }
-
-  async loadUsers() {
-    try {
-      const response = await api.adminListUsers();
-      if (!response.ok) return;
-      const users = await response.json();
-      this.renderUsers(users);
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  renderUsers(users) {
-    const container = this.querySelector(".admin-portal__user-list");
-    if (!container) return;
-
-    const session = storage.getSession();
-
-    container.innerHTML = users
-      .map((user) => {
-        const roleBadge =
-          user.role === "admin"
-            ? `<span class="admin-portal__badge admin-portal__badge--admin">admin</span>`
-            : `<span class="admin-portal__badge admin-portal__badge--member">member</span>`;
-        const disabledBadge = !user.enabled
-          ? `<span class="admin-portal__badge admin-portal__badge--disabled">disabled</span>`
-          : "";
-        const lastSeen = user.last_seen ? new Date(user.last_seen).toLocaleString() : "";
-        const lastSeenRelative = relativeTime(user.last_seen);
-        const isSelf = user.username === session.username;
-
-        let actions = "";
-        if (!isSelf) {
-          if (user.enabled) {
-            actions += `<button class="men-button" data-action="disable" data-user-id="${user.user_id}">Disable</button>`;
-          } else {
-            actions += `<button class="men-button" data-action="enable" data-user-id="${user.user_id}">Enable</button>`;
-          }
-          const newRole = user.role === "admin" ? "member" : "admin";
-          actions += `<button class="men-button" data-action="role" data-user-id="${user.user_id}" data-role="${newRole}">Make ${newRole}</button>`;
-          actions += `<button class="men-button" data-action="kick" data-user-id="${user.user_id}">Kick</button>`;
-        }
-        actions += `<button class="men-button" data-action="show-players" data-user-id="${user.user_id}">Players</button>`;
-
-        return `
-          <div class="admin-portal__user-row" data-filter-name="${escapeHtml(user.username)}">
-            <div class="admin-portal__user-info">
-              <strong>${escapeHtml(user.username)}</strong>
-              ${roleBadge}
-              ${disabledBadge}
-              <span style="font-size:0.85rem;color:#999" title="${escapeHtml(lastSeen)}">Last seen: ${escapeHtml(
-          lastSeenRelative
-        )}</span>
-            </div>
-            <div class="admin-portal__user-actions">${actions}</div>
-          </div>
-          <div class="admin-portal__linked-list" data-user-players-id="${user.user_id}" style="display:none"></div>
-        `;
-      })
-      .join("");
-
-    // Bind action buttons
-    container.querySelectorAll("button[data-action]").forEach((btn) => {
-      btn.addEventListener("click", () => this.handleUserAction(btn));
-    });
-    this.applyFilter(".admin-portal__user-list", this.userFilter);
-  }
-
-  async handleUserAction(btn) {
-    const action = btn.dataset.action;
-    const userId = parseInt(btn.dataset.userId);
-
-    if (action === "show-players") {
-      await this.toggleUserPlayers(userId);
-      return;
-    }
-
-    try {
-      let response;
-      switch (action) {
-        case "disable":
-          response = await api.adminDisableUser(userId);
-          break;
-        case "enable":
-          response = await api.adminEnableUser(userId);
-          break;
-        case "role":
-          response = await api.adminChangeUserRole(userId, btn.dataset.role);
-          break;
-        case "kick":
-          if (
-            !confirm("Are you sure you want to kick this user? This will delete their account and revoke all tokens.")
-          ) {
-            return;
-          }
-          response = await api.adminKickUser(userId);
-          break;
-      }
-
-      if (response && response.ok) {
-        this.loadUsers();
-        this.loadAuditLog();
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  async toggleUserPlayers(userId) {
-    const el = this.querySelector(`[data-user-players-id="${userId}"]`);
-    if (!el) return;
-
-    if (el.style.display !== "none") {
-      el.style.display = "none";
-      el.innerHTML = "";
-      return;
-    }
-
-    try {
-      const response = await api.adminGetUserPlayers(userId);
-      if (!response.ok) return;
-      const players = await response.json();
-      if (players.length === 0) {
-        el.innerHTML = "No linked players";
-      } else {
-        el.innerHTML = `<strong>Linked players:</strong> ${players.map((p) => escapeHtml(p)).join(", ")}`;
-      }
-      el.style.display = "";
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  async loadAuditLog() {
-    try {
-      const response = await api.adminGetAuditLog();
-      if (!response.ok) return;
-      const entries = await response.json();
-      this.renderAuditLog(entries);
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  renderAuditLog(entries) {
-    const container = this.querySelector(".admin-portal__audit-log");
-    if (!container) return;
-
-    if (entries.length === 0) {
-      container.innerHTML = "<p>No audit entries yet.</p>";
-      return;
-    }
-
-    container.innerHTML = entries
-      .map((entry) => {
-        const time = new Date(entry.created_at).toLocaleString();
-        const timeRelative = relativeTime(entry.created_at);
-        const details = entry.details || entry.action;
-        return `
-          <div class="admin-portal__audit-entry">
-            <span class="admin-portal__audit-time" title="${escapeHtml(time)}">${escapeHtml(timeRelative)}</span>
-            <span>${escapeHtml(details)}</span>
-          </div>
-        `;
-      })
-      .join("");
   }
 
   async loadHubStatus() {
     const container = this.querySelector(".admin-portal__hub-status");
-    if (!container) return;
     try {
       const response = await api.adminGetHubStatus();
       if (!response.ok) return;
       const status = await response.json();
       this.renderHubStatus(container, status);
     } catch (e) {
-      // ignore
+      // The box stays empty.
     }
   }
 
   renderHubStatus(container, status) {
-    container.hidden = false;
     const rows = [
       ["Hub", status.base_url],
-      ["Last sync", relativeTime(status.last_success)],
+      ["Last sync", ago(status.last_success)],
       ["Accounts", `${status.accounts_visible} visible, ${status.accounts_online} online`],
       ["Key", describeHubKey(status)],
       ["Orphaned", String(status.members_orphaned)],
       ["History", status.history_enabled ? `on (${status.events_buffered} events buffered)` : "off"],
     ];
 
-    const heading = document.createElement("h4");
-    heading.textContent = "osrs-data-hub";
     const list = document.createElement("dl");
     for (const [label, value] of rows) {
       const dt = document.createElement("dt");
@@ -326,12 +104,12 @@ export class AdminPortal extends BaseElement {
       dd.textContent = value ?? "";
       list.append(dt, dd);
     }
-    const children = [heading, list];
+    const children = [list];
 
     if (status.last_error && status.consecutive_failures > 0) {
       const error = document.createElement("div");
       error.className = "admin-portal__hub-error";
-      error.textContent = `Last error (${relativeTime(status.last_error_at)}): ${status.last_error}`;
+      error.textContent = `Last error (${ago(status.last_error_at)}): ${status.last_error}`;
       children.push(error);
     }
 
@@ -355,7 +133,7 @@ export class AdminPortal extends BaseElement {
             `${test.visible_accounts ?? "?"} accounts visible` +
             (test.key.kind === "service"
               ? ""
-              : ". A personal key stops working when its creator leaves the guild; ask a hub admin for a service key.");
+              : ". Nobody can sign in with a personal key: the hub only tells a service key who is a member.");
         }
       } catch (e) {
         result.textContent = "The test request failed.";
@@ -373,7 +151,7 @@ export class AdminPortal extends BaseElement {
       const players = await response.json();
       this.renderPlayers(players);
     } catch (e) {
-      // ignore
+      // The list stays as it is.
     }
   }
 
@@ -382,192 +160,75 @@ export class AdminPortal extends BaseElement {
     if (!container) return;
 
     if (players.length === 0) {
-      container.innerHTML = "<p>No players yet.</p>";
+      container.replaceChildren(el("p", "", "No players yet."));
       return;
     }
-
-    container.innerHTML = players
-      .map((player) => {
-        const lastUpdated = player.last_updated ? new Date(player.last_updated).toLocaleString() : "";
-        const isStale = player.last_updated
-          ? Date.now() - new Date(player.last_updated).getTime() > STALE_THRESHOLD_MS
-          : true;
-        const staleBadge = isStale ? `<span class="admin-portal__badge admin-portal__badge--stale">stale</span>` : "";
-        const sourceBadge = player.hub_linked
-          ? `<span class="admin-portal__badge admin-portal__badge--hub" title="Synced from osrs-data-hub">hub</span>`
-          : "";
-        const orphanedBadge = player.hub_orphaned_at
-          ? `<span class="admin-portal__badge admin-portal__badge--orphaned" title="No longer visible on the hub">not shared</span>`
-          : "";
-        const hiddenBadge = player.hidden
-          ? `<span class="admin-portal__badge admin-portal__badge--hidden" title="Hidden from the guild's map and pages">hidden</span>`
-          : "";
-        const presence = player.online
-          ? "online"
-          : player.last_seen
-          ? `offline \u00b7 ${shortRelativeTime(player.last_seen)}`
-          : "offline";
-        const presenceTitle = [
-          player.last_seen ? `Last seen: ${new Date(player.last_seen).toLocaleString()}` : "",
-          lastUpdated ? `Last data: ${lastUpdated}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-        const safeName = escapeHtml(player.member_name);
-        const hideButton = player.hub_linked
-          ? `<button class="men-button" data-player-action="${
-              player.hidden ? "show" : "hide"
-            }" data-player-name="${safeName}">${player.hidden ? "Show" : "Hide"}</button>`
-          : "";
-        const deleteButton =
-          player.hub_orphaned_at || !player.hub_linked
-            ? `<button class="men-button" data-player-action="delete" data-player-name="${safeName}">Delete</button>`
-            : "";
-
-        return `
-          <div class="admin-portal__player-row" data-filter-name="${safeName}">
-            <span class="admin-portal__player-name">${safeName}</span>
-            ${staleBadge}
-            ${sourceBadge}
-            ${orphanedBadge}
-            ${hiddenBadge}
-            <span class="admin-portal__player-spacer"></span>
-            <div class="admin-portal__player-actions">
-              <span class="admin-portal__badge admin-portal__badge--time${
-                player.online ? " admin-portal__badge--online" : ""
-              }" title="${escapeHtml(presenceTitle)}">${escapeHtml(presence)}</span>
-              <button class="men-button" data-player-action="show-users" data-player-name="${safeName}">Users</button>
-              ${hideButton}
-              ${deleteButton}
-            </div>
-          </div>
-          <div class="admin-portal__linked-list" data-player-users-name="${escapeHtml(
-            player.member_name
-          )}" style="display:none"></div>
-        `;
-      })
-      .join("");
-
-    container.querySelectorAll("button[data-player-action]").forEach((btn) => {
-      btn.addEventListener("click", () => this.handlePlayerAction(btn));
-    });
-    this.applyFilter(".admin-portal__player-list", this.playerFilter);
+    container.replaceChildren(...players.map((player) => this.playerRow(player)));
+    this.applyFilter();
   }
 
-  async handlePlayerAction(btn) {
-    const action = btn.dataset.playerAction;
-    const playerName = btn.dataset.playerName;
+  playerRow(player) {
+    const name = player.member_name;
+    const row = el("div", "admin-portal__player-row");
+    row.dataset.filterName = name;
+    row.append(el("span", "admin-portal__player-name", name));
 
-    if (action === "show-users") {
-      await this.togglePlayerUsers(playerName);
-      return;
-    }
+    const lastData = player.last_updated ? new Date(player.last_updated) : null;
+    if (!lastData || Date.now() - lastData.getTime() > STALE_THRESHOLD_MS) row.append(badge("stale", "stale"));
+    if (player.hub_orphaned_at) row.append(badge("orphaned", "not shared", "No longer visible on the hub"));
+    if (player.hidden) row.append(badge("hidden", "hidden", "Hidden from the guild's map and pages"));
+    row.append(el("span", "admin-portal__player-spacer"));
 
-    if (action === "hide" || action === "show") {
-      try {
-        const response = await api.adminSetPlayerHidden(playerName, action === "hide");
-        if (response && response.ok) {
-          this.loadPlayers();
-          this.loadAuditLog();
-        }
-      } catch (e) {
-        // ignore
-      }
-      return;
-    }
-
-    if (action === "delete") {
-      if (
-        !window.confirm(
-          `Are you sure you want to delete player '${playerName}'? All player data will be permanently deleted.`
-        )
-      ) {
-        return;
-      }
-      try {
-        const response = await api.adminDeletePlayer(playerName);
-        if (response && response.ok) {
-          this.loadPlayers();
-          this.loadAuditLog();
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
+    const actions = el("div", "admin-portal__player-actions");
+    const presence = player.online
+      ? "online"
+      : player.last_seen
+      ? `offline · ${relativeTime(player.last_seen)}`
+      : "offline";
+    const seen = badge(
+      "time",
+      presence,
+      [
+        player.last_seen ? `Last seen: ${new Date(player.last_seen).toLocaleString()}` : "",
+        lastData ? `Last data: ${lastData.toLocaleString()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+    seen.classList.toggle("admin-portal__badge--online", Boolean(player.online));
+    actions.append(seen);
+    if (player.hub_linked) actions.append(this.actionButton(player.hidden ? "show" : "hide", name));
+    // The hub brings back a player it still shares, so only the others can go.
+    if (player.hub_orphaned_at || !player.hub_linked) actions.append(this.actionButton("delete", name));
+    row.append(actions);
+    return row;
   }
 
-  async togglePlayerUsers(playerName) {
-    const el = this.querySelector(`[data-player-users-name="${CSS.escape(playerName)}"]`);
-    if (!el) return;
-
-    if (el.style.display !== "none") {
-      el.style.display = "none";
-      el.replaceChildren();
-      return;
-    }
-
-    await this.renderPlayerUsers(el, playerName);
-    el.style.display = "";
+  actionButton(action, playerName) {
+    const button = el("button", "men-button", action[0].toUpperCase() + action.slice(1));
+    button.type = "button";
+    button.dataset.playerAction = action;
+    button.addEventListener("click", () => this.handlePlayerAction(action, playerName));
+    return button;
   }
 
-  async renderPlayerUsers(el, playerName) {
+  async handlePlayerAction(action, playerName) {
+    if (
+      action === "delete" &&
+      !window.confirm(
+        `Are you sure you want to delete player '${playerName}'? All player data will be permanently deleted.`
+      )
+    ) {
+      return;
+    }
     try {
-      const [linksResponse, usersResponse] = await Promise.all([
-        api.adminGetPlayerUsers(playerName),
-        api.adminListUsers(),
-      ]);
-      if (!linksResponse.ok) return;
-      const links = await linksResponse.json();
-      const users = usersResponse.ok ? await usersResponse.json() : [];
-
-      const linked = document.createElement("div");
-      const label = document.createElement("strong");
-      label.textContent = links.length ? "Linked users: " : "No linked users";
-      linked.append(label);
-      for (const link of links) {
-        const item = document.createElement("span");
-        item.className = "admin-portal__linked-user";
-        item.textContent = `${link.username} (${link.source})`;
-        const unlink = document.createElement("button");
-        unlink.className = "men-button small";
-        unlink.textContent = "Unlink";
-        unlink.addEventListener("click", async () => {
-          const response = await api.adminUnlinkPlayerUser(playerName, link.user_id);
-          if (response.ok) {
-            await this.renderPlayerUsers(el, playerName);
-            this.loadAuditLog();
-          }
-        });
-        item.append(unlink);
-        linked.append(item);
-      }
-
-      const linkedIds = new Set(links.map((link) => link.user_id));
-      const candidates = users.filter((user) => !linkedIds.has(user.user_id));
-      const children = [linked];
-      if (candidates.length) {
-        const form = document.createElement("div");
-        form.className = "admin-portal__link-user";
-        const select = document.createElement("select");
-        for (const user of candidates) {
-          select.append(new Option(user.username, String(user.user_id)));
-        }
-        const link = document.createElement("button");
-        link.className = "men-button small";
-        link.textContent = "Link user";
-        link.addEventListener("click", async () => {
-          const response = await api.adminLinkPlayerUser(playerName, select.value);
-          if (response.ok) {
-            await this.renderPlayerUsers(el, playerName);
-            this.loadAuditLog();
-          }
-        });
-        form.append(select, link);
-        children.push(form);
-      }
-      el.replaceChildren(...children);
+      const response =
+        action === "delete"
+          ? await api.adminDeletePlayer(playerName)
+          : await api.adminSetPlayerHidden(playerName, action === "hide");
+      if (response.ok) this.loadPlayers();
     } catch (e) {
-      // ignore
+      // The list stays as it is.
     }
   }
 }

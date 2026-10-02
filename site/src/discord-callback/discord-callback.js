@@ -1,7 +1,12 @@
 import { BaseElement } from "../base-element/base-element";
-import { storage } from "../data/storage";
+import { session } from "../data/session";
 import { api } from "../data/api";
 
+/**
+ * Where Discord sends the browser back to after signing in there. The server
+ * finishes it: it asks the hub whether this Discord account is a member, and
+ * answers with who signed in or with why not.
+ */
 export class DiscordCallback extends BaseElement {
   constructor() {
     super();
@@ -21,36 +26,34 @@ export class DiscordCallback extends BaseElement {
     super.disconnectedCallback();
   }
 
-  async handleCallback() {
-    const errorEl = this.querySelector(".discord-callback__error");
-    const messageEl = this.querySelector(".discord-callback__message");
+  /** Says why signing in didn't work, with a way back to try again. */
+  fail(message) {
+    this.querySelector(".discord-callback__message").textContent = "";
+    this.querySelector(".discord-callback__error").textContent = message;
+    this.querySelector(".discord-callback__retry").hidden = false;
+  }
 
+  async handleCallback() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
 
     if (!code) {
       const errorMsg = params.get("error_description") || params.get("error") || "No authorization code received";
-      if (messageEl) messageEl.textContent = "";
-      if (errorEl) errorEl.textContent = `Discord login failed: ${errorMsg}`;
+      this.fail(`Discord login failed: ${errorMsg}`);
       return;
     }
 
     try {
       const response = await api.discordCallback(code, state);
       if (response.ok) {
-        const data = await response.json();
-        storage.storeSession(data.session_token, data.username, data.role);
-        api.setSession(data.session_token, data.username, data.role);
+        session.set(await response.json());
         window.history.pushState("", "", "/group");
       } else {
-        const body = await response.text();
-        if (messageEl) messageEl.textContent = "";
-        if (errorEl) errorEl.textContent = body || "Discord login failed";
+        this.fail((await response.text()) || "Discord login failed");
       }
     } catch (error) {
-      if (messageEl) messageEl.textContent = "";
-      if (errorEl) errorEl.textContent = `Discord login failed: ${error}`;
+      this.fail(`Discord login failed: ${error}`);
     }
   }
 }

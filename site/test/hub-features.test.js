@@ -5,7 +5,6 @@ import { describeEvent, relativeTime } from "../src/data/hub-format";
 
 describe("hub features", () => {
   beforeEach(() => {
-    api.sessionToken = "session-token";
     globalThis.fetch = vi.fn();
   });
 
@@ -17,7 +16,7 @@ describe("hub features", () => {
     await expect(api.loadFeatures()).resolves.toEqual(features);
 
     expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/features", {
-      headers: { Authorization: "Bearer session-token" },
+      method: "GET",
       credentials: "same-origin",
     });
     expect(publishSpy).toHaveBeenCalledWith("features", features);

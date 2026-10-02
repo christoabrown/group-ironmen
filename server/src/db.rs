@@ -1,7 +1,7 @@
 use crate::error::ApiError;
 use crate::models::{
-    AggregateSkillData, AuditLogEntry, GroupDataResponse, GroupMember, GroupSkillData,
-    MemberSkillData, PlayerInfo, PlayerUserLink, RosterEntry, SessionUser, UserInfo,
+    AggregateSkillData, GroupDataResponse, GroupMember, GroupSkillData, MemberSkillData,
+    PlayerInfo, RosterEntry, Session,
 };
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
@@ -58,13 +58,6 @@ pub async fn delete_group_member(
     delete_skills_data_for_member(&transaction, AggregatePeriod::Day, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Month, member_id).await?;
     delete_skills_data_for_member(&transaction, AggregatePeriod::Year, member_id).await?;
-    transaction
-        .execute(
-            "DELETE FROM groupironman.user_player_links WHERE group_id=$1 AND member_name=$2",
-            &[&group_id, &member_name],
-        )
-        .await?;
-
     let stmt = transaction
         .prepare_cached("DELETE FROM groupironman.members WHERE group_id=$1 AND member_name=$2")
         .await?;
@@ -79,22 +72,6 @@ pub async fn delete_group_member(
         .map_err(ApiError::DeleteGroupMemberError)?;
 
     Ok(())
-}
-
-pub async fn is_member_in_group(
-    client: &Client,
-    group_id: i64,
-    member_name: &str,
-) -> Result<bool, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT EXISTS(SELECT 1 FROM groupironman.members WHERE group_id=$1 AND member_name=$2)",
-        )
-        .await?;
-    Ok(client
-        .query_one(&stmt, &[&group_id, &member_name])
-        .await?
-        .try_get(0)?)
 }
 
 /// A player counts as online while the hub says so and the sync has confirmed
@@ -386,7 +363,7 @@ pub async fn list_players(client: &Client, group_id: i64) -> Result<Vec<PlayerIn
     let stmt = client
         .prepare_cached(
             r#"
-SELECT member_id, member_name,
+SELECT member_name,
 GREATEST(stats_last_update, coordinates_last_update, skills_last_update,
 inventory_last_update, equipment_last_update) as last_updated,
 hub_account_id IS NOT NULL as hub_linked, hub_orphaned_at,
@@ -401,7 +378,6 @@ ORDER BY member_name
     let mut result = Vec::with_capacity(rows.len());
     for row in rows {
         result.push(PlayerInfo {
-            member_id: row.try_get("member_id")?,
             member_name: row.try_get("member_name")?,
             last_updated: row.try_get("last_updated").ok(),
             hub_linked: row.try_get("hub_linked")?,
@@ -1022,186 +998,85 @@ ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
         transaction.commit().await?;
     }
 
-    Ok(())
-}
-
-// ===================== User Management Functions =====================
-
-pub async fn user_count(client: &Client) -> Result<i64, ApiError> {
-    let stmt = client
-        .prepare_cached("SELECT COUNT(*) FROM groupironman.users")
-        .await?;
-    let row = client.query_one(&stmt, &[]).await?;
-    Ok(row.try_get(0)?)
-}
-
-pub async fn create_user(
-    client: &Client,
-    username: &str,
-    password_hash: &str,
-    role: &str,
-) -> Result<i64, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.users (username, password_hash, role) VALUES($1, $2, $3) RETURNING user_id",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&username, &password_hash, &role])
-        .await
-        .map_err(|_| ApiError::BadRequest("Username already exists".to_string()))?;
-    Ok(row.try_get(0)?)
-}
-
-pub async fn get_user_by_username(
-    client: &Client,
-    username: &str,
-) -> Result<(i64, String, String, bool), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT user_id, password_hash, role, enabled FROM groupironman.users WHERE username=$1",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&username])
-        .await
-        .map_err(|_| ApiError::Unauthorized)?;
-    Ok((
-        row.try_get(0)?,
-        row.try_get(1)?,
-        row.try_get(2)?,
-        row.try_get(3)?,
-    ))
-}
-
-pub async fn get_user_by_id(client: &Client, user_id: i64) -> Result<UserInfo, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT user_id, username, role, enabled, created_at, last_seen FROM groupironman.users WHERE user_id=$1",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&user_id])
-        .await
-        .map_err(|_| ApiError::BadRequest("User not found".to_string()))?;
-    Ok(UserInfo {
-        user_id: row.try_get(0)?,
-        username: row.try_get(1)?,
-        role: row.try_get(2)?,
-        enabled: row.try_get(3)?,
-        created_at: row.try_get(4)?,
-        last_seen: row.try_get(5).ok(),
-    })
-}
-
-pub async fn list_users(client: &Client) -> Result<Vec<UserInfo>, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT user_id, username, role, enabled, created_at, last_seen FROM groupironman.users ORDER BY user_id",
-        )
-        .await?;
-    let rows = client.query(&stmt, &[]).await?;
-    let mut users = Vec::with_capacity(rows.len());
-    for row in rows {
-        users.push(UserInfo {
-            user_id: row.try_get(0)?,
-            username: row.try_get(1)?,
-            role: row.try_get(2)?,
-            enabled: row.try_get(3)?,
-            created_at: row.try_get(4)?,
-            last_seen: row.try_get(5).ok(),
-        });
+    // The map keeps no accounts of its own any more: people sign in with
+    // Discord and the hub says who is a member and who an admin. A session
+    // holds what the hub said.
+    if !has_migration_run(client, "hub_decides_sessions").await? {
+        let transaction = client.transaction().await?;
+        transaction
+            .batch_execute(
+                r#"
+DROP TABLE IF EXISTS groupironman.user_player_links;
+DROP TABLE IF EXISTS groupironman.discord_users;
+DROP TABLE IF EXISTS groupironman.audit_log;
+DROP TABLE IF EXISTS groupironman.sessions;
+DROP TABLE IF EXISTS groupironman.users;
+CREATE TABLE groupironman.sessions (
+    session_id TEXT PRIMARY KEY,
+    discord_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    is_admin BOOLEAN NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_sessions_discord_id ON groupironman.sessions(discord_id);
+"#,
+            )
+            .await?;
+        commit_migration(&transaction, "hub_decides_sessions").await?;
+        transaction.commit().await?;
     }
-    Ok(users)
-}
 
-pub async fn update_user_role(client: &Client, user_id: i64, role: &str) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("UPDATE groupironman.users SET role=$1 WHERE user_id=$2")
-        .await?;
-    client.execute(&stmt, &[&role, &user_id]).await?;
     Ok(())
 }
 
-pub async fn update_user_enabled(
-    client: &Client,
-    user_id: i64,
-    enabled: bool,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("UPDATE groupironman.users SET enabled=$1 WHERE user_id=$2")
-        .await?;
-    client.execute(&stmt, &[&enabled, &user_id]).await?;
-    Ok(())
-}
+// ===================== Sessions =====================
 
-pub async fn update_user_password(
-    client: &Client,
-    user_id: i64,
-    password_hash: &str,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("UPDATE groupironman.users SET password_hash=$1 WHERE user_id=$2")
-        .await?;
-    client.execute(&stmt, &[&password_hash, &user_id]).await?;
-    Ok(())
-}
-
-pub async fn update_user_last_seen(client: &Client, user_id: i64) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("UPDATE groupironman.users SET last_seen=NOW() WHERE user_id=$1")
-        .await?;
-    client.execute(&stmt, &[&user_id]).await?;
-    Ok(())
-}
-
-pub async fn delete_user(client: &Client, user_id: i64) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("DELETE FROM groupironman.users WHERE user_id=$1")
-        .await?;
-    client.execute(&stmt, &[&user_id]).await?;
-    Ok(())
-}
-
-// Session management
-
+/// Starts a session for someone the hub just called a member.
 pub async fn create_session(
     client: &Client,
     session_id: &str,
-    user_id: i64,
+    session: &Session,
     expires_at: &DateTime<Utc>,
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "INSERT INTO groupironman.sessions (session_id, user_id, expires_at) VALUES($1, $2, $3)",
+            "INSERT INTO groupironman.sessions (session_id, discord_id, name, is_admin, expires_at) \
+             VALUES($1, $2, $3, $4, $5)",
         )
         .await?;
     client
-        .execute(&stmt, &[&session_id, &user_id, &expires_at])
+        .execute(
+            &stmt,
+            &[
+                &session_id,
+                &session.discord_id,
+                &session.name,
+                &session.is_admin,
+                expires_at,
+            ],
+        )
         .await?;
     Ok(())
 }
 
-pub async fn get_session_user(client: &Client, session_id: &str) -> Result<SessionUser, ApiError> {
+/// Whose session this is; `Unauthorized` when there is none or it has run out.
+pub async fn get_session(client: &Client, session_id: &str) -> Result<Session, ApiError> {
     let stmt = client
         .prepare_cached(
-            r#"
-SELECT u.user_id, u.username, u.role, u.enabled
-FROM groupironman.sessions s
-JOIN groupironman.users u ON s.user_id = u.user_id
-WHERE s.session_id=$1 AND s.expires_at > NOW() AND u.enabled = TRUE
-"#,
+            "SELECT discord_id, name, is_admin FROM groupironman.sessions \
+             WHERE session_id=$1 AND expires_at > NOW()",
         )
         .await?;
     let row = client
-        .query_one(&stmt, &[&session_id])
-        .await
-        .map_err(|_| ApiError::Unauthorized)?;
-    Ok(SessionUser {
-        user_id: row.try_get(0)?,
-        username: row.try_get(1)?,
-        role: row.try_get(2)?,
-        enabled: row.try_get(3)?,
+        .query_opt(&stmt, &[&session_id])
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+    Ok(Session {
+        discord_id: row.try_get(0)?,
+        name: row.try_get(1)?,
+        is_admin: row.try_get(2)?,
     })
 }
 
@@ -1213,14 +1088,6 @@ pub async fn delete_session(client: &Client, session_id: &str) -> Result<(), Api
     Ok(())
 }
 
-pub async fn delete_user_sessions(client: &Client, user_id: i64) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached("DELETE FROM groupironman.sessions WHERE user_id=$1")
-        .await?;
-    client.execute(&stmt, &[&user_id]).await?;
-    Ok(())
-}
-
 pub async fn cleanup_expired_sessions(client: &Client) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached("DELETE FROM groupironman.sessions WHERE expires_at <= NOW()")
@@ -1229,47 +1096,49 @@ pub async fn cleanup_expired_sessions(client: &Client) -> Result<(), ApiError> {
     Ok(())
 }
 
-// Audit log
-
-pub async fn write_audit_log(
+/// The Discord ids with a session the hub was last asked about before
+/// `verified_before`, longest ago first, at most `limit` of them.
+pub async fn sessions_to_verify(
     client: &Client,
-    user_id: Option<i64>,
-    action: &str,
-    target_user_id: Option<i64>,
-    details: Option<&str>,
+    verified_before: &DateTime<Utc>,
+    limit: i64,
+) -> Result<Vec<String>, ApiError> {
+    let stmt = client
+        .prepare_cached(
+            "SELECT discord_id FROM groupironman.sessions WHERE expires_at > NOW() \
+             GROUP BY discord_id HAVING MIN(verified_at) < $1 \
+             ORDER BY MIN(verified_at) LIMIT $2",
+        )
+        .await?;
+    let rows = client.query(&stmt, &[verified_before, &limit]).await?;
+    rows.iter().map(|row| Ok(row.try_get(0)?)).collect()
+}
+
+/// Notes what the hub says of a member now on every session they have.
+pub async fn refresh_sessions(
+    client: &Client,
+    discord_id: &str,
+    name: Option<&str>,
+    is_admin: bool,
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "INSERT INTO groupironman.audit_log (user_id, action, target_user_id, details) VALUES($1, $2, $3, $4)",
+            "UPDATE groupironman.sessions SET name=COALESCE($2, name), is_admin=$3, \
+             verified_at=NOW() WHERE discord_id=$1",
         )
         .await?;
-    let user_id_ref: Option<&i64> = user_id.as_ref();
-    let target_ref: Option<&i64> = target_user_id.as_ref();
     client
-        .execute(&stmt, &[&user_id_ref, &action, &target_ref, &details])
+        .execute(&stmt, &[&discord_id, &name, &is_admin])
         .await?;
     Ok(())
 }
 
-pub async fn get_audit_log(client: &Client, limit: i64) -> Result<Vec<AuditLogEntry>, ApiError> {
+/// Ends every session of someone who is no longer a member. Returns how many.
+pub async fn delete_sessions_of(client: &Client, discord_id: &str) -> Result<u64, ApiError> {
     let stmt = client
-        .prepare_cached(
-            "SELECT log_id, user_id, action, target_user_id, details, created_at FROM groupironman.audit_log ORDER BY created_at DESC LIMIT $1",
-        )
+        .prepare_cached("DELETE FROM groupironman.sessions WHERE discord_id=$1")
         .await?;
-    let rows = client.query(&stmt, &[&limit]).await?;
-    let mut entries = Vec::with_capacity(rows.len());
-    for row in rows {
-        entries.push(AuditLogEntry {
-            log_id: row.try_get(0)?,
-            user_id: row.try_get(1).ok(),
-            action: row.try_get(2)?,
-            target_user_id: row.try_get(3).ok(),
-            details: row.try_get(4).ok(),
-            created_at: row.try_get(5)?,
-        });
-    }
-    Ok(entries)
+    Ok(client.execute(&stmt, &[&discord_id]).await?)
 }
 
 // Singleton group: get or create the single group for this instance
@@ -1293,136 +1162,6 @@ pub async fn get_or_create_singleton_group(client: &mut Client) -> Result<i64, A
     let row = client
         .query_one(&create_stmt, &[&"clan", &placeholder_hash])
         .await?;
-    Ok(row.try_get(0)?)
-}
-
-// User-player link tracking
-
-pub async fn upsert_user_player_link(
-    client: &Client,
-    user_id: i64,
-    member_name: &str,
-    group_id: i64,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            r#"
-INSERT INTO groupironman.user_player_links (user_id, member_name, group_id, last_updated)
-VALUES($1, $2, $3, NOW())
-ON CONFLICT (user_id, member_name, group_id) DO UPDATE SET last_updated = NOW()
-"#,
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&user_id, &member_name, &group_id])
-        .await?;
-    Ok(())
-}
-
-pub async fn get_players_for_user(
-    client: &Client,
-    user_id: i64,
-    group_id: i64,
-) -> Result<Vec<String>, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT member_name FROM groupironman.user_player_links WHERE user_id=$1 AND group_id=$2 ORDER BY member_name",
-        )
-        .await?;
-    let rows = client.query(&stmt, &[&user_id, &group_id]).await?;
-    let mut result = Vec::with_capacity(rows.len());
-    for row in rows {
-        result.push(row.try_get(0)?);
-    }
-    Ok(result)
-}
-
-pub async fn get_users_for_player(
-    client: &Client,
-    member_name: &str,
-    group_id: i64,
-) -> Result<Vec<PlayerUserLink>, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            r#"
-SELECT u.user_id, u.username, l.source FROM groupironman.user_player_links l
-JOIN groupironman.users u ON l.user_id = u.user_id
-WHERE l.member_name=$1 AND l.group_id=$2
-ORDER BY u.username
-"#,
-        )
-        .await?;
-    let rows = client.query(&stmt, &[&member_name, &group_id]).await?;
-    let mut result = Vec::with_capacity(rows.len());
-    for row in rows {
-        result.push(PlayerUserLink {
-            user_id: row.try_get("user_id")?,
-            username: row.try_get("username")?,
-            source: row.try_get("source")?,
-        });
-    }
-    Ok(result)
-}
-
-// ===================== Discord User Functions =====================
-
-pub async fn get_user_by_discord_id(
-    client: &Client,
-    discord_id: &str,
-) -> Result<Option<(i64, String, String, bool)>, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            r#"
-SELECT u.user_id, u.username, u.role, u.enabled
-FROM groupironman.discord_users d
-JOIN groupironman.users u ON d.user_id = u.user_id
-WHERE d.discord_id=$1
-"#,
-        )
-        .await?;
-    let row = client.query_opt(&stmt, &[&discord_id]).await?;
-    match row {
-        Some(r) => Ok(Some((
-            r.try_get(0)?,
-            r.try_get(1)?,
-            r.try_get(2)?,
-            r.try_get(3)?,
-        ))),
-        None => Ok(None),
-    }
-}
-
-pub async fn create_discord_user_link(
-    client: &Client,
-    discord_id: &str,
-    user_id: i64,
-    discord_username: &str,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.discord_users (discord_id, user_id, discord_username) VALUES($1, $2, $3) ON CONFLICT (discord_id) DO UPDATE SET discord_username=$3",
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&discord_id, &user_id, &discord_username])
-        .await?;
-    Ok(())
-}
-
-pub async fn create_user_no_password(
-    client: &Client,
-    username: &str,
-    role: &str,
-) -> Result<i64, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "INSERT INTO groupironman.users (username, password_hash, role) VALUES($1, '', $2) RETURNING user_id",
-        )
-        .await?;
-    let row = client
-        .query_one(&stmt, &[&username, &role])
-        .await
-        .map_err(|_| ApiError::BadRequest("Username already exists".to_string()))?;
     Ok(row.try_get(0)?)
 }
 
@@ -1558,28 +1297,19 @@ pub async fn set_member_hidden(
         > 0)
 }
 
-/// Renames a member that is bound to a hub account, keeping user links in step.
+/// Renames a member that is bound to a hub account.
 pub async fn rename_hub_member(
-    client: &mut Client,
+    client: &Client,
     group_id: i64,
     original_name: &str,
     new_name: &str,
 ) -> Result<(), ApiError> {
-    let transaction = client.transaction().await?;
-    transaction
+    client
         .execute(
             "UPDATE groupironman.members SET member_name=$3 WHERE group_id=$1 AND member_name=$2",
             &[&group_id, &original_name, &new_name],
         )
         .await?;
-    transaction
-        .execute(
-            "UPDATE groupironman.user_player_links SET member_name=$3 \
-             WHERE group_id=$1 AND member_name=$2",
-            &[&group_id, &original_name, &new_name],
-        )
-        .await?;
-    transaction.commit().await?;
     Ok(())
 }
 
@@ -1631,60 +1361,4 @@ pub async fn get_hub_bindings(
     rows.iter()
         .map(|row| Ok((row.try_get(0)?, row.try_get(1)?, row.try_get(2)?)))
         .collect()
-}
-
-pub async fn get_user_id_by_discord_id(
-    client: &Client,
-    discord_id: &str,
-) -> Result<Option<i64>, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "SELECT d.user_id FROM groupironman.discord_users d \
-             JOIN groupironman.users u ON u.user_id = d.user_id \
-             WHERE d.discord_id=$1 AND u.enabled = TRUE",
-        )
-        .await?;
-    let row = client.query_opt(&stmt, &[&discord_id]).await?;
-    Ok(row.map(|row| row.try_get(0)).transpose()?)
-}
-
-/// Links a user to a player, recording where the link came from
-/// (`hub` or `manual`). An existing link keeps its source.
-pub async fn upsert_user_player_link_with_source(
-    client: &Client,
-    user_id: i64,
-    member_name: &str,
-    group_id: i64,
-    source: &str,
-) -> Result<(), ApiError> {
-    let stmt = client
-        .prepare_cached(
-            r#"
-INSERT INTO groupironman.user_player_links (user_id, member_name, group_id, last_updated, source)
-VALUES($1, $2, $3, NOW(), $4)
-ON CONFLICT (user_id, member_name, group_id) DO UPDATE SET last_updated = NOW()
-"#,
-        )
-        .await?;
-    client
-        .execute(&stmt, &[&user_id, &member_name, &group_id, &source])
-        .await?;
-    Ok(())
-}
-
-pub async fn delete_user_player_link(
-    client: &Client,
-    user_id: i64,
-    member_name: &str,
-    group_id: i64,
-) -> Result<u64, ApiError> {
-    let stmt = client
-        .prepare_cached(
-            "DELETE FROM groupironman.user_player_links \
-             WHERE user_id=$1 AND member_name=$2 AND group_id=$3",
-        )
-        .await?;
-    Ok(client
-        .execute(&stmt, &[&user_id, &member_name, &group_id])
-        .await?)
 }

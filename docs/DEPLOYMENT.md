@@ -49,7 +49,7 @@ frontend's `/api` proxy, so the session cookie is set for the frontend's hostnam
 | Health | `GET /api/health` → `200` when a pooled `SELECT 1` succeeds, `503` otherwise (also after 2 s, so give the probe a `timeoutSeconds` of 3 or more). No session needed. Not in the access log. |
 | Shutdown | actix-web's graceful shutdown on `SIGTERM`: stops accepting, lets in-flight requests finish, then exits. |
 | Filesystem | Writes nothing: settings come from the environment (`config.toml` is optional and not in the image). Runs with a read-only root filesystem and all capabilities dropped. |
-| Egress | The hub (`HUB_BASE_URL`); `prices.runescape.wiki` for Grand Exchange prices; `discord.com` when Discord login is on. |
+| Egress | The hub (`HUB_BASE_URL`); `prices.runescape.wiki` for Grand Exchange prices; `discord.com` for logging in. |
 
 **The backend is a singleton.** It runs the schema migrations in-process at start-up
 (`db::update_schema`), polls the hub, and keeps state in memory: the event buffer, the hub directory and
@@ -75,24 +75,34 @@ with a role that has only those two privileges). The database owner has both.
 | | |
 |---|---|
 | `HUB_BASE_URL` | Base URL of the hub, without `/api/v1`. In the cluster, the hub's in-cluster Service, not its public hostname. |
-| `HUB_API_KEY` | A service (integration) key from the hub's Admin → Integrations. |
-| Minimum hub | `v1.0.0` |
+| `HUB_API_KEY` | A service (integration) key from the hub's Admin → Integrations. A personal key reads the players but lets nobody log in. |
+| Minimum hub | The first release after `v2.0.0`: it has `GET /api/v1/members/{discord_id}` (hub PR #46, D-100). |
 
-Two things the map uses came after hub `v1.0.0` (hub PRs #13 and #16, D-94) and are in the first hub
-release cut after it:
+**Nobody can log in against an older hub.** The map has no accounts of its own: it asks the hub whether
+the Discord account that logs in is a member of the guild and an admin. A hub without that endpoint, or a
+personal key, gets a 404 there, and logging in answers 503.
 
-- `GET /api/v1/leaderboards/loot`. Without it, the Clan page's loot leaderboard is built from the drops
-  the backend has buffered since it started, and is marked partial.
-- `game_state` on `/snapshot`. Without it, player profiles leave the game state out.
+Without these the map works, with less:
 
-Everything else works the same against hub `v1.0.0`.
+- `GET /api/v1/leaderboards/loot` and `game_state` on `/snapshot` (D-94). Without them the Clan page's
+  loot leaderboard is built from the drops the backend has buffered since it started, and is marked
+  partial, and player profiles leave the game state out.
+- `from` on `GET /api/v1/events` (D-98). Without it a trail shows a player's newest events only.
 
-## Other settings the deployment sets
+## Logging in
 
-- `COOKIE_SECURE=true` (the default) behind TLS. `false` only for plain HTTP.
-- `DISCORD_REDIRECT_URI` is the frontend's public URL plus `/login/discord`, and must match the
-  redirect registered in the Discord app.
-- `SETUP_TOKEN`: set it whenever the site is reachable before the first admin exists. `POST
-  /api/auth/setup` (which makes the caller the admin while there are no users) then requires the token,
-  in the `X-Setup-Token` header or the `setup_token` body field, and the setup page asks for it. Unset,
-  whoever opens the site first becomes the admin.
+| | |
+|---|---|
+| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | A Discord application (OAuth2, scope `identify`). Required: the backend exits at start-up without them. |
+| `DISCORD_REDIRECT_URI` | The frontend's public URL plus `/login/discord`. It must be one of the redirects registered in the Discord application. Required. |
+| `COOKIE_SECURE` | `true` (the default) behind TLS. `false` only for plain HTTP. |
+| Session | A cookie named `session`: `HttpOnly`, `SameSite=Lax`, three days. Sessions are rows in the database, so they survive a restart of the backend. |
+
+- Leave `DISCORD_API_BASE` and `DISCORD_AUTHORIZE_URL` unset. They point the login at a stand-in for
+  Discord for development, and whoever answers there decides who logs in. The backend logs a warning at
+  start-up when `DISCORD_API_BASE` isn't Discord's.
+- An admin is whoever the hub calls one. There is no first admin to create and nothing to claim on a
+  freshly deployed site.
+- The upgrade from a version with its own accounts drops the tables `users`, `discord_users`,
+  `user_player_links` and `audit_log` and logs everyone out (migration `hub_decides_sessions`).
+  `SETUP_TOKEN`, `DISCORD_AUTO_REGISTRATION` and `DISCORD_AUTOREG_SERVERS` are no longer read.

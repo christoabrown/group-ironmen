@@ -15,7 +15,11 @@
 // /leaderboards/gains, /leaderboards/loot and /events (the cursor feed, and
 // with `from` a time range read newest first; types, accounts, min_value).
 // MOCK_HUB_EVENTS_RANGE=off mimics a hub from before the range read, which
-// ignores `from`. Something happens every few seconds
+// ignores `from`. /members/{discord_id} (D-100) says who may sign in to the
+// map; MOCK_HUB_MEMBERS=off mimics a hub from before it. Under /discord there
+// is a stand-in for Discord's OAuth, which asks whom to sign in as (see
+// PEOPLE); MOCK_DISCORD_AUTO=<discord id> skips the question.
+// Something happens every few seconds
 // (MOCK_HUB_EVENT_MS, default 4000): mostly small drops and levels, now and
 // then a big drop, PK loot, a collection log slot, a diary, a combat task, a
 // superior spawn or a death.
@@ -34,6 +38,15 @@ const ACCOUNT_COUNT = Math.max(1, parseInt(process.env.MOCK_HUB_ACCOUNTS || "12"
 const EVENT_EVERY_MS = parseInt(process.env.MOCK_HUB_EVENT_MS || "4000", 10);
 const TRAIL_HOURS = Math.max(1, parseInt(process.env.MOCK_HUB_TRAIL_HOURS || "6", 10));
 const EVENTS_RANGE = process.env.MOCK_HUB_EVENTS_RANGE !== "off";
+const MEMBERS_ENDPOINT = process.env.MOCK_HUB_MEMBERS !== "off";
+const DISCORD_AUTO = process.env.MOCK_DISCORD_AUTO || "";
+// The people the stand-in for Discord signs in as, and what the hub says of
+// them: an admin, a member, and someone who isn't in the guild.
+const PEOPLE = [
+  { id: "100000000000000001", name: "Mock Admin", member: true, admin: true },
+  { id: "100000000000000002", name: "Mock Member", member: true, admin: false },
+  { id: "100000000000000003", name: "Mock Stranger", member: false, admin: false },
+];
 const SKILLS = [
   "Agility", "Attack", "Construction", "Cooking", "Crafting", "Defence", "Farming", "Firemaking",
   "Fishing", "Fletching", "Herblore", "Hitpoints", "Hunter", "Magic", "Mining", "Prayer", "Ranged",
@@ -517,10 +530,71 @@ function xpSeries(account, requestedSkills, from, step) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// A stand-in for Discord's OAuth, so the map's own sign-in can be gone through
+// without Discord: start the backend with DISCORD_API_BASE=<this>/discord.
+// The code it hands out, and the token after it, is just "mock-<discord id>".
+// ---------------------------------------------------------------------------
+
+const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+const personOfToken = (token) => PEOPLE.find((person) => `mock-${person.id}` === token);
+
+function discord(req, res, url) {
+  const path = url.pathname.replace(/^\/discord/, "");
+
+  if (path === "/oauth2/authorize") {
+    const back = (person) => {
+      const target = new URL(url.searchParams.get("redirect_uri"));
+      target.searchParams.set("code", `mock-${person.id}`);
+      target.searchParams.set("state", url.searchParams.get("state") || "");
+      return target.toString();
+    };
+    const auto = PEOPLE.find((person) => person.id === DISCORD_AUTO);
+    if (auto) {
+      res.writeHead(302, { Location: back(auto) });
+      return res.end();
+    }
+    const links = PEOPLE.map(
+      (person) =>
+        `<li><a href="${escapeHtml(back(person))}">${escapeHtml(person.name)}</a> (${
+          person.member ? (person.admin ? "a member and an admin" : "a member") : "not a member"
+        } of the mock hub)</li>`
+    ).join("");
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    return res.end(`<!doctype html><title>Mock Discord</title><h1>Mock Discord</h1><p>Sign in as:</p><ul>${links}</ul>`);
+  }
+
+  if (path === "/oauth2/token" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      const code = new URLSearchParams(body).get("code");
+      if (!personOfToken(code)) return send(res, 400, { error: "invalid_grant" });
+      send(res, 200, { access_token: code, token_type: "Bearer", expires_in: 600, scope: "identify" });
+    });
+    return;
+  }
+
+  if (path === "/v10/users/@me") {
+    const person = personOfToken((req.headers.authorization || "").replace(/^Bearer /, ""));
+    if (!person) return send(res, 401, { message: "401: Unauthorized", code: 0 });
+    return send(res, 200, {
+      id: person.id,
+      username: person.name.toLowerCase().replace(/ /g, "."),
+      global_name: person.name,
+      discriminator: "0",
+    });
+  }
+
+  return send(res, 404, { message: "404: Not Found", code: 0 });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const path = url.pathname.replace(/^\/api\/v1/, "");
   console.log(`${req.method} ${url.pathname}${url.search}`);
+
+  if (url.pathname.startsWith("/discord/")) return discord(req, res, url);
 
   if (req.headers.authorization !== `Bearer ${API_KEY}`) {
     return send(res, 401, { error: { code: "unauthorized", message: "Missing or invalid key" } });
@@ -540,6 +614,22 @@ const server = http.createServer((req, res) => {
       },
       user: null,
       visible_accounts: accounts.length,
+    });
+  }
+
+  // Whether a Discord account is a member of the guild, and an admin (hub D-100).
+  const memberPath = path.match(/^\/members\/([^/]+)$/);
+  if (memberPath && MEMBERS_ENDPOINT) {
+    const id = decodeURIComponent(memberPath[1]);
+    if (!/^\d{15,22}$/.test(id)) {
+      return send(res, 400, { error: { code: "invalid_request", message: "discord_id is not a Discord id" } });
+    }
+    const person = PEOPLE.find((p) => p.id === id && p.member);
+    return ok(res, {
+      discord_id: id,
+      member: Boolean(person),
+      is_admin: Boolean(person?.admin),
+      name: person ? person.name : null,
     });
   }
 
