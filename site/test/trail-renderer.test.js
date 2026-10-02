@@ -115,7 +115,7 @@ describe("drawTrail, live", () => {
       ctx,
       { ...viewOf(3210, 3050), minY: cy - 1000, maxY: cy + 1000, minX: cx - 1000, maxX: cx + 1000 },
       trail,
-      LIVE
+      LIVE,
     );
     const dashed = ctx.strokes.filter((stroke) => stroke.dash.length && stroke.path.length > 20);
     expect(dashed.length).toBeGreaterThanOrEqual(1);
@@ -137,7 +137,7 @@ describe("drawTrail, live", () => {
       ctx,
       { ...viewOf(3200, 3300), minY: cy - 1000, maxY: cy + 1000, minX: cx - 500, maxX: cx + 500 },
       trail,
-      LIVE
+      LIVE,
     );
     const dotted = ctx.strokes.filter((stroke) => stroke.dash.length && stroke.path.length === 2);
     expect(dotted.length).toBeGreaterThanOrEqual(1);

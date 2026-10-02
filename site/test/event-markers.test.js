@@ -54,7 +54,7 @@ describe("clusterPoints", () => {
         { name: "c", x: 400, y: 100, plane: 0 },
         { name: "d", x: 101, y: 101, plane: 1 },
       ],
-      34
+      34,
     );
     expect(groups.map((group) => group.members.length).sort()).toEqual([1, 1, 2]);
   });
@@ -69,7 +69,7 @@ describe("stackPoints", () => {
         { name: "c", x: 400, y: 100, plane: 0 },
         { name: "d", x: 101, y: 101, plane: 1 },
       ],
-      24
+      24,
     );
     expect(stacks.map((stack) => stack.members.map((member) => member.name).join())).toEqual(["a,b", "c", "d"]);
     expect(stacks[0]).toMatchObject({ x: 100, y: 100, plane: 0 });
@@ -82,8 +82,8 @@ describe("stackPoints", () => {
           { x: 23, y: 10, plane: 0 },
           { x: 25, y: 10, plane: 0 },
         ],
-        24
-      )
+        24,
+      ),
     ).toHaveLength(1);
   });
 
@@ -239,7 +239,7 @@ describe("EventMarkers", () => {
       expect(passed.map((m) => m.id)).toEqual(["a"]);
       markers.pop(
         passed.map((m) => m.id),
-        NOW
+        NOW,
       );
       const byId = Object.fromEntries(visible(NOW + 100, { replayTime: to }).map((marker) => [marker.id, marker]));
       expect(byId.a.ringAge).toBe(100);
@@ -261,7 +261,7 @@ describe("EventMarkers", () => {
       expect(
         visible(NOW)
           .map((marker) => marker.id)
-          .sort()
+          .sort(),
       ).toEqual(["a", "far"]);
     });
 
@@ -329,7 +329,7 @@ describe("layoutMarkers", () => {
     store.setTrailMarks(
       "Alice",
       [{ id: "old", event: old, x: 3200, y: 3200, plane: 0, t: (NOW - 3 * 60 * MINUTE) / 1000 }],
-      "blue"
+      "blue",
     );
     const { items, nextMs } = layoutMarkers(store.visible({ filters, now: NOW }), view());
     expect(items[0]).toMatchObject({ x: 400, y: 300, r: MARKER_RADIUS_COMPACT, compact: true });

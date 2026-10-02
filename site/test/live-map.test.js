@@ -39,7 +39,7 @@ describe("player clusters and labels", () => {
         group.members
           .map((m) => m.name)
           .sort()
-          .join()
+          .join(),
       )
       .sort();
     expect(sizes).toEqual(["a,b", "c", "d"]);
@@ -53,7 +53,7 @@ describe("player clusters and labels", () => {
         { name: "a", x: 33, y: 10, plane: 0 },
         { name: "b", x: 35, y: 10, plane: 0 },
       ],
-      34
+      34,
     );
     expect(groups).toHaveLength(1);
   });

@@ -204,7 +204,7 @@ export class TrailScrubber extends BaseElement {
           mark.style.left = `${((tick.t - tMin) / span) * 100}%`;
           mark.style.setProperty("--player-color", tick.color);
           return mark;
-        })
+        }),
     );
   }
 }

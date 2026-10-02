@@ -181,5 +181,3 @@ taskkill //F //PID <pid>
   `TEST_DATABASE_URL` that is the one from `.env`. Give them a database of their own in the dev
   container: `docker exec map-dev-pg createdb -U postgres group_ironmen_test`, then
   `TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55433/group_ironmen_test cargo test`.
-- On a Windows checkout `prettier --check` flags every file with CRLF line endings; run it with
-  `--end-of-line auto`.

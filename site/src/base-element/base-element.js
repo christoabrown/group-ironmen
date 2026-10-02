@@ -63,8 +63,8 @@ export class BaseElement extends HTMLElement {
           {
             passive: true,
           },
-          options
-        )
+          options,
+        ),
       );
       this.eventUnbinders.add(() => subject.removeEventListener(eventName, handler));
     }

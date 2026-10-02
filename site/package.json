@@ -15,13 +15,12 @@
     "test": "vitest run --config vitest.config.mjs",
     "test:watch": "vitest --config vitest.config.mjs",
     "test:coverage": "vitest run --config vitest.config.mjs --coverage",
-    "lint": "eslint --ext .js src",
-    "format": "prettier --write src/",
-    "format:check": "prettier --check src/",
+    "lint": "eslint .",
+    "format": "prettier --write src test scripts \"*.{js,mjs}\"",
+    "format:check": "prettier --check src test scripts \"*.{js,mjs}\"",
     "fix": "npm run lint -- --fix",
     "generate-component": "node scripts/generate-component.js",
-    "prepare": "cd .. && husky install site/.husky",
-    "precommit": "npm run format:check && npm run lint",
+    "check": "npm run format:check && npm run lint && npm test",
     "start:docker-api": "concurrently \"npm run watch\" \"npm run serve -- --backend http://osrs_tracker_backend:8080\""
   },
   "dependencies": {
@@ -32,16 +31,17 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitest/coverage-v8": "^5.0.2",
     "chokidar": "^3.6.0",
     "clean-css": "^5.3.3",
     "concurrently": "^9.2.1",
     "esbuild": "^0.28.2",
-    "eslint": "^7.32.0",
+    "eslint": "^10.11.0",
     "glob": "^7.2.0",
-    "husky": "^7.0.2",
+    "globals": "^17.13.0",
     "jsdom": "^27.4.0",
-    "prettier": "^2.4.1",
+    "prettier": "^3.9.9",
     "terser": "^5.44.0",
     "vitest": "^5.0.2"
   },

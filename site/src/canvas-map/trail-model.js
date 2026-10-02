@@ -171,7 +171,7 @@ export function observeLive(
   buffer,
   coordinates,
   nowS,
-  { maxPoints = LIVE_MAX_POINTS, maxAgeS = LIVE_MAX_AGE_S, fresh = false } = {}
+  { maxPoints = LIVE_MAX_POINTS, maxAgeS = LIVE_MAX_AGE_S, fresh = false } = {},
 ) {
   const last = buffer[buffer.length - 1];
   let moved = false;

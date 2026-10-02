@@ -98,7 +98,9 @@ describe("coming back from Discord", () => {
   });
 
   it("shows what the server says to someone the hub doesn't know", async () => {
-    vi.spyOn(api, "discordCallback").mockResolvedValue(refused(403, "Sign in to the hub once first, then try again here."));
+    vi.spyOn(api, "discordCallback").mockResolvedValue(
+      refused(403, "Sign in to the hub once first, then try again here."),
+    );
     const pushState = vi.spyOn(window.history, "pushState");
 
     const page = comeBack("?code=the-code&state=the-state");

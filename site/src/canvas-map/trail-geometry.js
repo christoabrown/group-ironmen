@@ -150,7 +150,7 @@ export function smoothRun(points, i0, i1, lod, sail) {
         a * p1[1] + b * c1y + c * c2y + d * p2[1],
         point.t1 + (next.t0 - point.t1) * u,
         point.plane,
-        u < 0.5 ? index : control[k + 1]
+        u < 0.5 ? index : control[k + 1],
       );
     }
   });

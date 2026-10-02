@@ -37,7 +37,7 @@ describe("cache data validation", () => {
     });
 
     it("every entry has name and highalch", () => {
-      for (const [key, item] of Object.entries(itemData)) {
+      for (const item of Object.values(itemData)) {
         expect(typeof item.name).toBe("string");
         expect(item.name.trim().length).toBeGreaterThan(0);
         expect(typeof item.highalch).toBe("number");

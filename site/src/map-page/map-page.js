@@ -91,13 +91,13 @@ export class MapPage extends BaseElement {
     this.eventListener(this.replayButton, "click", this.handleReplayClick.bind(this));
     this.eventListener(this.scrubber, "replay-change", this.handleReplayChange.bind(this));
     this.eventListener(this.worldMap, "trail-timeline-changed", () =>
-      this.scrubber.setTimeline(this.worldMap.trailTimeline())
+      this.scrubber.setTimeline(this.worldMap.trailTimeline()),
     );
     // The replay follows the player until the map is moved by hand.
     this.eventListener(this.worldMap, "map-dragged", () => this.scrubber.setFollow(false));
     this.eventListener(this.querySelector(".map-page__trails-clear"), "click", () => selection.clearTrails());
     this.eventListener(this.querySelector(".map-page__roster-toggle"), "click", () =>
-      document.body.classList.toggle("roster-open")
+      document.body.classList.toggle("roster-open"),
     );
     this.eventListener(this.eventControls, "change", this.handleEventFilterChange.bind(this));
     this.eventListener(this.toasts, "toast-activated", (event) => this.worldMap.goToEvent(event.detail.event));
@@ -265,7 +265,7 @@ export class MapPage extends BaseElement {
             this.trailEvents.set(name, { events: known, at: 0, days, minLoot });
           }
         }
-      })
+      }),
     );
     if (this.isConnected) this.showTrailEvents();
   }
@@ -306,7 +306,7 @@ export class MapPage extends BaseElement {
         chip.classList.toggle("map-page__trail-chip--off", Boolean(notShared || empty));
         chip.title = since ? "Too much to show for the whole period. Remove this trail" : "Remove this trail";
         return chip;
-      })
+      }),
     );
     if (this.trailError) {
       const error = document.createElement("span");
@@ -342,7 +342,7 @@ export class MapPage extends BaseElement {
         label.textContent = kind.label;
         toggle.append(input, label);
         return toggle;
-      })
+      }),
     );
     this.querySelector('.map-page__events input[name="toasts"]').checked = Boolean(this.filters.toasts);
     const minLoot = this.querySelector(".map-page__event-min-loot");

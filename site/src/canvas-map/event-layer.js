@@ -116,7 +116,7 @@ export class EventLayer {
     if (!passed.length) return;
     this.markers.pop(
       passed.slice(-REPLAY_POP_MAX).map((mark) => mark.id),
-      this.now()
+      this.now(),
     );
   }
 
@@ -161,7 +161,7 @@ export class EventLayer {
     const { tileX, tileY } = marker.top;
     return eventTooltipHtml(
       marker.members.map((member) => member.event),
-      { now: this.now(), place: regionName(tileX, tileY - 1), approximate: marker.approximate }
+      { now: this.now(), place: regionName(tileX, tileY - 1), approximate: marker.approximate },
     );
   }
 }

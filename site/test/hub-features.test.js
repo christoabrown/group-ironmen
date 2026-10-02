@@ -73,10 +73,10 @@ describe("hub wording", () => {
 
   it("prefers the hub's line and falls back to a description", () => {
     expect(describeEvent({ line: "Alice received a drop", member: "Alice", type: "loot" })).toBe(
-      "Alice received a drop"
+      "Alice received a drop",
     );
     expect(describeEvent({ member: "Bob", type: "level_up", skill: "Attack", level: 99 })).toBe(
-      "Bob reached level 99 Attack"
+      "Bob reached level 99 Attack",
     );
     expect(describeEvent({ member: "Bob", type: "death" })).toBe("Bob died");
   });
@@ -91,7 +91,7 @@ describe("admin hub key description", () => {
         key_rate_limit_per_minute: 600,
         request_budget_per_min: 480,
         bulk_accounts: 50,
-      })
+      }),
     ).toBe("service key (600/min, using 480/min, 50 per bulk request)");
     expect(describeHubKey({ key_kind: null, request_budget_per_min: 100 })).toBe("not checked yet (budget 100/min)");
   });

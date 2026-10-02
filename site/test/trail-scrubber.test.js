@@ -140,14 +140,14 @@ describe("ReplayClock", () => {
       clock.tick(
         100,
         () => T + 2000,
-        (from, to) => (from < T + 2000 && to >= T + 2000 ? T + 2000 : null)
+        (from, to) => (from < T + 2000 && to >= T + 2000 ? T + 2000 : null),
       );
       expect(clock.time).toBe(T + 1970);
       for (let i = 0; i < 3; i++)
         clock.tick(
           40,
           () => T + 2000,
-          (from, to) => (from < T + 2000 && to >= T + 2000 ? T + 2000 : null)
+          (from, to) => (from < T + 2000 && to >= T + 2000 ? T + 2000 : null),
         );
       expect(clock.time).toBe(T + 2000);
     });
@@ -349,7 +349,7 @@ describe("trail scrubber", () => {
       ],
     });
     const classes = [...scrubber.querySelectorAll(".trail-scrubber__tick")].map((tick) =>
-      tick.className.replace(/trail-scrubber__tick(--)?/g, "").trim()
+      tick.className.replace(/trail-scrubber__tick(--)?/g, "").trim(),
     );
     expect(classes).toEqual(["loot", "loot notable", "level", "other notable"]);
   });

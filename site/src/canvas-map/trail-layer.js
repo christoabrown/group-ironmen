@@ -257,7 +257,7 @@ export class TrailLayer {
           online: this.isOnline(name),
           hover: this.hover?.name === name ? this.hover.point : null,
         },
-        mode
+        mode,
       );
       animating = drawn || animating;
     }

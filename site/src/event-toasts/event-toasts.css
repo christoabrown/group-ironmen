@@ -34,7 +34,9 @@ event-toasts {
 .event-toasts__toast--leaving {
   opacity: 0;
   transform: translateX(16px);
-  transition: opacity 0.25s ease-in, transform 0.25s ease-in;
+  transition:
+    opacity 0.25s ease-in,
+    transform 0.25s ease-in;
   pointer-events: none;
 }
 
@@ -59,8 +61,12 @@ event-toasts {
 }
 
 .event-toasts__toast--tier-2 {
-  box-shadow: 0 0 0 1px #ffd700, 0 0 14px 2px rgba(255, 215, 0, 0.55);
-  animation: event-toasts-in 0.25s ease-out, event-toasts-big 1.2s ease-in-out 0.25s 3;
+  box-shadow:
+    0 0 0 1px #ffd700,
+    0 0 14px 2px rgba(255, 215, 0, 0.55);
+  animation:
+    event-toasts-in 0.25s ease-out,
+    event-toasts-big 1.2s ease-in-out 0.25s 3;
 }
 
 .event-toasts__toast--tier-2 .event-toasts__text {
@@ -84,7 +90,9 @@ event-toasts {
 
 @keyframes event-toasts-big {
   50% {
-    box-shadow: 0 0 0 1px #ffd700, 0 0 22px 6px rgba(255, 215, 0, 0.8);
+    box-shadow:
+      0 0 0 1px #ffd700,
+      0 0 22px 6px rgba(255, 215, 0, 0.8);
   }
 }
 

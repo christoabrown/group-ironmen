@@ -16,7 +16,7 @@ export class LogoutPage extends BaseElement {
     // The server ends the session and takes the cookie back.
     try {
       await api.logout();
-    } catch (e) {
+    } catch {
       // Continue even if server logout fails
     }
 

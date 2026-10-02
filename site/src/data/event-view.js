@@ -224,6 +224,6 @@ export function eventTooltipHtml(events, { now = Date.now(), place = null, appro
   if (approximate) foot.push("<em>Position approximate</em>");
   const footer = foot.length ? `<div class="event-tip__foot">${foot.join(" · ")}</div>` : "";
   return `<div class="event-tip event-tip--stack"><div class="event-tip__body">${rows.join("")}${more.join(
-    ""
+    "",
   )}${footer}</div></div>`;
 }

@@ -359,7 +359,7 @@ function drawReplay(ctx, view, trail, mode) {
   const { geometry } = trail;
   const time = mode.time;
   const pad = 12 / view.zoom;
-  const onFloor = (run) => (i) => run.plane[i] === view.plane ? 0 : 1;
+  const onFloor = (run) => (i) => (run.plane[i] === view.plane ? 0 : 1);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 

@@ -146,7 +146,7 @@ describe("drawEventMarkers", () => {
     drawEventMarkers(
       ctx,
       [item({ label: "2.5M gp", labelAlpha: 0.5, labelKind: "loot" }), item({ label: "99 Attack", labelAlpha: 1 })],
-      { icons: noIcons() }
+      { icons: noIcons() },
     );
     expect(ctx.texts).toEqual([
       { text: "2.5M gp", x: 400, y: 326 + MARKER_RADIUS + 11, style: GOLD, alpha: 0.5 },

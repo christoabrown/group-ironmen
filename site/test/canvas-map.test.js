@@ -13,7 +13,7 @@ vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
   },
 }));
 
-import { CanvasMap, ICON_SPRITE_SIZE } from "../src/canvas-map/canvas-map";
+import { ICON_SPRITE_SIZE } from "../src/canvas-map/canvas-map";
 import { GAME_TILES_PER_MAP_TILE } from "../src/canvas-map/map-space";
 import { centerOn as centerCameraOn, createMap as createMapInstance } from "./helpers/map";
 import { GroupData } from "../src/data/group-data";
@@ -1392,7 +1392,7 @@ describe("CanvasMap.drawLocations with linked icon highlights", () => {
     const expectedCenterX = Math.round(canvasX - shift) + destinationSize / 2;
     const expectedCenterY = Math.round(canvasY - shift) + destinationSize / 2;
     const hasHighlight = arcCalls.some(
-      ([x, y, r]) => x === expectedCenterX && y === expectedCenterY && r === expectedRadius
+      ([x, y, r]) => x === expectedCenterX && y === expectedCenterY && r === expectedRadius,
     );
     expect(hasHighlight).toBe(true);
   });
@@ -1587,7 +1587,7 @@ describe("CanvasMap trails", () => {
       Object.fromEntries(
         map.eventLayer.markers
           .visible({ filters, now, replayTime: map.trailLayer.replayTime })
-          .map((marker) => [marker.id, marker])
+          .map((marker) => [marker.id, marker]),
       );
 
     it("are dim until the replay comes to them", () => {

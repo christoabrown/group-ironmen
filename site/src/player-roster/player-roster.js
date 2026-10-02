@@ -251,7 +251,7 @@ export class PlayerRoster extends BaseElement {
     // Rows that are filtered out leave the list; they stay in `rows`.
     reorder(
       this.list,
-      order.map((name) => this.rows.get(name))
+      order.map((name) => this.rows.get(name)),
     );
     this.querySelector(".player-roster__empty").hidden = order.length > 0;
   }

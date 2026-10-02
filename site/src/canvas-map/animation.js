@@ -7,7 +7,7 @@ export class Animation {
         progress: 0,
         time: 1,
       },
-      options
+      options,
     );
 
     this.current = options.current;

@@ -89,7 +89,7 @@ export class PlayerProfileView extends BaseElement {
         button.type = "button";
         button.dataset.tab = key;
         return button;
-      })
+      }),
     );
 
     this.eventListener(this.querySelector(".player-profile-view__close"), "click", () => selection.clear());
@@ -182,7 +182,7 @@ export class PlayerProfileView extends BaseElement {
 
   notShared(section, what) {
     section.appendChild(
-      el("p", "player-profile-view__note", `${this.playerName} doesn't share ${what} with the guild.`)
+      el("p", "player-profile-view__note", `${this.playerName} doesn't share ${what} with the guild.`),
     );
   }
 
@@ -231,7 +231,7 @@ export class PlayerProfileView extends BaseElement {
         gearRow.appendChild(element);
       } else {
         gearRow.appendChild(
-          el("p", "player-profile-view__note", `${category[0].toUpperCase()}${category.slice(1)} not shared.`)
+          el("p", "player-profile-view__note", `${category[0].toUpperCase()}${category.slice(1)} not shared.`),
         );
       }
     }
@@ -311,8 +311,8 @@ export class PlayerProfileView extends BaseElement {
           "player-profile-view__summary",
           list.length
             ? `${formatDuration(data.total_ms)} in ${list.length} session${list.length === 1 ? "" : "s"}`
-            : "Hasn't played in the last 7 days."
-        )
+            : "Hasn't played in the last 7 days.",
+        ),
       );
       const ul = el("ul", "player-profile-view__sessions");
       for (const session of list.slice(0, 15)) {
@@ -325,17 +325,17 @@ export class PlayerProfileView extends BaseElement {
             weekday: "short",
             day: "numeric",
             month: "short",
-          })} ${started.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+          })} ${started.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`,
         );
         const length = el(
           "span",
           "player-profile-view__session-length",
-          session.ended_at ? formatDuration(session.duration_ms) : "now"
+          session.ended_at ? formatDuration(session.duration_ms) : "now",
         );
         const worlds = el(
           "span",
           "player-profile-view__session-worlds",
-          (session.worlds || []).map((w) => `W${w}`).join(", ")
+          (session.worlds || []).map((w) => `W${w}`).join(", "),
         );
         row.append(when, worlds, length);
         ul.appendChild(row);
@@ -386,7 +386,7 @@ export class PlayerProfileView extends BaseElement {
         el("dt", "", "30 days"),
         el("dd", change >= 0 ? "positive" : "negative", `${change >= 0 ? "+" : ""}${formatGp(change)} gp`),
         el("dt", "", "Peak"),
-        el("dd", "", `${formatGp(Math.max(...days.map((day) => day.max_value ?? day.last_value)))} gp`)
+        el("dd", "", `${formatGp(Math.max(...days.map((day) => day.max_value ?? day.last_value)))} gp`),
       );
       section.appendChild(facts);
     });

@@ -8,20 +8,23 @@ class Utility {
     // end of the last call. This allows async methods to do their thing
     // without being called again while the previous one is still working.
     let nextCall = Date.now() + interval;
-    return setInterval(async () => {
-      const now = Date.now();
-      if (now >= nextCall && document.visibilityState === "visible") {
-        nextCall = Infinity;
+    return setInterval(
+      async () => {
+        const now = Date.now();
+        if (now >= nextCall && document.visibilityState === "visible") {
+          nextCall = Infinity;
 
-        try {
-          await fn();
-        } catch (error) {
-          console.error(error);
+          try {
+            await fn();
+          } catch (error) {
+            console.error(error);
+          }
+
+          nextCall = Date.now() + interval;
         }
-
-        nextCall = Date.now() + interval;
-      }
-    }, Math.max(interval / 10, 10));
+      },
+      Math.max(interval / 10, 10),
+    );
   }
 
   formatShortQuantity(quantity) {

@@ -15,7 +15,7 @@ describe("what is written the same everywhere", () => {
 
   it("text from elsewhere, so that none of it is read as HTML", () => {
     expect(escapeHtml(`<img src=x onerror="alert('1')">&`)).toBe(
-      "&#60;img src=x onerror=&#34;alert(&#39;1&#39;)&#34;&#62;&#38;"
+      "&#60;img src=x onerror=&#34;alert(&#39;1&#39;)&#34;&#62;&#38;",
     );
     expect(escapeHtml(42)).toBe("42");
   });

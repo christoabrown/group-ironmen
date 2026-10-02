@@ -244,7 +244,7 @@ export class PlayersPage extends BaseElement {
     const visible = sortMembers(
       filterMembers(members, { text: this.text, status: this.status }),
       this.sortKey,
-      this.descending
+      this.descending,
     );
     const order = visible.map((member) => member.name).filter((name) => this.rows.has(name));
 
@@ -253,7 +253,7 @@ export class PlayersPage extends BaseElement {
       this.order = order;
       reorder(
         this.tbody,
-        order.map((name) => this.rows.get(name).tr)
+        order.map((name) => this.rows.get(name).tr),
       );
     }
 

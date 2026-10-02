@@ -35,7 +35,7 @@ app.use(
     metaField: null,
     // The site polls the API every couple of seconds per viewer.
     ignoreRoute: (req) => req.path.startsWith("/api/group/get-group-data"),
-  })
+  }),
 );
 app.use(compression());
 
@@ -47,7 +47,7 @@ const indexHtmlPath = path.join(publicDir, "index.html");
 const DEFAULT_NAME = "OSRS Guild Map";
 
 const escapeHtml = (value) =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 // Item, skill and slot icons are loaded from the osrs-icons CDN. Set ICONS_BASE_URL to a mirror, or to
 // an empty value to turn icons off. Unset, it is left out of siteConfig and the page uses its default

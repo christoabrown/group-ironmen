@@ -547,7 +547,7 @@ export class CanvasMap extends BaseElement {
       if (!zooming && this.followingPlayer.name) {
         const [x, y] = this.gamePositionToCameraCenter(
           this.followingPlayer.coordinates.x,
-          this.followingPlayer.coordinates.y
+          this.followingPlayer.coordinates.y,
         );
         if (this.camera.x.target !== x) {
           this.camera.x.goTo(x, 100);
@@ -575,7 +575,7 @@ export class CanvasMap extends BaseElement {
         0, // horizontal skewing
         this.camera.zoom.current, // vertical scaling
         Math.round(-this.camera.x.current),
-        Math.round(this.camera.y.current)
+        Math.round(this.camera.y.current),
       );
 
       // Don't try to load tiles if we are panning a large distance
@@ -780,7 +780,7 @@ export class CanvasMap extends BaseElement {
           candidate.x < other.x + other.width &&
           candidate.x + candidate.width > other.x &&
           candidate.y < other.y + other.height &&
-          candidate.y + candidate.height > other.y
+          candidate.y + candidate.height > other.y,
       );
       if (!overlaps) {
         kept.push(candidate);
@@ -1106,7 +1106,7 @@ export class CanvasMap extends BaseElement {
                 drawX,
                 drawY,
                 destinationSize,
-                destinationSize
+                destinationSize,
               );
             } catch (ex) {
               console.error(`failed to draw map icon ${spriteIndex} ${coordinates}`, ex);
@@ -1550,11 +1550,11 @@ export class CanvasMap extends BaseElement {
 
     [this.cursor.x, this.cursor.y] = this.canvasPoint(x, y);
     this.cursor.worldX = Math.floor(
-      (this.cursor.x + this.camera.x.current) / PIXELS_PER_GAME_TILE / this.camera.zoom.current
+      (this.cursor.x + this.camera.x.current) / PIXELS_PER_GAME_TILE / this.camera.zoom.current,
     );
     this.cursor.worldY = Math.floor(
       (this.camera.y.current - this.cursor.y) / PIXELS_PER_GAME_TILE / this.camera.zoom.current +
-        GAME_TILES_PER_MAP_TILE
+        GAME_TILES_PER_MAP_TILE,
     );
     this.cursor.canvasX = this.cursor.worldX * PIXELS_PER_GAME_TILE;
     this.cursor.canvasY = -this.cursor.worldY * PIXELS_PER_GAME_TILE + MAP_TILE_SIZE - PIXELS_PER_GAME_TILE;

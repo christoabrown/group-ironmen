@@ -75,7 +75,7 @@ export class EventFeed extends BaseElement {
         button.dataset.index = String(index);
         button.textContent = filter.label;
         return button;
-      })
+      }),
     );
   }
 

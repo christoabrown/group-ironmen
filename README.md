@@ -247,7 +247,7 @@ Tests:
 
 ```bash
 cd server && TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/group_ironmen_test cargo test
-cd site && npm test && npm run lint && npm run format:check
+cd site && npm run check    # format:check, lint and test
 ```
 
 The server's integration tests (`server/tests/`) drop and recreate the schema in the test database, so

@@ -67,7 +67,7 @@ export class LiveEvents {
   apply(batch, serverLatest = null) {
     const initial = this.latest === null;
     const newest = batch.reduce((max, event) => Math.max(max, event.seq || 0), 0);
-    this.latest = Math.max(this.latest ?? 0, newest, initial ? serverLatest ?? 0 : 0);
+    this.latest = Math.max(this.latest ?? 0, newest, initial ? (serverLatest ?? 0) : 0);
     if (!initial && batch.length === 0) return;
     const known = new Set(this.events.map((event) => event.id));
     const fresh = batch.filter((event) => !known.has(event.id));

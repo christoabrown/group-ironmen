@@ -175,7 +175,7 @@ export class SkillsGraphs extends BaseElement {
         .filter(known)
         .slice(0, DEFAULT_GRAPH_PLAYERS);
       if (names.length > 0) return names;
-    } catch (err) {
+    } catch {
       // Fall back to the players with the most XP below.
     }
     return sortMembers([...groupData.members.values()], "xp")
@@ -214,7 +214,7 @@ export class SkillsGraphs extends BaseElement {
       const [skillData] = await Promise.all([api.getSkillData(this.period, this.selectedNames), this.waitForChartjs()]);
       if (generation !== this.chartGeneration) return;
       const skillDataForGroup = (Array.isArray(skillData) ? skillData : []).filter(
-        (playerSkillData) => playerSkillData?.name && playerSkillData.skill_data?.length
+        (playerSkillData) => playerSkillData?.name && playerSkillData.skill_data?.length,
       );
       skillDataForGroup.sort((a, b) => a.name.localeCompare(b.name));
       skillDataForGroup.forEach((playerSkillData) => {

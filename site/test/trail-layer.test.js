@@ -117,7 +117,7 @@ describe("TrailLayer", () => {
           [2400, 3000, 0, T - 540],
         ],
       },
-      COLORS
+      COLORS,
     );
     layer.setEvents("Alice", [event("d", 30)]);
     const timeline = layer.timeline();
@@ -140,7 +140,7 @@ describe("TrailLayer", () => {
           [3010, 3000, 0, T + 460],
         ],
       },
-      COLORS
+      COLORS,
     );
     // Alice is under way.
     expect(layer.nextChangeAfter(T + 30)).toBe(T + 30);
@@ -225,7 +225,7 @@ describe("TrailLayer", () => {
           [3210, 3200, 0, T + 3660],
         ],
       },
-      COLORS
+      COLORS,
     );
     // An hour on one tile: nothing happens until it ends.
     expect(layer.nextChangeAfter(T + 10)).toBe(T + 3600);
@@ -257,7 +257,7 @@ describe("TrailLayer", () => {
           [2410, 9400, 0, T - 420],
         ],
       },
-      COLORS
+      COLORS,
     );
     expect(layer.modelOf("Bob").kinds).toEqual(["teleport", "walk", "entrance"]);
     expect(layer.nextLanding("Bob", T - 600, T - 500)).toBe(T - 540);

@@ -148,7 +148,7 @@ export class ClanPage extends BaseElement {
         players.append(...region.members.map((member) => this.playerChip(member)));
         row.append(header, players);
         return row;
-      })
+      }),
     );
     if (!regions.length) {
       this.regionsList.appendChild(el("li", "clan-page__empty", "Nobody is online with a shared location."));
@@ -162,7 +162,7 @@ export class ClanPage extends BaseElement {
         players.append(...here.map((member) => this.playerChip(member)));
         row.appendChild(players);
         return row;
-      })
+      }),
     );
     if (!worlds.length) this.worldsList.appendChild(el("li", "clan-page__empty", "Nobody is online."));
   }
@@ -215,7 +215,7 @@ export class ClanPage extends BaseElement {
         const name = member ? this.playerChip(member) : el("span", "", entry.name);
         row.append(name, el("span", "clan-page__gain-xp", `+${entry.gain.toLocaleString()} xp`));
         return row;
-      })
+      }),
     );
     if (!entries.length && !this.gainsStatus.textContent) {
       this.gainsStatus.textContent = "No XP gained in this period yet.";

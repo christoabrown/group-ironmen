@@ -17,7 +17,7 @@ describe("app initializer", () => {
     vi.spyOn(Item, "loadGePrices").mockResolvedValue();
     const who = { name: "Alice", is_admin: false };
     vi.spyOn(api, "getMe").mockResolvedValue(
-      signedIn ? { ok: true, json: async () => who } : { ok: false, status: 401 }
+      signedIn ? { ok: true, json: async () => who } : { ok: false, status: 401 },
     );
     vi.spyOn(api, "loadFeatures").mockResolvedValue({ hub_history: false });
     vi.spyOn(api, "enable").mockResolvedValue();

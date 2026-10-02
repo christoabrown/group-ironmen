@@ -192,7 +192,7 @@ export class EventMarkers {
   setTrailMarks(name, marks, color) {
     this.trails.set(
       name,
-      marks.map((mark) => ({ ...mark, color, at: mark.t * 1000, trail: name }))
+      marks.map((mark) => ({ ...mark, color, at: mark.t * 1000, trail: name })),
     );
   }
 
@@ -255,8 +255,8 @@ export class EventMarkers {
           this.display(mark, now, {
             alpha: ahead ? AHEAD_ALPHA : 1,
             compact: ahead || age >= EVENT_MARKER_MS,
-            arrived: replayTime === null ? live?.arrived ?? null : null,
-          })
+            arrived: replayTime === null ? (live?.arrived ?? null) : null,
+          }),
         );
       }
     }
@@ -357,7 +357,7 @@ export function layoutMarkers(markers, view) {
       Number(a.plane === view.plane) - Number(b.plane === view.plane) ||
       Number(!a.compact) - Number(!b.compact) ||
       a.tier - b.tier ||
-      a.top.at - b.top.at
+      a.top.at - b.top.at,
   );
 
   let nextMs = null;
