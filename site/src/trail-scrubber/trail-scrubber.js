@@ -1,5 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { formatTrailTime } from "../canvas-map/trail-model";
+import { remember, remembered } from "../data/storage";
 import { ReplayClock } from "./replay-clock";
 
 // More ticks than this on the timeline are only clutter.
@@ -153,11 +154,7 @@ export class TrailScrubber extends BaseElement {
     if (event.target === this.followInput) {
       // Chosen by hand, so it holds for the next replay too.
       this.follow = this.followInput.checked;
-      try {
-        localStorage.setItem(FOLLOW_KEY, String(this.follow));
-      } catch {
-        // Not remembered in private mode.
-      }
+      remember(FOLLOW_KEY, this.follow);
       if (this.follow && this.isOpen) this.emit();
     }
   }
@@ -214,11 +211,7 @@ export class TrailScrubber extends BaseElement {
 
 /** Whether the map follows the player in a replay, unless that was switched off by hand. */
 function wantsFollow() {
-  try {
-    return localStorage.getItem(FOLLOW_KEY) !== "false";
-  } catch {
-    return true;
-  }
+  return remembered(FOLLOW_KEY, true) !== false;
 }
 
 customElements.define("trail-scrubber", TrailScrubber);

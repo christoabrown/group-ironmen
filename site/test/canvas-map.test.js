@@ -14,6 +14,7 @@ vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
 }));
 
 import { CanvasMap, ICON_SPRITE_SIZE } from "../src/canvas-map/canvas-map";
+import { centerOn as centerCameraOn, createMap as createMapInstance } from "./helpers/map";
 import { GroupData } from "../src/data/group-data";
 
 function createMockCtx() {
@@ -53,42 +54,6 @@ function setMapLinks(map, links) {
     const linkKey = `${x},${y + 1},${plane}`;
     map.linksByPlane[plane].push({ key: linkKey, x, y: y + 1, plane, destination });
   }
-}
-
-function centerCameraOn(map, x, y) {
-  const [cx, cy] = map.gamePositionToCameraCenter(x, y);
-  map.camera.x.current = cx;
-  map.camera.y.current = cy;
-}
-
-function createMapInstance() {
-  const map = new CanvasMap();
-  map.plane = 1;
-  map.tileSize = 256;
-  map.pixelsPerGameTile = 4;
-  map.canvas = { width: 800, height: 600 };
-  map.camera = {
-    x: new Animation({ current: 0, target: 0, progress: 1 }),
-    y: new Animation({ current: 0, target: 0, progress: 1 }),
-    zoom: new Animation({ current: 1, target: 1, progress: 1 }),
-    maxZoom: 6,
-    minZoom: 0.5,
-    isDragging: false,
-  };
-  map.cursor = {
-    x: 0,
-    y: 0,
-    frameX: [0],
-    frameY: [0],
-  };
-  map.touch = {};
-  map.playerMarkers = new Map();
-  map.followingPlayer = {};
-  map.tiles = [new Map(), new Map(), new Map(), new Map()];
-  map.tilesInView = [];
-  map.updateRequested = 0;
-  map.coordinatesDisplay = { innerText: "" };
-  return map;
 }
 
 describe("Animation", () => {

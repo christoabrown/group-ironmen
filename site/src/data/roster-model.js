@@ -40,6 +40,15 @@ const SORTS = {
     compare: (a, b) => Number(b.online) - Number(a.online) || compareNames(a, b),
   },
   name: { label: "Name", compare: compareNames },
+  // Where they are, the online ones first; without a place they come last.
+  region: {
+    label: "Place",
+    compare: (a, b) =>
+      Number(b.online) - Number(a.online) ||
+      Number(Boolean(b.region)) - Number(Boolean(a.region)) ||
+      (a.region || "").localeCompare(b.region || "") ||
+      compareNames(a, b),
+  },
   total: { label: "Total level", compare: byNumber(totalLevel) },
   xp: { label: "Total XP", compare: byNumber(overallXp) },
   value: { label: "Carried value", compare: byNumber(carriedValue) },
@@ -68,6 +77,11 @@ export function filterMembers(members, { text = "", status = "all" } = {}) {
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(query));
   });
+}
+
+/** What a sort order is called in a list of them. */
+export function sortLabel(key) {
+  return SORTS[key]?.label ?? key;
 }
 
 export function sortMembers(members, key = "status", descending = false) {

@@ -20,7 +20,7 @@ function fakeWorldMap() {
     trailNames: () => [...drawn],
     setTrailEvents: vi.fn(),
     setEventFilters: vi.fn(),
-    focusEvent: vi.fn(() => true),
+    goToEvent: vi.fn(),
     setReplayTime: vi.fn(),
     trailNextChange: vi.fn(() => null),
     trailNextHop: vi.fn(() => null),
@@ -393,7 +393,7 @@ describe("map page trails", () => {
       mountLive();
       arrive(drop("d", 5));
       page.querySelector(".event-toasts__toast").click();
-      expect(worldMap.focusEvent).toHaveBeenCalledWith("d");
+      expect(worldMap.goToEvent).toHaveBeenCalledWith(expect.objectContaining({ id: "d" }));
       expect(shown()).toEqual([]);
     });
 

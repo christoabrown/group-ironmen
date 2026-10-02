@@ -1,16 +1,18 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
-import { groupData } from "../data/group-data";
 import { selection } from "../data/selection";
+import { newsTracker } from "../data/live-events";
 import { colorForName } from "../data/player-colors";
 import {
-  EVENT_FILTERS_KEY,
   EVENT_KINDS,
   MIN_LOOT_OPTIONS,
   eventIsFresh,
   eventPasses,
   loadEventFilters,
+  saveEventFilters,
 } from "../data/event-view";
+import { clockTime, shortDay } from "../data/format";
+import { remember, remembered } from "../data/storage";
 // The page drives these two from the moment it is connected, so they have to
 // be defined before it is.
 import "../canvas-map/canvas-map";
@@ -31,24 +33,18 @@ const TRAIL_EVENTS_REFRESH_MS = 10 * 60 * 1000;
 /** "Hub data from 14:05" when `asOf` (unix seconds) is too long ago, else null. */
 function staleNotice(asOf) {
   if (!asOf || Date.now() / 1000 - asOf < TRAIL_STALE_S) return null;
-  const time = new Date(asOf * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return `Hub data from ${time}`;
+  return `Hub data from ${clockTime(asOf * 1000)}`;
 }
 
 /** The day a trail (as the server sends it) starts, e.g. "26 Sep". */
 function trailStartDay(trail) {
   const [, , , time, dwell = 0] = trail.points[0];
-  return new Date((time - dwell) * 1000).toLocaleDateString([], { day: "numeric", month: "short" });
+  return shortDay((time - dwell) * 1000);
 }
 
 /** The trail length chosen last time, when the select still offers it. */
 function storedTrailDays(select) {
-  let stored = null;
-  try {
-    stored = localStorage.getItem(TRAIL_DAYS_KEY);
-  } catch {
-    // Private mode.
-  }
+  const stored = String(remembered(TRAIL_DAYS_KEY));
   return [...select.options].some((option) => option.value === stored) ? stored : select.value;
 }
 
@@ -104,10 +100,10 @@ export class MapPage extends BaseElement {
       document.body.classList.toggle("roster-open")
     );
     this.eventListener(this.eventControls, "change", this.handleEventFilterChange.bind(this));
-    this.eventListener(this.toasts, "toast-activated", (event) => this.focusEvent(event.detail.event));
+    this.eventListener(this.toasts, "toast-activated", (event) => this.worldMap.goToEvent(event.detail.event));
     this.subscribe("features", this.handleFeatures.bind(this));
     this.subscribe("trails-changed", () => this.loadTrails());
-    this.receivedLive = false;
+    this.liveEventsBringNews = newsTracker();
     this.subscribe("live-events", this.handleLiveEvents.bind(this));
     this.subscribe("player-selected", () => document.body.classList.remove("roster-open"));
   }
@@ -163,11 +159,7 @@ export class MapPage extends BaseElement {
   // ---------------------------------------------------------------------------
 
   handleTrailDaysChange() {
-    try {
-      localStorage.setItem(TRAIL_DAYS_KEY, this.trailDaysSelect.value);
-    } catch {
-      // Not remembered in private mode.
-    }
+    remember(TRAIL_DAYS_KEY, this.trailDaysSelect.value);
     this.loadTrails();
   }
 
@@ -365,44 +357,26 @@ export class MapPage extends BaseElement {
     } else if (target.name) {
       this.filters[target.name] = target.checked;
     }
-    try {
-      localStorage.setItem(EVENT_FILTERS_KEY, JSON.stringify(this.filters));
-    } catch {
-      // Not remembered in private mode.
-    }
+    saveEventFilters(this.filters);
     this.worldMap.setEventFilters(this.filters);
     // Smaller drops than the trails' events were fetched with have to be asked for.
     this.loadTrailEvents();
   }
 
-  handleLiveEvents({ events, added, initial }) {
-    this.liveEvents = events;
-    // The first call replays the last poll (or is the first load): no news.
-    const first = !this.receivedLive || initial;
-    const news = first ? [] : added;
-    this.receivedLive = true;
-    if (first || news.some((event) => selection.hasTrail(event.member))) this.showTrailEvents();
+  handleLiveEvents(feed) {
+    this.liveEvents = feed.events;
+    const bringsNews = this.liveEventsBringNews(feed);
+    const news = bringsNews ? feed.added : [];
+    // All of them when the feed starts (over), and after that what is new on a trail that is shown.
+    if (!bringsNews || news.some((event) => selection.hasTrail(event.member))) this.showTrailEvents();
     // The map puts the events on itself; this page announces them.
     const now = api.serverNow();
     for (const event of news) {
-      const member = groupData.members.get(event.member);
       // What turns up late (the tab was hidden, say) is no news any more.
       if (this.filters.toasts && eventPasses(event, this.filters) && eventIsFresh(event, now)) {
-        this.toasts.show(event, { color: member?.lightColor || colorForName(event.member).light });
+        this.toasts.show(event, { color: colorForName(event.member).light });
       }
     }
-  }
-
-  /**
-   * Brings an event into view and selects its player, as a click on its toast
-   * asks. An event that isn't on the map shows where its player is now.
-   */
-  focusEvent(event) {
-    const known = groupData.members.has(event.member);
-    // Selected first: the map keeps the event clear of the drawer that opens.
-    if (known) selection.select(event.member, { follow: false });
-    const shown = this.worldMap.focusEvent(event.id);
-    if (known && !shown) selection.select(event.member, { follow: true });
   }
 }
 customElements.define("map-page", MapPage);

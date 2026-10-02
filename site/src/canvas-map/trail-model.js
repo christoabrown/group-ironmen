@@ -1,5 +1,6 @@
 import { GroupData } from "../data/group-data";
 import { eventKind, eventPlace, eventTier, eventTimeMs } from "../data/event-view";
+import { clockTime, shortDay } from "../data/format";
 
 // What a player's trail is, apart from how it is drawn: the points the hub
 // sampled (about one a minute) joined with the positions seen live, and what
@@ -344,9 +345,8 @@ export function formatTrailTime(t0, t1, nowS = Date.now() / 1000) {
   const today = new Date(nowS * 1000).toDateString();
   const format = (t, withDay) => {
     const date = new Date(t * 1000);
-    const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (!withDay || date.toDateString() === today) return time;
-    return `${date.toLocaleDateString([], { day: "numeric", month: "short" })} ${time}`;
+    if (!withDay || date.toDateString() === today) return clockTime(date);
+    return `${shortDay(date)} ${clockTime(date)}`;
   };
   if (t1 - t0 < BUCKET_S) return format(t1, true);
   const sameDay = new Date(t0 * 1000).toDateString() === new Date(t1 * 1000).toDateString();

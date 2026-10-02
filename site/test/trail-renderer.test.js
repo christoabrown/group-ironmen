@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildTrailModel } from "../src/canvas-map/trail-model";
 import { buildGeometry, tileCenter } from "../src/canvas-map/trail-geometry";
 import { ageFraction, drawTrail } from "../src/canvas-map/trail-renderer";
+import { recordingContext } from "./helpers/recording-context";
 
 const NOW = 1_790_000_040;
 const COLOR = "hsl(222, 70%, 45%)";
@@ -10,47 +11,6 @@ const LIGHT = "hsl(222, 85%, 70%)";
 function at(x, y, minutesAgo, extra = {}) {
   const t = NOW - minutesAgo * 60;
   return { x, y, plane: 0, t0: t, t1: t, boat: false, world: null, ...extra };
-}
-
-/** A canvas context that records what was stroked and filled, and how. */
-function recordingContext() {
-  const ctx = {
-    strokes: [],
-    fills: [],
-    saves: 0,
-    globalAlpha: 1,
-    strokeStyle: "",
-    fillStyle: "",
-    lineWidth: 1,
-    lineCap: "butt",
-    lineJoin: "miter",
-    lineDashOffset: 0,
-  };
-  let path = [];
-  let dash = [];
-  ctx.beginPath = () => (path = []);
-  ctx.moveTo = (x, y) => path.push([x, y]);
-  ctx.lineTo = (x, y) => path.push([x, y]);
-  ctx.arc = (x, y, r) => path.push([x, y, r]);
-  ctx.closePath = () => {};
-  ctx.setLineDash = (value) => (dash = value);
-  ctx.getLineDash = () => dash;
-  ctx.save = () => (ctx.saves += 1);
-  ctx.restore = () => {
-    ctx.saves -= 1;
-    dash = [];
-    ctx.globalAlpha = 1;
-  };
-  ctx.stroke = () =>
-    ctx.strokes.push({
-      style: ctx.strokeStyle,
-      width: ctx.lineWidth,
-      alpha: ctx.globalAlpha,
-      dash,
-      path: path.slice(),
-    });
-  ctx.fill = () => ctx.fills.push({ style: ctx.fillStyle, alpha: ctx.globalAlpha, path: path.slice() });
-  return ctx;
 }
 
 /** A view of the map centred on a tile, 800 by 600 map pixels at zoom 1. */
@@ -133,7 +93,7 @@ describe("drawTrail, live", () => {
     const ctx = recordingContext();
     const far = [...walk.slice(0, 2), at(2662, 3305, 0)];
     drawTrail(ctx, viewOf(3215, 3202), trailOf(far), LIVE);
-    expect(ctx.saves).toBe(0);
+    expect(ctx.depth).toBe(0);
     expect(ctx.getLineDash()).toEqual([]);
     expect(ctx.globalAlpha).toBe(1);
   });

@@ -1,4 +1,5 @@
 import { EVENT_MARKER_MS } from "./event-markers";
+import { remember, remembered } from "../data/storage";
 
 export const EVENT_PLACES_KEY = "map-event-places";
 
@@ -16,15 +17,10 @@ export class EventPlaces {
   load() {
     if (this.places) return this.places;
     this.places = new Map();
-    try {
-      const stored = JSON.parse(localStorage.getItem(EVENT_PLACES_KEY) || "{}");
-      for (const [id, place] of Object.entries(stored)) {
-        if (Array.isArray(place) && place.length === 4 && place.every((value) => Number.isFinite(value))) {
-          this.places.set(id, place);
-        }
+    for (const [id, place] of Object.entries(remembered(EVENT_PLACES_KEY, {}) || {})) {
+      if (Array.isArray(place) && place.length === 4 && place.every((value) => Number.isFinite(value))) {
+        this.places.set(id, place);
       }
-    } catch {
-      // Unreadable, or private mode: nothing is remembered.
     }
     return this.places;
   }
@@ -42,10 +38,6 @@ export class EventPlaces {
     for (const [id, place] of places) {
       if (now - place[3] >= EVENT_MARKER_MS) places.delete(id);
     }
-    try {
-      localStorage.setItem(EVENT_PLACES_KEY, JSON.stringify(Object.fromEntries(places)));
-    } catch {
-      // Not remembered in private mode.
-    }
+    remember(EVENT_PLACES_KEY, Object.fromEntries(places));
   }
 }

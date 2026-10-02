@@ -3,11 +3,13 @@ import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 import { utility } from "../utility";
 import { Animation } from "./animation";
 import { selection } from "../data/selection";
+import { newsTracker } from "../data/live-events";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
 import { colorForName } from "../data/player-colors";
 import { groupData } from "../data/group-data";
-import { escapeHtml, eventPasses, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
+import { eventPasses, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
+import { escapeHtml } from "../data/format";
 import { EventMarkers, REPLAY_POP_MAX, clusterPoints, layoutMarkers } from "./event-markers";
 import { drawEventMarkers } from "./event-marker-renderer";
 import { IconCache } from "./icon-cache";
@@ -988,9 +990,7 @@ export class CanvasMap extends BaseElement {
   /** What a click on a player, a group of players or an event does. */
   activatePlayerItem(item) {
     if (item.kind === "event") {
-      const { event } = item.marker.top;
-      if (groupData.members.has(event.member)) selection.select(event.member, { follow: false });
-      this.focusEvent(event.id);
+      this.goToEvent(item.marker.top.event);
       return;
     }
     if (item.kind === "player") {
@@ -1046,13 +1046,13 @@ export class CanvasMap extends BaseElement {
    * whole session, on whichever page: what happens while another page is
    * open is on the map, where it happened, when the map is looked at again.
    */
-  handleLiveEvents({ events, initial }) {
-    // The first call replays the last poll, or is the first load: those
-    // events are put on the map, not announced.
-    this.liveEventsAreNews = Boolean(this.liveEvents) && !initial;
+  handleLiveEvents(feed) {
+    // What isn't news is put on the map, not announced.
+    if (!this.liveEventsBringNews) this.liveEventsBringNews = newsTracker();
+    this.liveEventsAreNews = this.liveEventsBringNews(feed);
     // A feed that starts over may be another group's.
-    if (initial) this.eventMarkers.clearLive();
-    this.liveEvents = events;
+    if (feed.initial) this.eventMarkers.clearLive();
+    this.liveEvents = feed.events;
     this.placeLiveEvents();
   }
 
@@ -1147,6 +1147,19 @@ export class CanvasMap extends BaseElement {
       this.eventTooltipShown = false;
       tooltipManager.hideTooltip();
     }
+  }
+
+  /**
+   * Shows where an event happened and selects its player, as a click on its
+   * marker or on its toast asks. An event that isn't on the map (any more)
+   * shows where its player is now.
+   */
+  goToEvent(event) {
+    const known = groupData.members.has(event.member);
+    // Selected first: the map keeps the event clear of the drawer that opens.
+    if (known) selection.select(event.member, { follow: false });
+    const shown = this.focusEvent(event.id);
+    if (known && !shown) selection.select(event.member, { follow: true });
   }
 
   /**

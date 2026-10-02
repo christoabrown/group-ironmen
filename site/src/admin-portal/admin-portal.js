@@ -1,6 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
+import { el } from "../dom";
 import { api } from "../data/api";
-import { relativeTime } from "../data/hub-format";
+import { relativeTime } from "../data/format";
 
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -12,13 +13,6 @@ export function describeHubKey(status) {
 }
 
 const ago = (time) => (time ? relativeTime(time) : "never");
-
-function el(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
-}
 
 function badge(kind, text, title) {
   const element = el("span", `admin-portal__badge admin-portal__badge--${kind}`, text);

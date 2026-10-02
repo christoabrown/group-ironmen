@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { carriedValue, filterMembers, shares, sortMembers, totalLevel, world } from "../src/data/roster-model";
+import {
+  carriedValue,
+  filterMembers,
+  shares,
+  sortLabel,
+  sortMembers,
+  totalLevel,
+  world,
+} from "../src/data/roster-model";
 import { colorForName, hashName } from "../src/data/player-colors";
-import { formatDuration, formatGp, relativeTime } from "../src/data/hub-format";
+import { formatDuration, formatGp, relativeTime } from "../src/data/format";
 
 const member = (name, fields = {}) => ({
   name,
@@ -37,6 +45,18 @@ describe("roster-model", () => {
     expect(sortMembers(members, "world").map((m) => m.name)).toEqual(["Bravo", "Zezima", "alpha", "Charlie"]);
     expect(sortMembers(members, "lastSeen").map((m) => m.name)).toEqual(["Bravo", "Zezima", "alpha", "Charlie"]);
     expect(sortMembers(members, "name", true)[0].name).toBe("Zezima");
+  });
+
+  it("sorts by place: the online ones first, and those without a place last", () => {
+    const placed = [
+      member("Zezima", { online: true, region: "Varrock" }),
+      member("alpha", { region: "Al Kharid" }),
+      member("Bravo", { online: true, region: "Lumbridge" }),
+      member("Charlie", { online: true }),
+    ];
+    expect(sortMembers(placed, "region").map((m) => m.name)).toEqual(["Bravo", "Zezima", "Charlie", "alpha"]);
+    expect(sortLabel("region")).toBe("Place");
+    expect(sortLabel("status")).toBe("Online first");
   });
 
   it("reads values from the hub's details", () => {

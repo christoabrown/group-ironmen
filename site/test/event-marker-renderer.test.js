@@ -1,49 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IconCache } from "../src/canvas-map/icon-cache";
-import { KIND_COLORS, drawEventMarkers } from "../src/canvas-map/event-marker-renderer";
+import { drawEventMarkers } from "../src/canvas-map/event-marker-renderer";
+import { KIND_COLORS } from "../src/data/event-view";
 import { MARKER_RADIUS, MARKER_RADIUS_COMPACT } from "../src/canvas-map/event-markers";
 import { DEATH_ICON_URL } from "../src/data/event-view";
+import { recordingContext } from "./helpers/recording-context";
 
 const GOLD = "#ffd700";
-
-/** A canvas context that records what was drawn, and how. */
-function recordingContext() {
-  const ctx = {
-    strokes: [],
-    fills: [],
-    images: [],
-    texts: [],
-    depth: 0,
-    globalAlpha: 1,
-    strokeStyle: "",
-    fillStyle: "",
-    lineWidth: 1,
-    imageSmoothingEnabled: false,
-  };
-  let path = [];
-  let dash = [];
-  ctx.beginPath = () => (path = []);
-  ctx.moveTo = (x, y) => path.push([x, y]);
-  ctx.lineTo = (x, y) => path.push([x, y]);
-  ctx.arc = (x, y, r) => path.push([x, y, r]);
-  ctx.setLineDash = (value) => (dash = value);
-  ctx.setTransform = vi.fn();
-  ctx.save = () => (ctx.depth += 1);
-  ctx.restore = () => (ctx.depth -= 1);
-  ctx.stroke = () =>
-    ctx.strokes.push({
-      style: ctx.strokeStyle,
-      width: ctx.lineWidth,
-      alpha: ctx.globalAlpha,
-      dash,
-      path: path.slice(),
-    });
-  ctx.fill = () => ctx.fills.push({ style: ctx.fillStyle, alpha: ctx.globalAlpha, path: path.slice() });
-  ctx.drawImage = (image, x, y, width, height) => ctx.images.push({ image, x, y, width, height });
-  ctx.fillText = (text, x, y) => ctx.texts.push({ text, x, y, style: ctx.fillStyle, alpha: ctx.globalAlpha });
-  ctx.strokeText = () => {};
-  return ctx;
-}
 
 const item = (extra = {}) => ({
   x: 400,

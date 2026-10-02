@@ -12,6 +12,21 @@ import { utility } from "../utility";
 const LIVE_EVENTS_POLL_MS = 5000;
 const KEEP = 300;
 
+/**
+ * For a subscriber of "live-events": a function that says, for each call it
+ * gets, whether that call brings news. The first one doesn't: it is the last
+ * poll played back to whoever subscribes, or the first load. Nor does a feed
+ * that starts over.
+ */
+export function newsTracker() {
+  let heard = false;
+  return ({ initial }) => {
+    const news = heard && !initial;
+    heard = true;
+    return news;
+  };
+}
+
 export class LiveEvents {
   constructor() {
     this.events = [];

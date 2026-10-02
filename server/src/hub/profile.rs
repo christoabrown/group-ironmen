@@ -33,6 +33,9 @@ const RANGE_MAX_DAYS: i64 = 30;
 /// trail at most: of drops, and of everything else.
 const RANGE_PAGE: usize = 500;
 const RANGE_EVENTS_MAX: usize = 2000;
+/// The event types the map shows, as its drops and as the rest. They follow
+/// `EVENT_KINDS` in site/src/data/event-view.js: a type added there goes here
+/// too, or a trail leaves it out when small drops are hidden.
 const LOOT_TYPES: &str = "loot,pk_loot";
 const OTHER_TYPES: &str =
     "death,level_up,collection_log,superior_spawn,achievement_diary,combat_task";

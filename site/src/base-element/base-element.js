@@ -70,6 +70,13 @@ export class BaseElement extends HTMLElement {
     }
   }
 
+  /** Calls `fn` every `ms` for as long as the element is connected. */
+  every(ms, fn) {
+    if (!this.isConnected) return;
+    const interval = window.setInterval(fn, ms);
+    this.eventUnbinders.add(() => window.clearInterval(interval));
+  }
+
   /** `receiveMostRecent: false` skips the replay of the topic's last value. */
   subscribe(dataName, handler, receiveMostRecent = true) {
     if (!this.isConnected) return;

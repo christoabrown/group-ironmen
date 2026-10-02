@@ -1,43 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Animation } from "../src/canvas-map/animation";
 
 vi.mock("../src/rs-tooltip/tooltip-manager", () => ({
   tooltipManager: { showTooltip: vi.fn(), hideTooltip: vi.fn() },
 }));
 
 import { CanvasMap } from "../src/canvas-map/canvas-map";
+import { centerOn, createMap as createBareMap } from "./helpers/map";
 import { EVENT_FRAME_MS, EVENT_MARKER_MS, EVENT_WAKE_MS } from "../src/canvas-map/event-markers";
 import { EVENT_PLACES_KEY } from "../src/canvas-map/event-places";
 import { api } from "../src/data/api";
 import { defaultEventFilters } from "../src/data/event-view";
 import { groupData } from "../src/data/group-data";
 import { tooltipManager } from "../src/rs-tooltip/tooltip-manager";
-import { LiveEvents } from "../src/data/live-events";
+import { LiveEvents, newsTracker } from "../src/data/live-events";
 import { pubsub } from "../src/data/pubsub";
 import { selection } from "../src/data/selection";
 import { sparklinePoints } from "../src/player-profile-view/player-profile-view";
 
+/** The shared map, with its own style and class list to look at. */
 function createMap() {
-  const map = new CanvasMap();
-  map.plane = 1;
-  map.tileSize = 256;
-  map.pixelsPerGameTile = 4;
-  map.canvas = { width: 800, height: 600, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
-  map.camera = {
-    x: new Animation({ current: 0, target: 0, progress: 1 }),
-    y: new Animation({ current: 0, target: 0, progress: 1 }),
-    zoom: new Animation({ current: 1, target: 1, progress: 1 }),
-    maxZoom: 6,
-    minZoom: 0.5,
-    isDragging: false,
-  };
-  map.cursor = { x: 0, y: 0, frameX: [0], frameY: [0] };
-  map.touch = {};
-  map.playerMarkers = new Map();
-  map.renderedEvents = [];
-  map.renderedPlayers = [];
-  map.followingPlayer = {};
-  map.coordinatesDisplay = { innerText: "" };
+  const map = createBareMap();
   map.style = {};
   map.classList = { add: vi.fn(), remove: vi.fn() };
   return map;
@@ -156,12 +138,6 @@ describe("events on the map", () => {
     map.playerMarkers.set("Alice", alice);
     centerOn(map, 3000, 3001);
   });
-
-  function centerOn(target, x, y) {
-    const [cx, cy] = target.gamePositionToCameraCenter(x, y);
-    target.camera.x.current = cx;
-    target.camera.y.current = cy;
-  }
 
   it("are placed where they say they happened, or else where the player is", () => {
     map.handleLiveEvents({
@@ -407,6 +383,23 @@ describe("events on the map", () => {
       expect(map.camera.x.target).toBe(map.gamePositionToCameraCenter(3000, 3001)[0]);
       expect(map.focusEvent("nope")).toBe(false);
     });
+
+    it("show where the player is now for an event that is no longer on the map", () => {
+      groupData.members = new Map([["Alice", {}]]);
+      const selected = [];
+      pubsub.subscribe("player-selected", (value) => selected.push(value));
+
+      // As a click on its toast asks, after the marker's half hour is up.
+      map.goToEvent(drop("gone", 3 * 3600000));
+      expect(selected).toEqual([
+        { name: "Alice", follow: false },
+        { name: "Alice", follow: true },
+      ]);
+
+      // And nobody is selected for a player the map doesn't know.
+      map.goToEvent(drop("stranger", 5000, { member: "Nobody" }));
+      expect(selected).toHaveLength(2);
+    });
   });
 
   it("draw nothing on a map no event has reached", () => {
@@ -438,6 +431,17 @@ describe("live events", () => {
 
     live.apply([]);
     expect(published).toHaveLength(2);
+  });
+
+  it("tells a subscriber which calls bring news: not the first it hears, nor a feed that starts over", () => {
+    const bringsNews = newsTracker();
+    // The last poll, played back to whoever subscribes.
+    expect(bringsNews({ initial: false })).toBe(false);
+    expect(bringsNews({ initial: false })).toBe(true);
+    expect(bringsNews({ initial: true })).toBe(false);
+    expect(bringsNews({ initial: false })).toBe(true);
+    // Each subscriber keeps its own count.
+    expect(newsTracker()({ initial: false })).toBe(false);
   });
 });
 

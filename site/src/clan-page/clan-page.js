@@ -1,29 +1,20 @@
 import { BaseElement } from "../base-element/base-element";
+import { el } from "../dom";
 import { api } from "../data/api";
 import { groupData } from "../data/group-data";
 import { eventIconUrl } from "../data/event-view";
 import { selection } from "../data/selection";
 import { groupByRegion, groupByWorld } from "../data/regions";
-import { describeEvent, formatGp, relativeTime } from "../data/hub-format";
+import { describeEvent } from "../data/hub-format";
+import { formatGp, relativeTime } from "../data/format";
 
 const REFRESH_MS = 60000;
-const GAIN_PERIODS = [
+// The periods the top gainers and the biggest drops can be asked for.
+const PERIODS = [
   ["day", "Today"],
   ["week", "This week"],
   ["month", "This month"],
 ];
-const LOOT_PERIODS = [
-  ["day", "Today"],
-  ["week", "This week"],
-  ["month", "This month"],
-];
-
-function el(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
-}
 
 function statusMessage(error) {
   if (error?.status === 404) return "Not available: the hub isn't connected or doesn't share this.";
@@ -67,8 +58,8 @@ export class ClanPage extends BaseElement {
     this.lootStatus = this.querySelector(".clan-page__loot-status");
 
     for (const [select, options, value] of [
-      [this.gainsPeriod, GAIN_PERIODS, "day"],
-      [this.lootPeriod, LOOT_PERIODS, "week"],
+      [this.gainsPeriod, PERIODS, "day"],
+      [this.lootPeriod, PERIODS, "week"],
     ]) {
       select.replaceChildren(...options.map(([key, label]) => new Option(label, key)));
       select.value = value;
@@ -92,17 +83,16 @@ export class ClanPage extends BaseElement {
         this.loadLoot();
       }
     });
-    this.refreshInterval = window.setInterval(() => {
+    this.every(REFRESH_MS, () => {
       if (!this.historyLoaded) return;
       this.loadGains();
       this.loadLoot();
-    }, REFRESH_MS);
+    });
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     document.body.classList.remove("clan-page");
-    window.clearInterval(this.refreshInterval);
     window.cancelAnimationFrame(this.presenceFrame);
     this.presenceFrame = null;
   }

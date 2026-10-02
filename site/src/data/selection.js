@@ -1,4 +1,5 @@
 import { pubsub } from "./pubsub";
+import { remember, remembered } from "./storage";
 
 // Which player is selected (their profile is open and the map follows them)
 // and whose trails are shown. Components talk through these topics:
@@ -65,22 +66,13 @@ class Selection {
   }
 
   trailsChanged() {
-    try {
-      localStorage.setItem(TRAILS_KEY, JSON.stringify([...this.trails]));
-    } catch {
-      // Not remembered in private mode.
-    }
+    remember(TRAILS_KEY, [...this.trails]);
     pubsub.publish("trails-changed", new Set(this.trails));
   }
 
   /** Shows the trails that were on before the page was reloaded. */
   restore() {
-    let names = [];
-    try {
-      names = JSON.parse(localStorage.getItem(TRAILS_KEY) || "[]");
-    } catch {
-      // Start without trails.
-    }
+    let names = remembered(TRAILS_KEY, []);
     if (!Array.isArray(names)) names = [];
     this.trails = new Set(names.filter((name) => typeof name === "string").slice(0, MAX_TRAILS));
     if (this.trails.size) pubsub.publish("trails-changed", new Set(this.trails));

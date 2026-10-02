@@ -1,4 +1,4 @@
-import { eventIconUrl } from "../data/event-view";
+import { KIND_COLORS, eventIconUrl } from "../data/event-view";
 import { EVENT_RING_MS } from "./event-markers";
 
 // The brown of the game's inventory, which its item sprites were drawn to stand out against.
@@ -9,9 +9,6 @@ const COUNT = "#ff981f";
 const FALLBACK = "#ff981f";
 const LABEL_FONT = "16px rssmall";
 const COUNT_FONT = "13px rssmall";
-
-/** What stands for an event's kind where there is no icon to show. */
-export const KIND_COLORS = { loot: GOLD, level: "#5bd45b", death: "#e0403a", other: "#f2f2f2" };
 
 /** The rings of an event that just happened, spreading from its marker. */
 function drawRings(ctx, item) {

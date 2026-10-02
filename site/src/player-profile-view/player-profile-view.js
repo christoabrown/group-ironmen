@@ -1,11 +1,13 @@
 import { BaseElement } from "../base-element/base-element";
+import { el } from "../dom";
 import { api } from "../data/api";
 import { groupData } from "../data/group-data";
-import { selection } from "../data/selection";
+import { selection, MAX_TRAILS } from "../data/selection";
 import { Item } from "../data/item";
 import { Skill, SkillName } from "../data/skill";
 import { carriedValue, shares, totalLevel, world } from "../data/roster-model";
-import { formatDuration, formatGp, hubErrorMessage, relativeTime } from "../data/hub-format";
+import { hubErrorMessage } from "../data/hub-format";
+import { formatDuration, formatGp, relativeTime } from "../data/format";
 import { ACCOUNT_TYPE_BADGES } from "../player-roster/player-roster";
 
 const PROFILE_TABS = [
@@ -31,16 +33,11 @@ const GAME_STATES = {
 };
 
 // The last opened tab and gains period, kept while switching players.
+// The header says how long ago; that changes by itself.
+const HEADER_REFRESH_MS = 30000;
+
 let lastTab = "overview";
 let lastGainsPeriod = "day";
-
-/** An element with a class and optional text. */
-function el(tag, className, text) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (text !== undefined) element.textContent = text;
-  return element;
-}
 
 /**
  * Points for an SVG polyline of `values` in a `width` x `height` box, with the
@@ -103,7 +100,7 @@ export class PlayerProfileView extends BaseElement {
     this.eventListener(this.followButton, "click", () => selection.select(this.playerName, { follow: true }));
     this.eventListener(this.trailButton, "click", () => {
       if (!selection.toggleTrail(this.playerName)) {
-        this.trailButton.title = "At most 8 trails at once";
+        this.trailButton.title = `At most ${MAX_TRAILS} trails at once`;
       }
     });
 
@@ -118,15 +115,10 @@ export class PlayerProfileView extends BaseElement {
     this.subscribe("features", (features) => {
       this.trailButton.hidden = !features?.hub_history;
     });
-    this.timeInterval = window.setInterval(() => this.updateHeader(), 30000);
+    this.every(HEADER_REFRESH_MS, () => this.updateHeader());
 
     this.updateHeader();
     this.showTab(lastTab);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.clearInterval(this.timeInterval);
   }
 
   get member() {

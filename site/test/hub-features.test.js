@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../src/data/api";
 import { pubsub } from "../src/data/pubsub";
-import { describeEvent, relativeTime } from "../src/data/hub-format";
+import { describeEvent } from "../src/data/hub-format";
+import { relativeTime } from "../src/data/format";
 
 describe("hub features", () => {
   beforeEach(() => {

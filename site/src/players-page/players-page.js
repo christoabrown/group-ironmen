@@ -1,7 +1,8 @@
 import { BaseElement } from "../base-element/base-element";
+import { reorder } from "../dom";
 import { groupData } from "../data/group-data";
 import { carriedValue, filterMembers, overallXp, sortMembers, totalLevel, world } from "../data/roster-model";
-import { formatGp, relativeTime } from "../data/hub-format";
+import { formatGp, relativeTime } from "../data/format";
 import { selection } from "../data/selection";
 
 const DASH = "—";
@@ -55,16 +56,12 @@ export class PlayersPage extends BaseElement {
     this.syncRows();
     this.subscribe("members-updated", this.syncRows.bind(this));
     this.subscribe("roster-changed", this.patchRows.bind(this));
-    this.refreshInterval = setInterval(() => this.refreshTimes(), REFRESH_TIMES_MS);
+    this.every(REFRESH_TIMES_MS, () => this.refreshTimes());
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     document.body.classList.remove("players-page");
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
   }
 
   handleSearchInput() {
@@ -254,20 +251,10 @@ export class PlayersPage extends BaseElement {
     const changed = order.length !== this.order.length || order.some((name, i) => name !== this.order[i]);
     if (changed) {
       this.order = order;
-      let cursor = this.tbody.firstChild;
-      for (const name of order) {
-        const tr = this.rows.get(name).tr;
-        if (tr === cursor) {
-          cursor = cursor.nextSibling;
-        } else {
-          this.tbody.insertBefore(tr, cursor);
-        }
-      }
-      while (cursor) {
-        const next = cursor.nextSibling;
-        cursor.remove();
-        cursor = next;
-      }
+      reorder(
+        this.tbody,
+        order.map((name) => this.rows.get(name).tr)
+      );
     }
 
     const online = members.filter((member) => member.online).length;
