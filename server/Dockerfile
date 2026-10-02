@@ -1,7 +1,7 @@
 ###############################################
 # Backend Image
 ###############################################
-FROM rust:1.94-slim-bookworm AS builder
+FROM rust:1.98-slim-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
