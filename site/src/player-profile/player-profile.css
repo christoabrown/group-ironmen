@@ -39,6 +39,7 @@ player-profile.player-profile--left {
   }
 }
 
+/* The width and the breakpoint are in drawer-inset.js too, for what the drawer covers of the map. */
 @media only screen and (min-width: 701px) {
   body.profile-open .authed-section__main-content {
     padding-right: 404px;

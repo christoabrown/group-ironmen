@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { TrailLayer } from "../src/canvas-map/trail-layer";
-import { tileCenter } from "../src/canvas-map/trail-geometry";
+import { tileCenter } from "../src/canvas-map/map-space";
 
 const T = 1_790_000_040;
 const COLORS = { color: "hsl(1, 70%, 45%)", light: "hsl(1, 85%, 70%)", windowS: 86400 };

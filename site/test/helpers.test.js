@@ -3,6 +3,7 @@ import { BaseElement } from "../src/base-element/base-element";
 import { clockTime, escapeHtml, shortDay } from "../src/data/format";
 import { remember, remembered } from "../src/data/storage";
 import { el, reorder } from "../src/dom";
+import { drawerInset, setDrawerSide } from "../src/player-profile/drawer-inset";
 
 describe("what is written the same everywhere", () => {
   it("a time of day and a day, in the reader's own way of writing them", () => {
@@ -100,5 +101,26 @@ describe("an element's interval", () => {
     vi.advanceTimersByTime(3000);
     expect(tick).toHaveBeenCalledTimes(3);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("the profile drawer", () => {
+  afterEach(() => setDrawerSide(null));
+
+  it("covers one side of a wide page while it is open, and none of a narrow one", () => {
+    expect(drawerInset(1280)).toEqual({ left: 0, right: 0 });
+
+    setDrawerSide("right");
+    expect(document.body.classList.contains("profile-open")).toBe(true);
+    expect(drawerInset(1280)).toEqual({ left: 0, right: 404 });
+    // On a narrow screen it takes all of it: there is no side to keep clear of.
+    expect(drawerInset(600)).toEqual({ left: 0, right: 0 });
+
+    setDrawerSide("left");
+    expect(document.body.className).toBe("profile-open-left");
+    expect(drawerInset(1280)).toEqual({ left: 404, right: 0 });
+
+    setDrawerSide(null);
+    expect(document.body.className).toBe("");
   });
 });

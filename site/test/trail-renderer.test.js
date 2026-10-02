@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildTrailModel } from "../src/canvas-map/trail-model";
-import { buildGeometry, tileCenter } from "../src/canvas-map/trail-geometry";
+import { tileCenter } from "../src/canvas-map/map-space";
+import { buildGeometry } from "../src/canvas-map/trail-geometry";
 import { ageFraction, drawTrail } from "../src/canvas-map/trail-renderer";
 import { recordingContext } from "./helpers/recording-context";
 

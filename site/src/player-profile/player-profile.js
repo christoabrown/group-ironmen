@@ -1,6 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { appearance } from "../appearance";
 import { selection } from "../data/selection";
+import { setDrawerSide } from "./drawer-inset";
 
 /**
  * The drawer that shows the selected player. It sits on the side opposite the
@@ -30,7 +31,7 @@ export class PlayerProfile extends BaseElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    document.body.classList.remove("profile-open", "profile-open-left");
+    setDrawerSide(null);
   }
 
   handleSelected(selected) {
@@ -39,15 +40,14 @@ export class PlayerProfile extends BaseElement {
       this.hidden = true;
       this.content.replaceChildren();
       this.currentName = null;
-      document.body.classList.remove("profile-open", "profile-open-left");
+      setDrawerSide(null);
       return;
     }
     // The roster is on the left unless the settings dock it to the right.
     const left = appearance.getLayout() === "row-reverse";
     this.classList.toggle("player-profile--left", left);
     // Pages keep their controls clear of the drawer.
-    document.body.classList.toggle("profile-open", !left);
-    document.body.classList.toggle("profile-open-left", left);
+    setDrawerSide(left ? "left" : "right");
     this.hidden = false;
     if (this.currentName === name) return;
     this.currentName = name;

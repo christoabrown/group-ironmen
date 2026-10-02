@@ -138,8 +138,9 @@ README) and the Grand Exchange prices (the backend fetches them from prices.rune
 4. Read text and structure with `read_page` or `get_page_text`. The map itself is a canvas and needs
    a screenshot.
 5. **While the Browser pane is hidden the map does not redraw**: `requestAnimationFrame` does not
-   fire, and a screenshot shows a stale or half-loaded canvas. `document.hidden` tells you. Pump
-   frames by hand before a screenshot, or ask the user to show the pane:
+   fire, and a screenshot shows a stale or half-loaded canvas. `document.hidden` tells you. The site
+   doesn't poll either while it is hidden (after the first load), so no new positions, events or
+   toasts arrive. Pump frames by hand before a screenshot, or ask the user to show the pane:
 
    ```js
    const map = document.querySelector("canvas-map");

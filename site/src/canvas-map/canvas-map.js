@@ -3,30 +3,25 @@ import { tooltipManager } from "../rs-tooltip/tooltip-manager";
 import { utility } from "../utility";
 import { Animation } from "./animation";
 import { selection } from "../data/selection";
-import { newsTracker } from "../data/live-events";
 import { api } from "../data/api";
 import { regionName } from "../data/regions";
-import { colorForName } from "../data/player-colors";
 import { groupData } from "../data/group-data";
-import { eventPasses, eventPlace, eventTooltipHtml, loadEventFilters } from "../data/event-view";
 import { escapeHtml } from "../data/format";
-import { EventMarkers, REPLAY_POP_MAX, clusterPoints, layoutMarkers } from "./event-markers";
-import { drawEventMarkers } from "./event-marker-renderer";
-import { IconCache } from "./icon-cache";
-import { EventPlaces } from "./event-places";
+import { clusterPoints } from "./event-markers";
+import { EventLayer } from "./event-layer";
+import { GAME_TILES_PER_MAP_TILE, MAP_TILE_SIZE, PIXELS_PER_GAME_TILE, tileOrigin } from "./map-space";
 import { TrailLayer } from "./trail-layer";
+import { drawerInset } from "../player-profile/drawer-inset";
 import { formatTrailTime } from "./trail-model";
 
 export const ICON_SPRITE_SIZE = 15;
 
+// A press that moves further than this is a drag of the map, not a click.
+const DRAG_THRESHOLD_PX = 5;
 // A trail is hovered when the pointer is within this many pixels of its line.
 const TRAIL_HOVER_PX = 8;
 // Moving parts of a trail are redrawn about 25 times a second, not every frame.
 const TRAIL_FRAME_MS = 40;
-// The profile drawer and its margins (see player-profile.css): it covers this
-// much of one side of the map, on screens wide enough for it to be a drawer.
-const DRAWER_PX = 404;
-const DRAWER_MIN_SCREEN_PX = 701;
 // How long the camera takes to catch up with the replay's ghost.
 const REPLAY_FOLLOW_MS = 100;
 
@@ -65,7 +60,6 @@ export class CanvasMap extends BaseElement {
     this.eventListener(window, "resize", this.onResize.bind(this));
     this.playerMarkers = new Map();
     this.renderedPlayers = [];
-    this.renderedEvents = [];
     this.selectedName = null;
     this.subscribe("members-updated", this.handleUpdatedMembers.bind(this));
     this.subscribe("coordinates", this.handleUpdatedCoordinates.bind(this));
@@ -73,9 +67,7 @@ export class CanvasMap extends BaseElement {
     this.subscribe("map-focus", this.handleMapFocus.bind(this));
     this.subscribe("live-events", this.handleLiveEvents.bind(this));
 
-    this.plane = 1;
-    this.tileSize = 256;
-    this.pixelsPerGameTile = 4;
+    this.floor = 0;
     this.tiles = [new Map(), new Map(), new Map(), new Map()];
     this.tilesInView = [];
     this.previousFrameTime = performance.now();
@@ -128,14 +120,9 @@ export class CanvasMap extends BaseElement {
       window.cancelAnimationFrame(this.frameRequestId);
       this.frameRequestId = null;
     }
-    window.clearTimeout(this.trailFrameTimer);
-    this.trailFrameTimer = null;
-    window.clearTimeout(this.eventFrameTimer);
-    this.eventFrameTimer = null;
-    this.hideMapLinkTooltip();
-    this.hidePlayerTooltip();
-    this.hideEventTooltip();
-    this.hideTrailTooltip();
+    window.clearTimeout(this.frameTimer);
+    this.frameTimer = null;
+    this.clearHover();
     super.disconnectedCallback();
   }
 
@@ -190,8 +177,8 @@ export class CanvasMap extends BaseElement {
           console.error(`malformed map link destination for key "${key}"`);
           continue;
         }
-        const destTileX = Math.floor(destination[0] / (this.tileSize / this.pixelsPerGameTile));
-        const destTileY = Math.floor(destination[1] / (this.tileSize / this.pixelsPerGameTile));
+        const destTileX = Math.floor(destination[0] / GAME_TILES_PER_MAP_TILE);
+        const destTileY = Math.floor(destination[1] / GAME_TILES_PER_MAP_TILE);
         if (!this.validTiles?.[destination[2]]?.has(this.cantor(destTileX, destTileY))) {
           continue;
         }
@@ -223,7 +210,7 @@ export class CanvasMap extends BaseElement {
       }
     }
     // An event whose player wasn't on the map yet may have a place now.
-    this.placeLiveEvents();
+    this.eventLayer.placeLive();
   }
 
   isValidCoordinates(coordinates) {
@@ -262,13 +249,13 @@ export class CanvasMap extends BaseElement {
         region: member.region,
       });
       // An event that was waiting for its player has a place now.
-      if (turnedUp) this.placeLiveEvents();
+      if (turnedUp) this.eventLayer.placeLive();
 
       if (this.followingPlayer.name === member.name) {
         this.followingPlayer.coordinates = coordinates;
       }
 
-      const padPx = this.pixelsPerGameTile * this.camera.zoom.current;
+      const padPx = PIXELS_PER_GAME_TILE * this.camera.zoom.current;
       if (this.isGameTileInView(coordinates.x, coordinates.y, padPx)) {
         this.requestUpdate();
       }
@@ -301,7 +288,7 @@ export class CanvasMap extends BaseElement {
   handleMapFocus(focus) {
     if (!focus) return;
     this.stopFollowingPlayer();
-    this.showPlane((focus.plane || 0) + 1);
+    this.showFloor(focus.plane || 0);
     if (focus.zoom) {
       this.camera.zoom.goTo(Math.min(Math.max(focus.zoom, this.camera.minZoom), this.camera.maxZoom), 1);
     }
@@ -315,44 +302,95 @@ export class CanvasMap extends BaseElement {
 
   // Converts a position in the runescape world to a camera position at the center of the canvas
   gamePositionToCameraCenter(x, y) {
-    const tileCenterOffset = (this.pixelsPerGameTile * this.camera.zoom.current) / 2;
+    const tileCenterOffset = (PIXELS_PER_GAME_TILE * this.camera.zoom.current) / 2;
     return [
-      x * this.pixelsPerGameTile * this.camera.zoom.current - this.canvas.width / 2 + tileCenterOffset,
-      (y * this.pixelsPerGameTile - this.tileSize) * this.camera.zoom.current + this.canvas.height / 2,
+      x * PIXELS_PER_GAME_TILE * this.camera.zoom.current - this.canvas.width / 2 + tileCenterOffset,
+      (y * PIXELS_PER_GAME_TILE - MAP_TILE_SIZE) * this.camera.zoom.current + this.canvas.height / 2,
     ];
   }
 
   // Converts a position in the runescape world to a client position relative to the camera.
   // If the result is between [0, canvas.height] and [0, canvas.width] then it is visible.
   gamePositionToClient(x, y) {
-    const tileCenterOffset = (this.pixelsPerGameTile * this.camera.zoom.current) / 2;
+    const tileCenterOffset = (PIXELS_PER_GAME_TILE * this.camera.zoom.current) / 2;
     return [
-      x * this.pixelsPerGameTile * this.camera.zoom.current + tileCenterOffset - this.camera.x.current,
-      this.camera.y.current - (y * this.pixelsPerGameTile - this.tileSize) * this.camera.zoom.current,
+      x * PIXELS_PER_GAME_TILE * this.camera.zoom.current + tileCenterOffset - this.camera.x.current,
+      this.camera.y.current - (y * PIXELS_PER_GAME_TILE - MAP_TILE_SIZE) * this.camera.zoom.current,
     ];
   }
 
   // Converts a game position to a position on the canvas that we can use to draw on.
   gamePositionToCanvas(x, y) {
-    return [x * this.pixelsPerGameTile, -y * this.pixelsPerGameTile + this.tileSize];
+    return tileOrigin(x, y);
+  }
+
+  /** A client position, as a pointer event has it, on the canvas. */
+  canvasPoint(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    return [clientX - rect.left, clientY - rect.top];
+  }
+
+  /** Whether a place on the canvas is in view, or within `pad` pixels of it. */
+  isOnScreen(x, y, pad = 0) {
+    return x >= -pad && y >= -pad && x <= this.canvas.width + pad && y <= this.canvas.height + pad;
   }
 
   // Checks if a game tile's canvas draw position is currently visible on the screen.
   // padPx is padding in screen pixels to account for icon/marker sizes that extend beyond the tile corner.
   isGameTileInView(x, y, padPx = 0) {
+    const [screenX, screenY] = this.mapLinkScreenCenter(x, y);
+    return this.isOnScreen(screenX, screenY, padPx);
+  }
+
+  /**
+   * What an overlay needs to know of the camera, to draw and to find what is
+   * under the pointer: the zoom, the floor shown (`plane`, from zero), the
+   * size of the canvas and of a game tile on it, what is in view in map
+   * pixels, where a game tile's centre is on screen, and the time by the
+   * server's clock and the page's. It is made when asked for, and right for
+   * as long as the camera stays where it is.
+   */
+  viewport() {
     const zoom = this.camera.zoom.current;
-    const screenX = x * this.pixelsPerGameTile * zoom - this.camera.x.current;
-    const screenY = (-y * this.pixelsPerGameTile + this.tileSize) * zoom + this.camera.y.current;
-    return (
-      screenX >= -padPx &&
-      screenX <= this.canvas.width + padPx &&
-      screenY >= -padPx &&
-      screenY <= this.canvas.height + padPx
-    );
+    const { width, height } = this.canvas;
+    const minX = this.camera.x.current / zoom;
+    const minY = -this.camera.y.current / zoom;
+    return {
+      zoom,
+      plane: this.floor,
+      width,
+      height,
+      tile: PIXELS_PER_GAME_TILE * zoom,
+      minX,
+      minY,
+      maxX: minX + width / zoom,
+      maxY: minY + height / zoom,
+      toScreen: (x, y) => this.tileCenterOnScreen(x, y),
+      onScreen: (x, y, pad) => this.isOnScreen(x, y, pad),
+      nowS: api.serverNow() / 1000,
+      nowMs: performance.now(),
+      reducedMotion: Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
+    };
   }
 
   requestUpdate() {
     this.updateRequested = 1;
+  }
+
+  /**
+   * Has the map drawn again in `ms`, for what moves or fades on it without
+   * anything else happening. Whoever asks for the soonest gets it; the others
+   * ask again when the map is drawn.
+   */
+  requestFrameIn(ms) {
+    const at = performance.now() + ms;
+    if (this.frameTimer && this.frameTimerAt <= at) return;
+    window.clearTimeout(this.frameTimer);
+    this.frameTimerAt = at;
+    this.frameTimer = window.setTimeout(() => {
+      this.frameTimer = null;
+      this.requestUpdate();
+    }, ms);
   }
 
   parseIntKeys(obj) {
@@ -388,7 +426,7 @@ export class CanvasMap extends BaseElement {
 
   linksOnCurrentPlane() {
     if (!this.linksByPlane) return [];
-    return this.linksByPlane[this.plane - 1] || [];
+    return this.linksByPlane[this.floor] || [];
   }
 
   buildIconIndex() {
@@ -427,10 +465,8 @@ export class CanvasMap extends BaseElement {
     }
   }
 
-  getLinkAtClient(clientX, clientY) {
-    const canvasRect = this.canvas.getBoundingClientRect();
-    const cx = clientX - canvasRect.left;
-    const cy = clientY - canvasRect.top;
+  /** The link at a place on the canvas, if any. */
+  linkAt(cx, cy) {
     const canvasSize = this.iconCanvasSize();
     const halfSize = (canvasSize * this.camera.zoom.current) / 2;
     let bestLink = null;
@@ -455,7 +491,7 @@ export class CanvasMap extends BaseElement {
 
   goToMapLink(destination) {
     this.stopFollowingPlayer();
-    this.showPlane(destination.plane + 1);
+    this.showFloor(destination.plane);
     const [targetX, targetY] = this.gamePositionToCameraCenter(destination.x, destination.y);
     this.camera.x.goTo(targetX, 0);
     this.camera.y.goTo(targetY, 0);
@@ -465,30 +501,18 @@ export class CanvasMap extends BaseElement {
   }
 
   buildMapLinkTooltip(destination) {
-    const mapSquareX = Math.floor(destination.x / 64);
-    const mapSquareY = Math.floor(destination.y / 64);
+    const mapSquareX = Math.floor(destination.x / GAME_TILES_PER_MAP_TILE);
+    const mapSquareY = Math.floor(destination.y / GAME_TILES_PER_MAP_TILE);
     const url = `/map/${destination.plane}_${mapSquareX}_${mapSquareY}.webp`;
     const alt = `Destination: (${destination.x}, ${destination.y}) plane ${destination.plane + 1}`;
-    const localX = destination.x - mapSquareX * 64;
-    const localY = destination.y - mapSquareY * 64;
-    const pctX = (localX / 64) * 100;
-    const pctY = 100 - (localY / 64) * 100;
+    const localX = destination.x - mapSquareX * GAME_TILES_PER_MAP_TILE;
+    const localY = destination.y - mapSquareY * GAME_TILES_PER_MAP_TILE;
+    const pctX = (localX / GAME_TILES_PER_MAP_TILE) * 100;
+    const pctY = 100 - (localY / GAME_TILES_PER_MAP_TILE) * 100;
     return `<div class="map-link-tooltip__container">
       <img src="${url}" alt="${alt}" class="map-link-tooltip__image" />
       <div class="map-link-tooltip__marker" style="left: ${pctX}%; top: ${pctY}%"></div>
     </div>`;
-  }
-
-  hideMapLinkTooltip() {
-    if (this.mapLinkTooltipShown) {
-      this.mapLinkTooltipShown = false;
-      tooltipManager.hideTooltip();
-    }
-  }
-
-  showMapLinkTooltip(link, event) {
-    this.mapLinkTooltipShown = true;
-    tooltipManager.showTooltip(this.buildMapLinkTooltip(link.destination), event);
   }
 
   cantor(x, y) {
@@ -531,7 +555,7 @@ export class CanvasMap extends BaseElement {
         if (this.camera.y.target !== y) {
           this.camera.y.goTo(y, 100);
         }
-        this.showPlane(this.followingPlayer.coordinates.plane + 1);
+        this.showFloor(this.followingPlayer.coordinates.plane);
       }
 
       doAnotherUpdate = this.camera.x.animate(elapsed) || doAnotherUpdate;
@@ -561,7 +585,7 @@ export class CanvasMap extends BaseElement {
         this.camera.zoom.current;
       const isPanningABigDistance = !zooming && distanceLeftToTravel > 10;
 
-      const s = this.tileSize * this.camera.zoom.current;
+      const s = MAP_TILE_SIZE * this.camera.zoom.current;
       const top = this.camera.y.current / s;
       const left = this.camera.x.current / s;
       const right = left + this.canvas.width / s;
@@ -577,7 +601,7 @@ export class CanvasMap extends BaseElement {
       this.drawLocations();
       this.drawMapAreaLabels(!isPanningABigDistance);
       this.drawMapLinks();
-      if (this.drawTrails()) this.requestTrailFrame();
+      if (this.drawTrails()) this.requestFrameIn(TRAIL_FRAME_MS);
       this.drawCursorTile();
       this.drawPlayers();
       this.drawEvents();
@@ -601,7 +625,7 @@ export class CanvasMap extends BaseElement {
     if (!this.trailLayerInstance) {
       this.trailLayerInstance = new TrailLayer({ now: () => api.serverNow() / 1000 });
       // The events the map hides aren't on the replay's timeline either.
-      this.trailLayerInstance.setEventFilter((event) => eventPasses(event, this.eventFilters));
+      this.trailLayerInstance.setEventFilter((event) => this.eventLayer.passes(event));
     }
     return this.trailLayerInstance;
   }
@@ -651,16 +675,7 @@ export class CanvasMap extends BaseElement {
   setReplayTime(time, { follow = false } = {}) {
     const before = this.trailLayer.replayTime;
     this.trailLayer.setReplay(time);
-    // What the replay passes on its way forward rings as it did when it happened.
-    if (time !== null && before !== null && time > before && this.eventMarkersInstance) {
-      const passed = this.eventMarkers.trailMarksBetween(before, time, this.eventFilters);
-      if (passed.length) {
-        this.eventMarkers.pop(
-          passed.slice(-REPLAY_POP_MAX).map((mark) => mark.id),
-          api.serverNow()
-        );
-      }
-    }
+    this.eventLayer.replayMoved(before, time);
     if (follow && time !== null) this.followReplay(time);
     this.requestUpdate();
   }
@@ -686,7 +701,7 @@ export class CanvasMap extends BaseElement {
     if (!ghost) return;
     // Following the player where they are now would pull the camera back.
     this.stopFollowingPlayer();
-    this.showPlane(ghost.plane + 1);
+    this.showFloor(ghost.plane);
     const x = ghost.x * zoom - this.canvas.width / 2;
     const y = this.canvas.height / 2 - ghost.y * zoom;
     if (this.camera.x.target !== x) this.camera.x.goTo(x, REPLAY_FOLLOW_MS);
@@ -707,59 +722,24 @@ export class CanvasMap extends BaseElement {
 
   trailsChanged() {
     // The hovered point is forgotten when its trail is rebuilt or taken off.
-    if (!this.trailLayer.hover) this.hideTrailTooltip();
-    // A trail's events move with it, and go when it does.
-    const names = this.trailLayer.names();
-    if (names.length || this.eventMarkersInstance) {
-      for (const name of names) {
-        this.eventMarkers.setTrailMarks(name, this.trailLayer.marksOn(name), this.trailLayer.colorOf(name));
-      }
-      this.eventMarkers.keepTrails(names);
-    }
+    if (this.hover?.overlay.id === "trails" && !this.trailLayer.hover) this.clearHover();
+    this.eventLayer.syncTrails(this.trailLayer);
     this.requestUpdate();
     this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
-  }
-
-  /** What the trail renderer needs to know of the camera, in map pixels. */
-  trailView() {
-    const zoom = this.camera.zoom.current;
-    const minX = this.camera.x.current / zoom;
-    const minY = -this.camera.y.current / zoom;
-    return {
-      zoom,
-      plane: this.plane - 1,
-      minX,
-      minY,
-      maxX: minX + this.canvas.width / zoom,
-      maxY: minY + this.canvas.height / zoom,
-      nowS: this.trailLayer.now(),
-      nowMs: performance.now(),
-      reducedMotion: Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
-    };
   }
 
   /** Draws the trails. Returns whether one of them is animating. */
   drawTrails() {
     if (!this.trailLayer.names().length) return false;
-    return this.trailLayer.draw(this.ctx, this.trailView(), this.selectedName);
+    return this.trailLayer.draw(this.ctx, this.viewport(), this.selectedName);
   }
 
-  /** Asks for the next frame of a trail's animation, a little later. */
-  requestTrailFrame() {
-    if (this.trailFrameTimer) return;
-    this.trailFrameTimer = window.setTimeout(() => {
-      this.trailFrameTimer = null;
-      this.requestUpdate();
-    }, TRAIL_FRAME_MS);
-  }
-
-  /** The trail point under a client position, if any: `{name, index, point}`. */
-  getTrailAtClient(clientX, clientY) {
-    if (!this.trailLayer.names().length) return null;
-    const rect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
+  /** The trail point at a place on the canvas, if any: `{name, index, point}`. */
+  trailAt(canvasX, canvasY) {
+    if (!this.trailLayerInstance?.names().length) return null;
     const zoom = this.camera.zoom.current;
-    const x = (clientX - rect.left + this.camera.x.current) / zoom;
-    const y = (clientY - rect.top - this.camera.y.current) / zoom;
+    const x = (canvasX + this.camera.x.current) / zoom;
+    const y = (canvasY - this.camera.y.current) / zoom;
     return this.trailLayer.hitTest(x, y, TRAIL_HOVER_PX / zoom, zoom);
   }
 
@@ -774,17 +754,9 @@ export class CanvasMap extends BaseElement {
     return `<div class="canvas-map__tooltip">${parts.join("<br/>")}</div>`;
   }
 
-  hideTrailTooltip() {
-    if (this.trailLayerInstance?.setHover(null)) this.requestUpdate();
-    if (this.trailTooltipShown) {
-      this.trailTooltipShown = false;
-      tooltipManager.hideTooltip();
-    }
-  }
-
   /** Screen position (relative to the canvas) of the centre of a game tile. */
   tileCenterOnScreen(x, y) {
-    const tile = this.pixelsPerGameTile * this.camera.zoom.current;
+    const tile = PIXELS_PER_GAME_TILE * this.camera.zoom.current;
     const [screenX, top] = this.gamePositionToClient(x, y);
     return [screenX, top + tile / 2];
   }
@@ -826,7 +798,7 @@ export class CanvasMap extends BaseElement {
     for (const marker of this.playerMarkers.values()) {
       if (!this.isValidCoordinates(marker.coordinates)) continue;
       const [x, y] = this.tileCenterOnScreen(marker.coordinates.x, marker.coordinates.y);
-      if (x < -pad || y < -pad || x > this.canvas.width + pad || y > this.canvas.height + pad) continue;
+      if (!this.isOnScreen(x, y, pad)) continue;
       points.push({ ...marker, x, y, plane: marker.coordinates.plane });
     }
     if (zoom >= CLUSTER_BELOW_ZOOM) {
@@ -836,16 +808,16 @@ export class CanvasMap extends BaseElement {
   }
 
   markerRadius() {
-    return Math.min(Math.max(this.pixelsPerGameTile * this.camera.zoom.current * 0.45, 5), 10);
+    return Math.min(Math.max(PIXELS_PER_GAME_TILE * this.camera.zoom.current * 0.45, 5), 10);
   }
 
   drawPlayers() {
     const ctx = this.ctx;
     const zoom = this.camera.zoom.current;
-    const currentPlane = this.plane - 1;
+    const currentPlane = this.floor;
     const groups = this.layoutPlayers();
     const radius = this.markerRadius();
-    const tile = this.pixelsPerGameTile * zoom;
+    const tile = PIXELS_PER_GAME_TILE * zoom;
     this.renderedPlayers = [];
 
     ctx.save();
@@ -912,7 +884,7 @@ export class CanvasMap extends BaseElement {
   drawPlayerLabels(groups, radius) {
     const ctx = this.ctx;
     const zoom = this.camera.zoom.current;
-    const currentPlane = this.plane - 1;
+    const currentPlane = this.floor;
     ctx.font = `${LABEL_FONT_PX}px rssmall`;
     const singles = groups.filter((group) => group.members.length === 1).map((group) => group.members[0]);
     const important = (player) =>
@@ -946,12 +918,9 @@ export class CanvasMap extends BaseElement {
     ctx.globalAlpha = 1;
   }
 
-  /** The drawn player or group of players under a client position, if any. */
-  getPlayerAtClient(clientX, clientY) {
+  /** The drawn player or group of players at a place on the canvas, if any. */
+  playerAt(x, y) {
     if (!this.renderedPlayers?.length) return null;
-    const canvasRect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
-    const x = clientX - canvasRect.left;
-    const y = clientY - canvasRect.top;
     let best = null;
     let bestDistance = Infinity;
     for (const item of this.renderedPlayers) {
@@ -980,19 +949,15 @@ export class CanvasMap extends BaseElement {
     return `<div class="canvas-map__tooltip">${parts.join("<br/>")}</div>`;
   }
 
-  hidePlayerTooltip() {
-    if (this.playerTooltipShown) {
-      this.playerTooltipShown = false;
-      tooltipManager.hideTooltip();
-    }
+  /** The player the pointer is on, whose name is shown whatever the zoom; null for none. */
+  setHoveredPlayer(name) {
+    if ((this.hoveredPlayer ?? null) === name) return;
+    this.hoveredPlayer = name;
+    this.requestUpdate();
   }
 
-  /** What a click on a player, a group of players or an event does. */
+  /** What a click on a player or a group of players does. */
   activatePlayerItem(item) {
-    if (item.kind === "event") {
-      this.goToEvent(item.marker.top.event);
-      return;
-    }
     if (item.kind === "player") {
       selection.select(item.name, { follow: true });
       return;
@@ -1011,142 +976,35 @@ export class CanvasMap extends BaseElement {
   // Events
   // ---------------------------------------------------------------------------
 
-  /** The events on the map; see EventMarkers. Its clock is the server's, like the hub's. */
-  get eventMarkers() {
-    if (!this.eventMarkersInstance) this.eventMarkersInstance = new EventMarkers();
-    return this.eventMarkersInstance;
-  }
-
-  get eventIcons() {
-    if (!this.eventIconsInstance) this.eventIconsInstance = new IconCache({ onLoad: () => this.requestUpdate() });
-    return this.eventIconsInstance;
-  }
-
-  get eventPlaces() {
-    if (!this.eventPlacesInstance) this.eventPlacesInstance = new EventPlaces();
-    return this.eventPlacesInstance;
+  /** The hub's events on the map; see EventLayer. */
+  get eventLayer() {
+    if (!this.eventLayerInstance) {
+      this.eventLayerInstance = new EventLayer({
+        playerOf: (name) => this.playerMarkers?.get(name),
+        onChange: () => this.requestUpdate(),
+      });
+    }
+    return this.eventLayerInstance;
   }
 
   /** Which events the map shows; see defaultEventFilters. The map page's controls set them. */
-  get eventFilters() {
-    if (!this.eventFiltersValue) this.eventFiltersValue = loadEventFilters();
-    return this.eventFiltersValue;
-  }
-
   setEventFilters(filters) {
-    this.eventFiltersValue = { ...filters };
+    this.eventLayer.setFilters(filters);
     this.trailLayerInstance?.eventFilterChanged();
     this.requestUpdate();
     // The replay's timeline marks the events that are shown.
     if (this.trailLayerInstance?.names().length) this.dispatchEvent(new CustomEvent("trail-timeline-changed"));
   }
 
-  /**
-   * The hub's events as the live feed has them. The map is there for the
-   * whole session, on whichever page: what happens while another page is
-   * open is on the map, where it happened, when the map is looked at again.
-   */
   handleLiveEvents(feed) {
-    // What isn't news is put on the map, not announced.
-    if (!this.liveEventsBringNews) this.liveEventsBringNews = newsTracker();
-    this.liveEventsAreNews = this.liveEventsBringNews(feed);
-    // A feed that starts over may be another group's.
-    if (feed.initial) this.eventMarkers.clearLive();
-    this.liveEvents = feed.events;
-    this.placeLiveEvents();
-  }
-
-  /** Puts the live events on the map that aren't on it yet. */
-  placeLiveEvents() {
-    if (!this.liveEvents?.length) return;
-    const now = api.serverNow();
-    const added = this.eventMarkers.add(this.liveEvents, {
-      now,
-      place: (event) => this.placeOfEvent(event),
-      news: Boolean(this.liveEventsAreNews),
-    });
-    if (!added.length) return;
-    // Where the player was when it happened is only known now: after a reload it would be a guess.
-    const placedByPlayer = added.filter((marker) => !marker.approximate && !marker.event.location);
-    if (placedByPlayer.length) this.eventPlaces.remember(placedByPlayer, now);
-    this.requestUpdate();
-  }
-
-  /**
-   * Where an event goes on the map, and in which colour: where it says it
-   * happened or where it was put when it did, or else where its player is
-   * now (`known: false`). Null when none of those is known.
-   */
-  placeOfEvent(event) {
-    const player = this.playerMarkers?.get(event.member);
-    const color = player?.color || colorForName(event.member).color;
-    const place = eventPlace(event) || this.eventPlaces.get(event.id);
-    if (place) return { ...place, color, known: true };
-    if (!this.isValidCoordinates(player?.coordinates)) return null;
-    const { x, y, plane } = player.coordinates;
-    return { x, y, plane, color, known: false };
+    this.eventLayer.feed(feed);
   }
 
   /** Draws the events, and sees to it that the map is drawn again when they change. */
   drawEvents() {
-    const store = this.eventMarkersInstance;
-    if (!store) return;
-    const now = api.serverNow();
-    store.prune(now);
-    const { width, height } = this.canvas;
-    // A long trail has thousands of events; only those in view are laid out.
-    const pad = 80;
-    const markers = store.visible({
-      filters: this.eventFilters,
-      now,
-      replayTime: this.trailLayerInstance?.replayTime ?? null,
-      within: (x, y) => {
-        const [screenX, screenY] = this.tileCenterOnScreen(x, y);
-        return screenX > -pad && screenY > -pad && screenX < width + pad && screenY < height + pad;
-      },
-    });
-    const { items, nextMs } = layoutMarkers(markers, {
-      width,
-      height,
-      plane: this.plane - 1,
-      tile: this.pixelsPerGameTile * this.camera.zoom.current,
-      reducedMotion: Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
-      toScreen: (x, y) => this.tileCenterOnScreen(x, y),
-    });
-    drawEventMarkers(this.ctx, items, { icons: this.eventIcons });
-    this.renderedEvents = items;
-    if (nextMs !== null) this.requestEventFrame(nextMs);
-  }
-
-  /** The drawn event (or stack of events) under a client position, if any; see layoutMarkers. */
-  getEventAtClient(clientX, clientY) {
-    if (!this.renderedEvents?.length) return null;
-    const canvasRect = this.canvas.getBoundingClientRect ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
-    const x = clientX - canvasRect.left;
-    const y = clientY - canvasRect.top;
-    // The last drawn is on top.
-    for (let i = this.renderedEvents.length - 1; i >= 0; i--) {
-      const marker = this.renderedEvents[i];
-      const reach = marker.r + 3;
-      if ((marker.x - x) ** 2 + (marker.y - y) ** 2 <= reach * reach) return marker;
-    }
-    return null;
-  }
-
-  eventTooltip(marker) {
-    const { tileX, tileY } = marker.top;
-    return eventTooltipHtml(
-      marker.members.map((member) => member.event),
-      { now: api.serverNow(), place: regionName(tileX, tileY - 1), approximate: marker.approximate }
-    );
-  }
-
-  hideEventTooltip() {
-    this.hoveredEvent = null;
-    if (this.eventTooltipShown) {
-      this.eventTooltipShown = false;
-      tooltipManager.hideTooltip();
-    }
+    const replayTime = this.trailLayerInstance?.replayTime ?? null;
+    const nextMs = this.eventLayer.draw(this.ctx, this.viewport(), replayTime);
+    if (nextMs !== null) this.requestFrameIn(nextMs);
   }
 
   /**
@@ -1168,27 +1026,13 @@ export class CanvasMap extends BaseElement {
    * whether the event is on the map.
    */
   focusEvent(id) {
-    const marker = this.eventMarkersInstance?.find(id);
+    const marker = this.eventLayer.find(id);
     if (!marker) return false;
     this.handleMapFocus({ x: marker.x, y: marker.y, plane: marker.plane });
-    if (this.canvas.width >= DRAWER_MIN_SCREEN_PX) {
-      const drawer = document.body.classList;
-      const shift = drawer.contains("profile-open") ? 1 : drawer.contains("profile-open-left") ? -1 : 0;
-      if (shift) this.camera.x.goTo(this.camera.x.target + (shift * DRAWER_PX) / 2, 400);
-    }
+    const covered = drawerInset(this.canvas.width);
+    const shift = (covered.right - covered.left) / 2;
+    if (shift) this.camera.x.goTo(this.camera.x.target + shift, 400);
     return true;
-  }
-
-  /** Asks for the map to be drawn again in a while, for the sake of the events on it. */
-  requestEventFrame(ms) {
-    const at = performance.now() + ms;
-    if (this.eventFrameTimer && this.eventFrameAt <= at) return;
-    window.clearTimeout(this.eventFrameTimer);
-    this.eventFrameAt = at;
-    this.eventFrameTimer = window.setTimeout(() => {
-      this.eventFrameTimer = null;
-      this.requestUpdate();
-    }, ms);
   }
 
   drawGameTiles(positions, fillColor, strokeColor) {
@@ -1197,7 +1041,7 @@ export class CanvasMap extends BaseElement {
     this.ctx.strokeStyle = strokeColor;
     this.ctx.lineWidth = 1;
     for (const position of positions) {
-      this.ctx.rect(position.x, position.y, this.pixelsPerGameTile, this.pixelsPerGameTile);
+      this.ctx.rect(position.x, position.y, PIXELS_PER_GAME_TILE, PIXELS_PER_GAME_TILE);
     }
     this.ctx.stroke();
     this.ctx.fill();
@@ -1240,7 +1084,7 @@ export class CanvasMap extends BaseElement {
     const destinationSize = this.iconCanvasSize();
     const shift = destinationSize / 2;
 
-    const currentPlane = this.plane - 1;
+    const currentPlane = this.floor;
     for (const tile of this.tilesInView) {
       const locations = this.locations[tile.regionX]?.[tile.regionY];
       if (locations) {
@@ -1283,7 +1127,7 @@ export class CanvasMap extends BaseElement {
 
     for (let tileX = this.view.left - 1; tileX < this.view.right + 1; ++tileX) {
       for (let tileY = this.view.top + 1; tileY > this.view.bottom; --tileY) {
-        const labels = this.mapLabels[tileX]?.[tileY]?.[this.plane - 1];
+        const labels = this.mapLabels[tileX]?.[tileY]?.[this.floor];
         if (labels) {
           for (let i = 0; i < labels.length; i += 3) {
             const [x, y] = this.gamePositionToCanvas(labels[i], labels[i + 1]);
@@ -1326,8 +1170,8 @@ export class CanvasMap extends BaseElement {
     const left = this.view.left;
     const right = this.view.right;
     const bottom = this.view.bottom;
-    const tiles = this.tiles[this.plane - 1];
-    const imageSize = this.tileSize;
+    const tiles = this.tiles[this.floor];
+    const imageSize = MAP_TILE_SIZE;
     this.tilesInView = [];
 
     for (let tileX = left; tileX < right; ++tileX) {
@@ -1335,7 +1179,7 @@ export class CanvasMap extends BaseElement {
       for (let tileY = top; tileY > bottom; --tileY) {
         const i = this.cantor(tileX, tileY);
         const tileWorldY = tileY * imageSize;
-        if (this.validTiles && !this.validTiles[this.plane - 1]?.has(i)) {
+        if (this.validTiles && !this.validTiles[this.floor]?.has(i)) {
           this.ctx.clearRect(tileWorldX, -tileWorldY, imageSize, imageSize);
           continue;
         }
@@ -1343,8 +1187,8 @@ export class CanvasMap extends BaseElement {
 
         if (!tile) {
           if (!loadNewTiles) continue;
-          tile = new Image(this.tileSize, this.tileSize);
-          const tileFileBaseName = `${this.plane - 1}_${tileX}_${tileY}`;
+          tile = new Image(MAP_TILE_SIZE, MAP_TILE_SIZE);
+          const tileFileBaseName = `${this.floor}_${tileX}_${tileY}`;
           tile.src = `/map/${tileFileBaseName}.webp`;
           tile.regionX = tileX;
           tile.regionY = tileY;
@@ -1371,7 +1215,7 @@ export class CanvasMap extends BaseElement {
             try {
               this.ctx.drawImage(tile, tileWorldX, -tileWorldY);
             } catch (ex) {
-              console.error(`failed to draw map tile ${this.plane - 1}_${tileX}_${tileY}`, ex);
+              console.error(`failed to draw map tile ${this.floor}_${tileX}_${tileY}`, ex);
             }
           } catch {}
         } else if (!tile.onload) {
@@ -1389,17 +1233,27 @@ export class CanvasMap extends BaseElement {
     this.ctx.globalAlpha = 1;
   }
 
-  showPlane(plane) {
-    if (this.plane !== plane) {
-      this.plane = plane;
-      this.dispatchEvent(
-        new CustomEvent("plane-changed", {
-          detail: {
-            plane,
-          },
-        })
-      );
+  /**
+   * The floor shown, counted from one as the page's floor select has it.
+   * Inside the map it is `floor`, counted from zero like the `plane` of a
+   * player's coordinates.
+   */
+  get plane() {
+    return this.floor + 1;
+  }
 
+  set plane(plane) {
+    this.floor = plane - 1;
+  }
+
+  showPlane(plane) {
+    this.showFloor(plane - 1);
+  }
+
+  showFloor(floor) {
+    if (this.floor !== floor) {
+      this.floor = floor;
+      this.dispatchEvent(new CustomEvent("plane-changed", { detail: { plane: this.plane } }));
       this.requestUpdate();
     }
   }
@@ -1412,80 +1266,143 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
+  // ---------------------------------------------------------------------------
+  // The pointer
+  // ---------------------------------------------------------------------------
+
+  /**
+   * What is on the map for the pointer to find, in the order it is looked
+   * for: the first with something under the pointer has the hover and the
+   * click. (The order they are drawn in is `_update`'s.) Of each:
+   *
+   *   hitTest(x, y)  what of it is at a place on the canvas, or null
+   *   tooltip(hit)   the html that says what that is
+   *   cursor         the cursor over it
+   *   key(hit)       optional. While it stays the same the tooltip is left as
+   *                  it is; without it the tooltip is set again on every move.
+   *   hovered(hit)   optional. Told what of it the pointer is on, and null
+   *                  when the pointer has left it.
+   *   activate(hit)  optional. What a click does; a press on something
+   *                  without it drags the map.
+   *
+   * Something new on the map that the pointer should find is one more entry.
+   */
+  get overlays() {
+    if (!this.overlayList) {
+      this.overlayList = [
+        {
+          id: "links",
+          hitTest: (x, y) => this.linkAt(x, y),
+          tooltip: (link) => this.buildMapLinkTooltip(link.destination),
+          cursor: "pointer",
+          key: (link) => link.key,
+          activate: (link) => this.goToMapLink(link.destination),
+        },
+        {
+          id: "players",
+          hitTest: (x, y) => this.playerAt(x, y),
+          tooltip: (item) => this.playerTooltip(item),
+          cursor: "pointer",
+          hovered: (item) => this.setHoveredPlayer(item?.kind === "player" ? item.name : null),
+          activate: (item) => this.activatePlayerItem(item),
+        },
+        {
+          id: "events",
+          hitTest: (x, y) => this.eventLayer.hitTest(x, y),
+          tooltip: (marker) => this.eventLayer.tooltip(marker),
+          cursor: "pointer",
+          // Shown once per marker: the tooltip holds an image, and follows the pointer by itself.
+          key: (marker) => `${marker.top.id}:${marker.count}`,
+          activate: (marker) => this.goToEvent(marker.top.event),
+        },
+        {
+          id: "trails",
+          hitTest: (x, y) => this.trailAt(x, y),
+          tooltip: (hit) => this.trailTooltip(hit),
+          // A trail is only looked at, so hovering it leaves the cursor alone.
+          cursor: "",
+          hovered: (hit) => {
+            if (this.trailLayerInstance?.setHover(hit)) this.requestUpdate();
+          },
+        },
+      ];
+    }
+    return this.overlayList;
+  }
+
+  /** Shows what is under the pointer at a place on the canvas: its tooltip, the cursor, its highlight. */
+  hoverAt(x, y, event) {
+    for (const overlay of this.overlays) {
+      const hit = overlay.hitTest(x, y);
+      if (!hit) continue;
+      const key = overlay.key ? overlay.key(hit) : null;
+      const unchanged = key !== null && this.hover?.overlay === overlay && this.hover.key === key;
+      if (this.hover && this.hover.overlay !== overlay) this.hover.overlay.hovered?.(null);
+      overlay.hovered?.(hit);
+      this.hover = { overlay, hit, key };
+      if (!unchanged) {
+        this.tooltipShown = true;
+        tooltipManager.showTooltip(overlay.tooltip(hit), event);
+      }
+      this.style.cursor = overlay.cursor;
+      return;
+    }
+    this.clearHover();
+    this.style.cursor = "";
+  }
+
+  /** The pointer is on nothing any more, or what it was on is gone. */
+  clearHover() {
+    this.hover?.overlay.hovered?.(null);
+    this.hover = null;
+    if (this.tooltipShown) {
+      this.tooltipShown = false;
+      tooltipManager.hideTooltip();
+    }
+  }
+
+  /**
+   * A press on something that can be clicked waits to see whether it turns
+   * into a drag. Returns whether there was something of that kind.
+   */
+  beginPress(clientX, clientY) {
+    const [x, y] = this.canvasPoint(clientX, clientY);
+    this.press = null;
+    for (const overlay of this.overlays) {
+      const hit = overlay.activate && overlay.hitTest(x, y);
+      if (hit) {
+        this.press = { overlay, hit, x: clientX, y: clientY };
+        break;
+      }
+    }
+    return this.press !== null;
+  }
+
+  /**
+   * Once a press has moved this far it is a drag of the map, and no click.
+   * Returns whether it has.
+   */
+  pressBecameDrag(clientX, clientY) {
+    const dx = clientX - this.press.x;
+    const dy = clientY - this.press.y;
+    if (dx * dx + dy * dy <= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return false;
+    this.press = null;
+    this.clearHover();
+    // The map's own cursor, which shows it is being dragged.
+    this.style.cursor = "";
+    this.startDragging(clientX, clientY);
+    return true;
+  }
+
   onMouseLeave() {
-    this.pendingPlayer = null;
-    this.hoveredPlayer = null;
-    this.hidePlayerTooltip();
-    this.hideEventTooltip();
-    this.hideTrailTooltip();
-    this.pendingMapLink = null;
-    this.pointerDragged = false;
-    this.hoveredMapLink = null;
-    this.hideMapLinkTooltip();
+    this.press = null;
+    this.clearHover();
     this.style.cursor = "";
     this.stopDragging();
   }
 
-  beginMapLinkPress(link, clientX, clientY) {
-    this.pendingMapLink = link;
-    this.pointerDownX = clientX;
-    this.pointerDownY = clientY;
-    this.pointerDragged = false;
-  }
-
-  checkMapLinkDragThreshold(clientX, clientY) {
-    const dx = clientX - this.pointerDownX;
-    const dy = clientY - this.pointerDownY;
-    if (dx * dx + dy * dy > 25) {
-      this.pointerDragged = true;
-      this.pendingMapLink = null;
-      this.hideMapLinkTooltip();
-      this.style.cursor = "grabbing";
-      this.startDragging(clientX, clientY);
-      return true;
-    }
-    return false;
-  }
-
   onPointerDown(event) {
-    const link = this.getLinkAtClient(event.clientX, event.clientY);
-    if (link) {
-      this.beginMapLinkPress(link, event.clientX, event.clientY);
-      return;
-    }
-    const player = this.getPlayerAtClient(event.clientX, event.clientY);
-    if (player) {
-      this.beginPlayerPress(player, event.clientX, event.clientY);
-      return;
-    }
-    const marker = this.getEventAtClient(event.clientX, event.clientY);
-    if (marker) {
-      this.beginPlayerPress({ kind: "event", marker }, event.clientX, event.clientY);
-      return;
-    }
-    this.startDragging(event.clientX, event.clientY);
-  }
-
-  beginPlayerPress(item, clientX, clientY) {
-    this.pendingPlayer = item;
-    this.pointerDownX = clientX;
-    this.pointerDownY = clientY;
-    this.pointerDragged = false;
-  }
-
-  /** Once a press on a player moves far enough, it becomes a drag of the map. */
-  checkPlayerDragThreshold(clientX, clientY) {
-    const dx = clientX - this.pointerDownX;
-    const dy = clientY - this.pointerDownY;
-    if (dx * dx + dy * dy > 25) {
-      this.pendingPlayer = null;
-      this.pointerDragged = true;
-      this.hidePlayerTooltip();
-      this.hideEventTooltip();
-      this.startDragging(clientX, clientY);
-      return true;
-    }
-    return false;
+    if (!this.beginPress(event.clientX, event.clientY)) this.startDragging(event.clientX, event.clientY);
   }
 
   pinchDistance(touches) {
@@ -1507,34 +1424,17 @@ export class CanvasMap extends BaseElement {
   onTouchStart(event) {
     if (event.touches.length === 1) {
       const touch = event.touches[0];
-      const link = this.getLinkAtClient(touch.clientX, touch.clientY);
-      if (link) {
-        this.beginMapLinkPress(link, touch.clientX, touch.clientY);
-        event.preventDefault();
-        return;
-      }
-      const player = this.getPlayerAtClient(touch.clientX, touch.clientY);
-      if (player) {
-        this.beginPlayerPress(player, touch.clientX, touch.clientY);
-        event.preventDefault();
-        return;
-      }
-      const marker = this.getEventAtClient(touch.clientX, touch.clientY);
-      if (marker) {
-        this.beginPlayerPress({ kind: "event", marker }, touch.clientX, touch.clientY);
-        event.preventDefault();
-        return;
-      }
+      if (this.beginPress(touch.clientX, touch.clientY)) event.preventDefault();
     } else if (event.touches.length === 2) {
-      this.pendingMapLink = null;
+      // Two fingers zoom: what the first one was on isn't clicked.
+      this.press = null;
       this.touch.startDistance = this.pinchDistance(event.touches);
       this.touch.startZoom = this.camera.zoom.current;
     }
   }
 
   startDragging(x, y) {
-    this.hideTrailTooltip();
-    this.hideEventTooltip();
+    this.clearHover();
     // Whoever was moving the camera for the user (the replay) should let go.
     this.dispatchEvent(new CustomEvent("map-dragged"));
     this.classList.add("dragging");
@@ -1554,21 +1454,12 @@ export class CanvasMap extends BaseElement {
   }
 
   stopDragging() {
-    if (this.pendingPlayer) {
-      const item = this.pendingPlayer;
-      this.pendingPlayer = null;
-      this.pointerDragged = false;
-      this.hidePlayerTooltip();
-      this.hideEventTooltip();
-      this.activatePlayerItem(item);
-      return;
-    }
-    if (this.pendingMapLink) {
-      if (!this.pointerDragged) {
-        this.goToMapLink(this.pendingMapLink.destination);
-      }
-      this.pendingMapLink = null;
-      this.pointerDragged = false;
+    // A press that is let go where it began is a click.
+    if (this.press) {
+      const { overlay, hit } = this.press;
+      this.press = null;
+      this.clearHover();
+      overlay.activate(hit);
       return;
     }
     this.classList.remove("dragging");
@@ -1591,92 +1482,22 @@ export class CanvasMap extends BaseElement {
   }
 
   onPointerMove(event) {
-    if (this.pendingPlayer) {
-      if (this.checkPlayerDragThreshold(event.clientX, event.clientY)) {
-        this.processPointerMove(event.clientX, event.clientY);
-      }
-      return;
-    }
-    if (this.pendingMapLink) {
-      if (this.checkMapLinkDragThreshold(event.clientX, event.clientY)) {
+    if (this.press) {
+      if (this.pressBecameDrag(event.clientX, event.clientY)) {
         this.processPointerMove(event.clientX, event.clientY);
       }
       return;
     }
     this.processPointerMove(event.clientX, event.clientY);
     if (this.camera.isDragging) return;
-    const link = this.getLinkAtClient(event.clientX, event.clientY);
-    if (link) {
-      this.hideTrailTooltip();
-      this.hideEventTooltip();
-      if (this.hoveredMapLink?.key !== link.key) {
-        this.hoveredMapLink = link;
-        this.showMapLinkTooltip(link, event);
-      }
-      this.style.cursor = "pointer";
-      return;
-    }
-    if (this.hoveredMapLink) {
-      this.hoveredMapLink = null;
-      this.hideMapLinkTooltip();
-    }
-    const player = this.getPlayerAtClient(event.clientX, event.clientY);
-    if (player) {
-      const name = player.kind === "player" ? player.name : null;
-      if (this.hoveredPlayer !== name) {
-        this.hoveredPlayer = name;
-        this.requestUpdate();
-      }
-      this.hideTrailTooltip();
-      this.hideEventTooltip();
-      this.playerTooltipShown = true;
-      tooltipManager.showTooltip(this.playerTooltip(player), event);
-      this.style.cursor = "pointer";
-      return;
-    }
-    if (this.hoveredPlayer) {
-      this.hoveredPlayer = null;
-      this.requestUpdate();
-    }
-    this.hidePlayerTooltip();
-    const marker = this.getEventAtClient(event.clientX, event.clientY);
-    if (marker) {
-      this.hideTrailTooltip();
-      // Shown once per marker, not on every move: the tooltip holds an image,
-      // and follows the pointer by itself.
-      const key = `${marker.top.id}:${marker.count}`;
-      if (this.hoveredEvent !== key) {
-        this.hoveredEvent = key;
-        this.eventTooltipShown = true;
-        tooltipManager.showTooltip(this.eventTooltip(marker), event);
-      }
-      this.style.cursor = "pointer";
-      return;
-    }
-    this.hideEventTooltip();
-    this.style.cursor = "";
-    // A trail is only looked at, so hovering it leaves the cursor alone.
-    const trail = this.getTrailAtClient(event.clientX, event.clientY);
-    if (trail) {
-      if (this.trailLayer.setHover(trail)) this.requestUpdate();
-      this.trailTooltipShown = true;
-      tooltipManager.showTooltip(this.trailTooltip(trail), event);
-    } else {
-      this.hideTrailTooltip();
-    }
+    this.hoverAt(...this.canvasPoint(event.clientX, event.clientY), event);
   }
 
   onTouchMove(event) {
     if (event.touches.length === 1) {
       const touch = event.touches[0];
-      if (this.pendingMapLink) {
-        if (this.checkMapLinkDragThreshold(touch.clientX, touch.clientY)) {
-          this.processPointerMove(touch.clientX, touch.clientY);
-        }
-        return;
-      }
-      if (this.pendingPlayer) {
-        if (this.checkPlayerDragThreshold(touch.clientX, touch.clientY)) {
+      if (this.press) {
+        if (this.pressBecameDrag(touch.clientX, touch.clientY)) {
           this.processPointerMove(touch.clientX, touch.clientY);
         }
         return;
@@ -1727,18 +1548,16 @@ export class CanvasMap extends BaseElement {
       this.cursor.dy = utility.average(this.cursor.frameY) || 0;
     }
 
-    const canvasRect = this.canvas.getBoundingClientRect();
-    this.cursor.x = x - canvasRect.left;
-    this.cursor.y = y - canvasRect.top;
+    [this.cursor.x, this.cursor.y] = this.canvasPoint(x, y);
     this.cursor.worldX = Math.floor(
-      (this.cursor.x + this.camera.x.current) / this.pixelsPerGameTile / this.camera.zoom.current
+      (this.cursor.x + this.camera.x.current) / PIXELS_PER_GAME_TILE / this.camera.zoom.current
     );
     this.cursor.worldY = Math.floor(
-      (this.camera.y.current - this.cursor.y) / this.pixelsPerGameTile / this.camera.zoom.current +
-        this.tileSize / this.pixelsPerGameTile
+      (this.camera.y.current - this.cursor.y) / PIXELS_PER_GAME_TILE / this.camera.zoom.current +
+        GAME_TILES_PER_MAP_TILE
     );
-    this.cursor.canvasX = this.cursor.worldX * this.pixelsPerGameTile;
-    this.cursor.canvasY = -this.cursor.worldY * this.pixelsPerGameTile + this.tileSize - this.pixelsPerGameTile;
+    this.cursor.canvasX = this.cursor.worldX * PIXELS_PER_GAME_TILE;
+    this.cursor.canvasY = -this.cursor.worldY * PIXELS_PER_GAME_TILE + MAP_TILE_SIZE - PIXELS_PER_GAME_TILE;
 
     this.requestUpdate();
 
@@ -1763,11 +1582,11 @@ export class CanvasMap extends BaseElement {
 
     let newZoom;
     if (options.zoom === undefined) {
-      // Calculate a zoom change that keeps this.tileSize * zoom an integer value.
+      // Calculate a zoom change that keeps MAP_TILE_SIZE * zoom an integer value.
       // We don't want the canvas to have a zoom in the transform that makes the map tiles
       // a non integer size or it will cause black border to show around them.
-      const targetTileSize = this.tileSize * options.delta;
-      const delta = Math.round(targetTileSize) / this.tileSize;
+      const targetTileSize = MAP_TILE_SIZE * options.delta;
+      const delta = Math.round(targetTileSize) / MAP_TILE_SIZE;
       newZoom = Math.min(Math.max(this.camera.zoom.target + delta, this.camera.minZoom), this.camera.maxZoom);
     } else {
       // touch zoom

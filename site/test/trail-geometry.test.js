@@ -9,9 +9,9 @@ import {
   placeAtTime,
   pointOnRun,
   smoothRun,
-  tileCenter,
   vertexAtTime,
 } from "../src/canvas-map/trail-geometry";
+import { tileCenter } from "../src/canvas-map/map-space";
 
 const T = 1_790_000_040;
 

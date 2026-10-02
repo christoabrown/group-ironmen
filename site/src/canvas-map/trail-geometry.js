@@ -1,12 +1,10 @@
+import { PIXELS_PER_GAME_TILE as PIXELS_PER_TILE, tileCenter } from "./map-space";
 import { band } from "./trail-model";
 
 // The shapes a trail is drawn with, worked out once per trail and level of
 // detail rather than every frame: a smoothed line per run and an arc per
-// teleport. Positions are in the map's own pixels (four to a game tile, y
-// down), which is the space the canvas draws in under the camera transform.
+// teleport. Positions are in the map's own pixels; see map-space.js.
 
-const PIXELS_PER_TILE = 4;
-const TILE_SIZE = 256;
 // How far a curve's handle may reach, as a share of its segment: enough to
 // round a corner, too little to loop or swing wide next to a long neighbour.
 const HANDLE_CLAMP = 0.4;
@@ -27,11 +25,6 @@ export function lodForZoom(zoom) {
   if (zoom >= 2) return 0;
   if (zoom >= 1) return 1;
   return 2;
-}
-
-/** The middle of a game tile, in map pixels. */
-export function tileCenter(x, y) {
-  return [x * PIXELS_PER_TILE + PIXELS_PER_TILE / 2, -y * PIXELS_PER_TILE + TILE_SIZE + PIXELS_PER_TILE / 2];
 }
 
 /**

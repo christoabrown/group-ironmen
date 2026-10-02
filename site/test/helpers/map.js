@@ -10,8 +10,6 @@ import { CanvasMap } from "../../src/canvas-map/canvas-map";
 export function createMap() {
   const map = new CanvasMap();
   map.plane = 1;
-  map.tileSize = 256;
-  map.pixelsPerGameTile = 4;
   map.canvas = { width: 800, height: 600, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
   map.camera = {
     x: new Animation({ current: 0, target: 0, progress: 1 }),
@@ -25,7 +23,6 @@ export function createMap() {
   map.touch = {};
   map.playerMarkers = new Map();
   map.renderedPlayers = [];
-  map.renderedEvents = [];
   map.followingPlayer = {};
   map.tiles = [new Map(), new Map(), new Map(), new Map()];
   map.tilesInView = [];

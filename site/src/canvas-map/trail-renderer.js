@@ -1,4 +1,5 @@
-import { placeAtTime, pointOnRun, tileCenter, vertexAtTime } from "./trail-geometry";
+import { tileCenter } from "./map-space";
+import { placeAtTime, pointOnRun, vertexAtTime } from "./trail-geometry";
 
 // Draws one trail on the map's canvas, in the map's own pixels (the camera
 // transform is already set), so every size is divided by the zoom to come out

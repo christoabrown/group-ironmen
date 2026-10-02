@@ -77,9 +77,53 @@ describe("player hit testing and clicks", () => {
       { kind: "player", name: "Alice", x: 100, y: 100, r: 8 },
       { kind: "cluster", x: 300, y: 300, r: 14, members: [] },
     ];
-    expect(map.getPlayerAtClient(104, 98).name).toBe("Alice");
-    expect(map.getPlayerAtClient(310, 305).kind).toBe("cluster");
-    expect(map.getPlayerAtClient(200, 200)).toBeNull();
+    expect(map.playerAt(104, 98).name).toBe("Alice");
+    expect(map.playerAt(310, 305).kind).toBe("cluster");
+    expect(map.playerAt(200, 200)).toBeNull();
+  });
+
+  it("shows a player's name for as long as the pointer is on them", () => {
+    const map = createMap();
+    map.processPointerMove = vi.fn();
+    map.renderedPlayers = [{ kind: "player", name: "Alice", x: 100, y: 100, r: 8, player: { name: "Alice" } }];
+    map.onPointerMove({ clientX: 100, clientY: 100 });
+    expect(map.hoveredPlayer).toBe("Alice");
+    expect(map.style.cursor).toBe("pointer");
+    expect(map.updateRequested).toBe(1);
+
+    map.updateRequested = 0;
+    map.onPointerMove({ clientX: 300, clientY: 300 });
+    expect(map.hoveredPlayer).toBeNull();
+    expect(map.style.cursor).toBe("");
+    expect(map.updateRequested).toBe(1);
+  });
+
+  it("doesn't click what the first finger was on when a second comes down to zoom", () => {
+    const map = createMap();
+    map.renderedPlayers = [{ kind: "player", name: "Alice", x: 100, y: 100, r: 8 }];
+    const selected = [];
+    pubsub.subscribe("player-selected", (value) => selected.push(value));
+    map.onTouchStart({ touches: [{ clientX: 100, clientY: 100 }], preventDefault: () => {} });
+    expect(map.press.overlay.id).toBe("players");
+    map.onTouchStart({
+      touches: [
+        { clientX: 100, clientY: 100 },
+        { clientX: 200, clientY: 200 },
+      ],
+    });
+    map.stopDragging();
+    expect(selected).toEqual([]);
+  });
+
+  it("looks for what is under the pointer in one order: links, players, events, trails", () => {
+    const map = createMap();
+    expect(map.overlays.map((overlay) => overlay.id)).toEqual(["links", "players", "events", "trails"]);
+    // A trail is only looked at: a press on one drags the map.
+    expect(map.overlays.filter((overlay) => overlay.activate).map((overlay) => overlay.id)).toEqual([
+      "links",
+      "players",
+      "events",
+    ]);
   });
 
   it("selects a player on click but not after a drag", () => {
@@ -149,39 +193,39 @@ describe("events on the map", () => {
       added: [],
       initial: true,
     });
-    expect(map.eventMarkers.find("death")).toMatchObject({ x: 3200, y: 3201, plane: 1, color: "red" });
-    expect(map.eventMarkers.find("loot")).toMatchObject({ x: 3000, y: 3001, plane: 0 });
-    expect(map.eventMarkers.find("offline")).toBeNull();
+    expect(map.eventLayer.markers.find("death")).toMatchObject({ x: 3200, y: 3201, plane: 1, color: "red" });
+    expect(map.eventLayer.markers.find("loot")).toMatchObject({ x: 3000, y: 3001, plane: 0 });
+    expect(map.eventLayer.markers.find("offline")).toBeNull();
   });
 
   it("are put back without a fuss when the map opens, and ring when they happen", () => {
     map.handleLiveEvents({ events: [drop("old", 5000)], added: [], initial: true });
-    expect(map.eventMarkers.find("old")).toMatchObject({ arrived: null, approximate: true });
+    expect(map.eventLayer.markers.find("old")).toMatchObject({ arrived: null, approximate: true });
 
     const news = drop("new", 2000);
     map.handleLiveEvents({ events: [news, drop("old", 5000)], added: [news], initial: false });
-    expect(map.eventMarkers.find("new")).toMatchObject({ arrived: NOW, approximate: false });
+    expect(map.eventLayer.markers.find("new")).toMatchObject({ arrived: NOW, approximate: false });
   });
 
   it("don't ring for the last poll, replayed to a map that is only now there", () => {
     const event = drop("a", 2000);
     map.handleLiveEvents({ events: [event], added: [event], initial: false });
-    expect(map.eventMarkers.find("a").arrived).toBeNull();
+    expect(map.eventLayer.markers.find("a").arrived).toBeNull();
   });
 
   it("turn up once their player does", () => {
     map.handleLiveEvents({ events: [drop("bob", MINUTE, { member: "Bob" })], added: [], initial: true });
-    expect(map.eventMarkers.find("bob")).toBeNull();
+    expect(map.eventLayer.markers.find("bob")).toBeNull();
     map.handleUpdatedMembers([{ name: "Bob", coordinates: { x: 3100, y: 3100, plane: 0 }, color: "blue" }]);
-    expect(map.eventMarkers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
+    expect(map.eventLayer.markers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
   });
 
   it("turn up when a player on the roster gets a position", () => {
     map.handleLiveEvents({ events: [drop("bob", MINUTE, { member: "Bob" })], added: [], initial: true });
     map.handleUpdatedMembers([alice, { name: "Bob", color: "blue" }]);
-    expect(map.eventMarkers.find("bob")).toBeNull();
+    expect(map.eventLayer.markers.find("bob")).toBeNull();
     map.handleUpdatedCoordinates({ name: "Bob", coordinates: { x: 3100, y: 3100, plane: 0 }, color: "blue" });
-    expect(map.eventMarkers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
+    expect(map.eventLayer.markers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
   });
 
   it("leave the trails alone until there is one", () => {
@@ -206,15 +250,15 @@ describe("events on the map", () => {
       vi.setSystemTime(NOW + 5 * MINUTE);
       const fresh = reloaded();
       fresh.handleLiveEvents({ events: [event], added: [], initial: true });
-      expect(fresh.eventMarkers.find("a")).toMatchObject({ x: 3000, y: 3001, plane: 0, approximate: false });
+      expect(fresh.eventLayer.markers.find("a")).toMatchObject({ x: 3000, y: 3001, plane: 0, approximate: false });
       // Put back, not announced.
-      expect(fresh.eventMarkers.find("a").arrived).toBeNull();
+      expect(fresh.eventLayer.markers.find("a").arrived).toBeNull();
     });
 
     it("are where the player is now, as a guess, when this browser never saw them happen", () => {
       const fresh = reloaded();
       fresh.handleLiveEvents({ events: [drop("a", 5 * MINUTE)], added: [], initial: true });
-      expect(fresh.eventMarkers.find("a")).toMatchObject({ x: 2500, y: 2500, approximate: true });
+      expect(fresh.eventLayer.markers.find("a")).toMatchObject({ x: 2500, y: 2500, approximate: true });
       expect(localStorage.getItem(EVENT_PLACES_KEY)).toBeNull();
     });
 
@@ -234,24 +278,24 @@ describe("events on the map", () => {
       localStorage.setItem(EVENT_PLACES_KEY, "{not json");
       const fresh = reloaded();
       fresh.handleLiveEvents({ events: [drop("a", 5 * MINUTE)], added: [], initial: true });
-      expect(fresh.eventMarkers.find("a")).toMatchObject({ x: 2500, approximate: true });
+      expect(fresh.eventLayer.markers.find("a")).toMatchObject({ x: 2500, approximate: true });
     });
   });
 
   it("start over when the feed does", () => {
     map.handleLiveEvents({ events: [drop("a", MINUTE)], added: [], initial: true });
     map.handleLiveEvents({ events: [drop("b", MINUTE)], added: [], initial: true });
-    expect(map.eventMarkers.find("a")).toBeNull();
-    expect(map.eventMarkers.find("b")).not.toBeNull();
+    expect(map.eventLayer.markers.find("a")).toBeNull();
+    expect(map.eventLayer.markers.find("b")).not.toBeNull();
   });
 
   it("are drawn under their tile, and can be found there", () => {
     map.handleLiveEvents({ events: [drop("a", MINUTE)], added: [], initial: true });
     map.drawEvents();
-    expect(map.renderedEvents).toHaveLength(1);
+    expect(map.eventLayer.rendered).toHaveLength(1);
     const [x, y] = map.tileCenterOnScreen(3000, 3001);
-    expect(map.renderedEvents[0]).toMatchObject({ anchorX: x, anchorY: y, count: 1 });
-    expect(map.renderedEvents[0].y).toBeGreaterThan(y);
+    expect(map.eventLayer.rendered[0]).toMatchObject({ anchorX: x, anchorY: y, count: 1 });
+    expect(map.eventLayer.rendered[0].y).toBeGreaterThan(y);
     expect(map.ctx.arc).toHaveBeenCalled();
   });
 
@@ -260,11 +304,11 @@ describe("events on the map", () => {
     map.setEventFilters({ ...defaultEventFilters(), loot: false });
     expect(map.updateRequested).toBe(1);
     map.drawEvents();
-    expect(map.renderedEvents).toEqual([]);
+    expect(map.eventLayer.rendered).toEqual([]);
   });
 
   it("have the map drawn again while they ring, and now and then while they fade", () => {
-    const requested = vi.spyOn(map, "requestEventFrame");
+    const requested = vi.spyOn(map, "requestFrameIn");
     map.handleLiveEvents({ events: [], added: [], initial: true });
     map.drawEvents();
     expect(requested).not.toHaveBeenCalled();
@@ -288,8 +332,8 @@ describe("events on the map", () => {
 
     vi.setSystemTime(NOW + EVENT_MARKER_MS);
     map.drawEvents();
-    expect(map.renderedEvents).toEqual([]);
-    expect(map.eventMarkers.find("a")).toBeNull();
+    expect(map.eventLayer.rendered).toEqual([]);
+    expect(map.eventLayer.markers.find("a")).toBeNull();
   });
 
   describe("under the pointer", () => {
@@ -306,7 +350,7 @@ describe("events on the map", () => {
         initial: true,
       });
       map.drawEvents();
-      ({ x, y } = map.renderedEvents[0]);
+      ({ x, y } = map.eventLayer.rendered[0]);
     });
 
     it("say what happened, once for as long as the pointer stays", () => {
@@ -339,7 +383,7 @@ describe("events on the map", () => {
       // Off to one side, but in view.
       centerOn(map, 3020, 3010);
       map.drawEvents();
-      ({ x, y } = map.renderedEvents[0]);
+      ({ x, y } = map.eventLayer.rendered[0]);
 
       map.onPointerDown({ clientX: x, clientY: y });
       map.stopDragging();
@@ -400,6 +444,21 @@ describe("events on the map", () => {
       map.goToEvent(drop("stranger", 5000, { member: "Nobody" }));
       expect(selected).toHaveLength(2);
     });
+  });
+
+  it("is drawn again for whoever asks for it soonest", () => {
+    map.requestFrameIn(EVENT_WAKE_MS);
+    map.requestFrameIn(EVENT_FRAME_MS);
+    // A later one doesn't put off the frame that was asked for.
+    map.requestFrameIn(EVENT_WAKE_MS);
+    map.updateRequested = 0;
+    vi.advanceTimersByTime(EVENT_FRAME_MS);
+    expect(map.updateRequested).toBe(1);
+
+    // One timer: nothing more comes of the requests it replaced.
+    map.updateRequested = 0;
+    vi.advanceTimersByTime(EVENT_WAKE_MS);
+    expect(map.updateRequested).toBe(0);
   });
 
   it("draw nothing on a map no event has reached", () => {
