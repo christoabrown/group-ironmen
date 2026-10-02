@@ -1,10 +1,11 @@
+//! What the map itself keeps of the members, for everyone who is signed in.
 use crate::auth_middleware::Authenticated;
 use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
 use crate::hub::fetch::Period;
 use crate::hub::HubContext;
-use crate::models::{GroupDataResponse, GroupId, GroupSkillData};
+use crate::models::{MembersResponse, SkillHistory};
 use actix_web::{get, web, Error};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Pool};
@@ -13,42 +14,43 @@ use std::collections::HashSet;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct GetGroupDataQuery {
+pub(crate) struct MembersQuery {
     pub from_time: DateTime<Utc>,
 }
-#[get("/get-group-data")]
-pub async fn get_group_data(
+
+/// The roster, and the data of the members that changed since `from_time`:
+/// what every open page polls for.
+#[get("/members")]
+pub async fn get_members(
     _auth: Authenticated,
-    group_id: web::Data<GroupId>,
     db_pool: web::Data<Pool>,
-    query: web::Query<GetGroupDataQuery>,
-) -> Result<web::Json<GroupDataResponse>, Error> {
-    let from_time = query.from_time;
+    query: web::Query<MembersQuery>,
+) -> Result<web::Json<MembersResponse>, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let group_data = db::get_group_data(&client, group_id.0, &from_time).await?;
-    Ok(web::Json(group_data))
+    Ok(web::Json(db::get_members(&client, &query.from_time).await?))
 }
 
 /// Players the skill graphs may ask for at once.
-const MAX_SKILL_DATA_MEMBERS: usize = 10;
+const MAX_SKILL_HISTORY_MEMBERS: usize = 10;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct GetSkillDataQuery {
+pub(crate) struct SkillHistoryQuery {
     pub period: Period,
     /// Comma-separated member names; all members when left out.
     #[serde(default)]
     pub members: Option<String>,
 }
-#[get("/get-skill-data")]
-pub async fn get_skill_data(
+
+/// XP per skill over a period, for the skill graphs.
+#[get("/skill-history")]
+pub async fn get_skill_history(
     _auth: Authenticated,
-    group_id: web::Data<GroupId>,
     db_pool: web::Data<Pool>,
-    query: web::Query<GetSkillDataQuery>,
+    query: web::Query<SkillHistoryQuery>,
     config: web::Data<Config>,
     hub_context: web::Data<HubContext>,
-) -> Result<web::Json<GroupSkillData>, Error> {
+) -> Result<web::Json<SkillHistory>, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let aggregate_period = match query.period {
         Period::Day => db::AggregatePeriod::Day,
@@ -60,22 +62,17 @@ pub async fn get_skill_data(
             .split(',')
             .map(|name| name.trim().to_lowercase())
             .filter(|name| !name.is_empty())
-            .take(MAX_SKILL_DATA_MEMBERS)
+            .take(MAX_SKILL_HISTORY_MEMBERS)
             .collect()
     });
-    let mut group_skill_data =
-        db::get_skills_for_period(&client, group_id.0, aggregate_period).await?;
+    let mut history = db::get_skills_for_period(&client, aggregate_period).await?;
     drop(client);
     if config.hub_history_enabled() {
-        group_skill_data = crate::hub::xp::merge_skill_data(
-            &hub_context,
-            query.period,
-            group_skill_data,
-            members.as_ref(),
-        )
-        .await;
+        history =
+            crate::hub::xp::merge_skill_data(&hub_context, query.period, history, members.as_ref())
+                .await;
     } else if let Some(members) = &members {
-        group_skill_data.retain(|member| members.contains(&member.name.to_lowercase()));
+        history.retain(|member| members.contains(&member.name.to_lowercase()));
     }
-    Ok(web::Json(group_skill_data))
+    Ok(web::Json(history))
 }

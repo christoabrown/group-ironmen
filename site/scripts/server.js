@@ -34,7 +34,7 @@ app.use(
     colorize: true,
     metaField: null,
     // The site polls the API every couple of seconds per viewer.
-    ignoreRoute: (req) => req.path.startsWith("/api/group/get-group-data"),
+    ignoreRoute: (req) => req.path.startsWith("/api/members"),
   }),
 );
 app.use(compression());

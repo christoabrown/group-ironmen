@@ -1,32 +1,9 @@
 //! Skill history: the samples kept per period, behind the skill graphs.
 use crate::error::ApiError;
-use crate::models::{AggregateSkillData, GroupSkillData, MemberSkillData};
+use crate::models::{AggregateSkillData, MemberSkillData, SkillHistory};
 use chrono::{DateTime, Utc};
 use deadpool_postgres::{Client, Transaction};
 use std::collections::HashMap;
-
-pub(crate) async fn delete_skills_data_for_member(
-    transaction: &Transaction<'_>,
-    period: AggregatePeriod,
-    member_id: i64,
-) -> Result<(), ApiError> {
-    let s = format!(
-        r#"
-DELETE FROM groupironman.skills_{} WHERE member_id=$1
-"#,
-        match period {
-            AggregatePeriod::Day => "day",
-            AggregatePeriod::Month => "month",
-            AggregatePeriod::Year => "year",
-        }
-    );
-    let delete_skills_data_stmt = transaction.prepare_cached(&s).await?;
-    transaction
-        .execute(&delete_skills_data_stmt, &[&member_id])
-        .await?;
-
-    Ok(())
-}
 
 pub(crate) enum AggregatePeriod {
     Day,
@@ -41,8 +18,8 @@ async fn aggregate_skills_for_period(
 ) -> Result<(), ApiError> {
     let s = format!(
         r#"
-INSERT INTO groupironman.skills_{} (member_id, time, skills)
-SELECT member_id, date_trunc('{}', skills_last_update), skills FROM groupironman.members
+INSERT INTO guildmap.skills_{} (member_id, time, skills)
+SELECT member_id, date_trunc('{}', skills_last_update), skills FROM guildmap.members
 WHERE skills_last_update IS NOT NULL AND skills IS NOT NULL AND skills_last_update >= $1
 ON CONFLICT (member_id, time)
 DO UPDATE SET skills=excluded.skills;
@@ -73,9 +50,9 @@ async fn apply_skills_retention_for_period(
 ) -> Result<(), ApiError> {
     let s = format!(
         r#"
-DELETE FROM groupironman.skills_{0}
+DELETE FROM guildmap.skills_{0}
 WHERE time < ($1::timestamptz - interval '{1}') AND (member_id, time) NOT IN (
-  SELECT member_id, max(time) FROM groupironman.skills_{0} WHERE time < ($1::timestamptz - interval '{1}') GROUP BY member_id
+  SELECT member_id, max(time) FROM guildmap.skills_{0} WHERE time < ($1::timestamptz - interval '{1}') GROUP BY member_id
 )
 "#,
         match period {
@@ -103,7 +80,7 @@ pub(crate) async fn get_last_skills_aggregation(
     let last_aggregation_stmt = client
         .prepare_cached(
             r#"
-SELECT last_aggregation FROM groupironman.aggregation_info WHERE type='skills'"#,
+SELECT last_aggregation FROM guildmap.aggregation_info WHERE type='skills'"#,
         )
         .await?;
     let last_aggregation: DateTime<Utc> = client
@@ -121,7 +98,7 @@ pub(crate) async fn aggregate_skills(client: &mut Client) -> Result<(), ApiError
     let update_last_aggregation_stmt = transaction
         .prepare_cached(
             r#"
-UPDATE groupironman.aggregation_info SET last_aggregation=NOW() WHERE type='skills'"#,
+UPDATE guildmap.aggregation_info SET last_aggregation=NOW() WHERE type='skills'"#,
         )
         .await?;
     transaction
@@ -153,15 +130,14 @@ pub(crate) async fn apply_skills_retention(client: &mut Client) -> Result<(), Ap
 
 pub(crate) async fn get_skills_for_period(
     client: &Client,
-    group_id: i64,
     period: AggregatePeriod,
-) -> Result<GroupSkillData, ApiError> {
+) -> Result<SkillHistory, ApiError> {
     let s = format!(
         r#"
 SELECT member_name, time, s.skills
-FROM groupironman.skills_{} s
-INNER JOIN groupironman.members m ON m.member_id=s.member_id
-WHERE m.group_id=$1 AND NOT m.hidden
+FROM guildmap.skills_{} s
+INNER JOIN guildmap.members m ON m.member_id=s.member_id
+WHERE NOT m.hidden
 "#,
         match period {
             AggregatePeriod::Day => "day",
@@ -171,7 +147,7 @@ WHERE m.group_id=$1 AND NOT m.hidden
     );
     let get_skills_stmt = client.prepare_cached(&s).await?;
     let rows = client
-        .query(&get_skills_stmt, &[&group_id])
+        .query(&get_skills_stmt, &[])
         .await
         .map_err(ApiError::GetSkillsDataError)?;
 

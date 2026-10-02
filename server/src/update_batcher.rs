@@ -1,5 +1,5 @@
 use crate::db::MEMBER_COLUMNS as COLUMNS;
-use crate::models::GroupMember;
+use crate::models::MemberData;
 use deadpool_postgres::Pool;
 use futures_util::stream::{self, StreamExt};
 use std::collections::HashMap;
@@ -15,20 +15,20 @@ static CHUNK_SIZE: usize = 50;
 /// polls for changes since a time, so resending unchanged data costs nothing.
 /// Whether a player is online is tracked separately (`hub_online`).
 ///
-/// Parameters per member update row: the group, the name and the columns.
-/// With 8, the PostgreSQL parameter-count limit (65,535) allows a chunk of
-/// 8191 rows with the VALUES approach.
-const COLUMNS_PER_ROW: usize = 2 + COLUMNS.len();
+/// Parameters per member update row: the name and the columns. With 7, the
+/// PostgreSQL parameter-count limit (65,535) allows a chunk of 9362 rows with
+/// the VALUES approach.
+const COLUMNS_PER_ROW: usize = 1 + COLUMNS.len();
 
 pub async fn background_worker(
     pool: Pool,
-    mut rx: mpsc::Receiver<GroupMember>,
+    mut rx: mpsc::Receiver<MemberData>,
     notify: Option<mpsc::Sender<()>>,
 ) {
     let batch_timeout = Duration::from_millis(50);
 
     loop {
-        let mut buffer: Vec<GroupMember> = Vec::with_capacity(BATCH_SIZE);
+        let mut buffer: Vec<MemberData> = Vec::with_capacity(BATCH_SIZE);
 
         match rx.recv().await {
             Some(item) => {
@@ -78,7 +78,7 @@ pub async fn background_worker(
         let max_concurrency = pool_status.max_size.saturating_sub(1).max(1);
 
         let mut remaining = std::mem::take(&mut filtered_buffer);
-        let mut chunks: Vec<Vec<GroupMember>> = Vec::new();
+        let mut chunks: Vec<Vec<MemberData>> = Vec::new();
         while !remaining.is_empty() {
             let take = remaining.len().min(CHUNK_SIZE);
             chunks.push(remaining.drain(..take).collect());
@@ -104,56 +104,45 @@ pub async fn background_worker(
     }
 }
 
-/// Deduplicate and coalesce member updates by exact (group_id, name) key.
-/// Merging preserves non-None fields from newer updates while keeping
-/// values from older updates for fields that are None in the newer one.
-/// Results are sorted by (group_id, name) for deterministic processing.
-fn deduplicate_batch(buffer: Vec<GroupMember>) -> Vec<GroupMember> {
-    let mut dedup_map: HashMap<(i64, String), GroupMember> = HashMap::new();
-    for item in buffer {
-        if let Some(group_id) = item.group_id {
-            let key = (group_id, item.name.clone());
-            match dedup_map.get_mut(&key) {
-                Some(existing) => merge_group_member(existing, &item),
-                None => {
-                    dedup_map.insert(key, item);
-                }
+/// One update per member, in the order of their names: updates for the same
+/// member are merged, a later one's fields over an earlier one's.
+fn deduplicate_batch(buffer: Vec<MemberData>) -> Vec<MemberData> {
+    let mut by_name: HashMap<String, MemberData> = HashMap::new();
+    for update in buffer {
+        match by_name.get_mut(&update.name) {
+            Some(earlier) => merge_update(earlier, update),
+            None => {
+                by_name.insert(update.name.clone(), update);
             }
         }
     }
 
-    let mut filtered_buffer: Vec<GroupMember> = dedup_map.into_values().collect();
-    filtered_buffer.sort_by(|a, b| {
-        a.group_id
-            .unwrap_or(0)
-            .cmp(&b.group_id.unwrap_or(0))
-            .then_with(|| a.name.cmp(&b.name))
-    });
-    filtered_buffer
+    let mut updates: Vec<MemberData> = by_name.into_values().collect();
+    updates.sort_by(|a, b| a.name.cmp(&b.name));
+    updates
 }
 
-fn merge_group_member(older: &mut GroupMember, newer: &GroupMember) {
-    if newer.stats.is_some() {
-        older.stats = newer.stats.clone();
+/// Puts what a later update has over what an earlier one has; what it leaves
+/// out stays as it was.
+fn merge_update(earlier: &mut MemberData, later: MemberData) {
+    if later.stats.is_some() {
+        earlier.stats = later.stats;
     }
-    if newer.coordinates.is_some() {
-        older.coordinates = newer.coordinates.clone();
+    if later.coordinates.is_some() {
+        earlier.coordinates = later.coordinates;
     }
-    if newer.skills.is_some() {
-        older.skills = newer.skills.clone();
+    if later.skills.is_some() {
+        earlier.skills = later.skills;
     }
-    if newer.inventory.is_some() {
-        older.inventory = newer.inventory.clone();
+    if later.inventory.is_some() {
+        earlier.inventory = later.inventory;
     }
-    if newer.equipment.is_some() {
-        older.equipment = newer.equipment.clone();
+    if later.equipment.is_some() {
+        earlier.equipment = later.equipment;
     }
-    if newer.meta.is_some() {
-        older.meta = newer.meta.clone();
+    if later.meta.is_some() {
+        earlier.meta = later.meta;
     }
-
-    older.name = newer.name.clone();
-    older.group_id = newer.group_id;
 }
 
 static VALUES_STATEMENTS: OnceLock<HashMap<usize, String>> = OnceLock::new();
@@ -165,14 +154,9 @@ fn build_values_statement(size: usize) -> String {
             let columns: Vec<String> = COLUMNS
                 .iter()
                 .enumerate()
-                .map(|(i, (_, sql_type))| format!("${}::{}", offset + 3 + i, sql_type))
+                .map(|(i, (_, sql_type))| format!("${}::{}", offset + 2 + i, sql_type))
                 .collect();
-            format!(
-                "(${}::int8,${}::text,{})",
-                offset + 1,
-                offset + 2,
-                columns.join(",")
-            )
+            format!("(${}::text,{})", offset + 1, columns.join(","))
         })
         .collect::<Vec<_>>()
         .join(",");
@@ -197,10 +181,10 @@ fn build_values_statement(size: usize) -> String {
 
     format!(
         r#"
-UPDATE groupironman.members AS a SET
+UPDATE guildmap.members AS a SET
 {assignments}
-FROM (VALUES {values}) AS b(group_id, member_name, {column_names})
-WHERE a.group_id = b.group_id AND a.member_name = b.member_name::citext
+FROM (VALUES {values}) AS b(member_name, {column_names})
+WHERE a.member_name = b.member_name::citext
 "#
     )
 }
@@ -222,9 +206,9 @@ fn values_statement(size: usize) -> &'static str {
     })
 }
 
-async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
+async fn process_chunk(pool: &Pool, chunk: Vec<MemberData>) -> Option<()> {
     let chunk_size = chunk.len();
-    let buffer: &[GroupMember] = &chunk;
+    let buffer: &[MemberData] = &chunk;
 
     let client = match pool.get().await {
         Ok(client) => client,
@@ -246,7 +230,6 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
         Vec::with_capacity(COLUMNS_PER_ROW * chunk_size);
     // The columns in the order of `MEMBER_COLUMNS`.
     for member_data in buffer {
-        params.push(&member_data.group_id);
         params.push(&member_data.name);
         params.push(&member_data.stats);
         params.push(&member_data.coordinates);
@@ -266,133 +249,45 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::GroupMember;
 
-    fn make_member(group_id: Option<i64>, name: &str) -> GroupMember {
-        GroupMember {
-            group_id,
+    fn update(name: &str) -> MemberData {
+        MemberData {
             name: name.to_string(),
             ..Default::default()
         }
     }
 
-    // -- merge_group_member --
-
     #[test]
-    fn test_merge_group_member_newer_none_preserves_older() {
-        let mut older = make_member(Some(1), "alice");
-        older.stats = Some(vec![1, 2, 3]);
-        older.skills = Some(vec![4, 5, 6]);
+    fn a_later_update_leaves_what_it_does_not_have() {
+        let mut earlier = update("alice");
+        earlier.stats = Some(vec![1, 2, 3]);
+        earlier.skills = Some(vec![4, 5, 6]);
 
-        let newer = make_member(Some(1), "alice");
-        merge_group_member(&mut older, &newer);
-
-        assert_eq!(older.stats, Some(vec![1, 2, 3]));
-        assert_eq!(older.skills, Some(vec![4, 5, 6]));
+        merge_update(&mut earlier, update("alice"));
+        assert_eq!(earlier.stats, Some(vec![1, 2, 3]));
+        assert_eq!(earlier.skills, Some(vec![4, 5, 6]));
     }
 
     #[test]
-    fn test_merge_group_member_newer_some_overwrites() {
-        let mut older = make_member(Some(1), "alice");
-        older.stats = Some(vec![1, 2, 3]);
+    fn a_later_update_goes_over_an_earlier_one() {
+        let mut earlier = update("alice");
+        earlier.stats = Some(vec![1, 2, 3]);
+        let mut later = update("alice");
+        later.stats = Some(vec![7, 8, 9]);
+        later.skills = Some(vec![10, 20, 30]);
 
-        let mut newer = make_member(Some(1), "alice");
-        newer.stats = Some(vec![7, 8, 9]);
-
-        merge_group_member(&mut older, &newer);
-        assert_eq!(older.stats, Some(vec![7, 8, 9]));
+        merge_update(&mut earlier, later);
+        assert_eq!(earlier.stats, Some(vec![7, 8, 9]));
+        assert_eq!(earlier.skills, Some(vec![10, 20, 30]));
     }
 
     #[test]
-    fn test_merge_group_member_partial_updates_dont_lose_fields() {
-        let mut older = make_member(Some(1), "alice");
-        older.stats = Some(vec![1, 2, 3]);
-
-        let mut newer = make_member(Some(1), "alice");
-        newer.skills = Some(vec![10, 20, 30]);
-
-        merge_group_member(&mut older, &newer);
-        assert_eq!(older.stats, Some(vec![1, 2, 3]));
-        assert_eq!(older.skills, Some(vec![10, 20, 30]));
-    }
-
-    #[test]
-    fn test_merge_group_member_name_and_group_id_updated() {
-        let mut older = make_member(Some(1), "old_name");
-
-        let newer = make_member(Some(2), "new_name");
-
-        merge_group_member(&mut older, &newer);
-        assert_eq!(older.name, "new_name");
-        assert_eq!(older.group_id, Some(2));
-    }
-
-    // -- deduplicate_batch --
-
-    #[test]
-    fn test_deduplicate_batch_exact_key_no_collision() {
-        let mut a = make_member(Some(1), "alice");
+    fn updates_for_one_member_become_one() {
+        let mut a = update("alice");
         a.stats = Some(vec![1]);
-        let mut b = make_member(Some(1), "bob");
-        b.stats = Some(vec![2]);
-        let mut c = make_member(Some(2), "alice");
-        c.stats = Some(vec![3]);
-
-        let result = deduplicate_batch(vec![a, b, c]);
-        assert_eq!(result.len(), 3);
-    }
-
-    #[test]
-    fn test_deduplicate_batch_same_key_merges() {
-        let mut a = make_member(Some(1), "alice");
-        a.stats = Some(vec![1]);
-        let mut b = make_member(Some(1), "alice");
+        let mut b = update("alice");
         b.skills = Some(vec![2]);
-
-        let result = deduplicate_batch(vec![a, b]);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].stats, Some(vec![1]));
-        assert_eq!(result[0].skills, Some(vec![2]));
-    }
-
-    #[test]
-    fn test_deduplicate_batch_none_group_id_skipped() {
-        let a = make_member(None, "alice");
-        let b = make_member(Some(1), "bob");
-
-        let result = deduplicate_batch(vec![a, b]);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].name, "bob");
-    }
-
-    #[test]
-    fn test_deduplicate_batch_sorted_by_group_id_then_name() {
-        let a = make_member(Some(2), "zoe");
-        let b = make_member(Some(1), "bob");
-        let c = make_member(Some(1), "alice");
-
-        let result = deduplicate_batch(vec![a, b, c]);
-        assert_eq!(result[0].group_id, Some(1));
-        assert_eq!(result[0].name, "alice");
-        assert_eq!(result[1].group_id, Some(1));
-        assert_eq!(result[1].name, "bob");
-        assert_eq!(result[2].group_id, Some(2));
-        assert_eq!(result[2].name, "zoe");
-    }
-
-    #[test]
-    fn test_deduplicate_batch_empty() {
-        let result: Vec<GroupMember> = deduplicate_batch(vec![]);
-        assert!(result.is_empty());
-    }
-
-    #[test]
-    fn test_deduplicate_batch_multiple_merges_same_key() {
-        let mut a = make_member(Some(1), "alice");
-        a.stats = Some(vec![1]);
-        let mut b = make_member(Some(1), "alice");
-        b.skills = Some(vec![2]);
-        let mut c = make_member(Some(1), "alice");
+        let mut c = update("alice");
         c.inventory = Some(vec![3]);
 
         let result = deduplicate_batch(vec![a, b, c]);
@@ -400,5 +295,25 @@ mod tests {
         assert_eq!(result[0].stats, Some(vec![1]));
         assert_eq!(result[0].skills, Some(vec![2]));
         assert_eq!(result[0].inventory, Some(vec![3]));
+    }
+
+    #[test]
+    fn a_batch_is_in_the_order_of_the_names() {
+        let result = deduplicate_batch(vec![update("zoe"), update("bob"), update("alice")]);
+        let names: Vec<&str> = result.iter().map(|member| member.name.as_str()).collect();
+        assert_eq!(names, ["alice", "bob", "zoe"]);
+        assert!(deduplicate_batch(vec![]).is_empty());
+    }
+
+    #[test]
+    fn a_statement_has_a_name_and_every_column_per_row() {
+        let statement = build_values_statement(2);
+        assert!(statement.contains("($1::text,$2::int4[],"), "{statement}");
+        assert!(
+            statement.contains(",$7::jsonb),($8::text,$9::int4[],"),
+            "{statement}"
+        );
+        assert!(statement.contains("$14::jsonb)"), "{statement}");
+        assert!(!statement.contains("$15"), "{statement}");
     }
 }

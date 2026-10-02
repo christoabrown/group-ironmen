@@ -22,18 +22,15 @@ fn hub_member_row(row: &tokio_postgres::Row) -> Result<HubMemberRow, ApiError> {
 
 pub(crate) async fn get_member_by_hub_id(
     client: &Client,
-    group_id: i64,
     hub_account_id: &str,
 ) -> Result<Option<HubMemberRow>, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
-             WHERE group_id=$1 AND hub_account_id=$2",
+            "SELECT member_name::text, hub_account_id, hidden FROM guildmap.members \
+             WHERE hub_account_id=$1",
         )
         .await?;
-    let row = client
-        .query_opt(&stmt, &[&group_id, &hub_account_id])
-        .await?;
+    let row = client.query_opt(&stmt, &[&hub_account_id]).await?;
     row.as_ref().map(hub_member_row).transpose()
 }
 
@@ -41,35 +38,33 @@ pub(crate) async fn get_member_by_hub_id(
 /// the plugin's account hash (stable across renames), then by name.
 pub(crate) async fn find_member_for_hub_account(
     client: &Client,
-    group_id: i64,
     account_hash: Option<&str>,
     name: &str,
 ) -> Result<Option<HubMemberRow>, ApiError> {
     if let Some(account_hash) = account_hash {
         let stmt = client
             .prepare_cached(
-                "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
-                 WHERE group_id=$1 AND account_hash=$2 ORDER BY member_id LIMIT 1",
+                "SELECT member_name::text, hub_account_id, hidden FROM guildmap.members \
+                 WHERE account_hash=$1 ORDER BY member_id LIMIT 1",
             )
             .await?;
-        if let Some(row) = client.query_opt(&stmt, &[&group_id, &account_hash]).await? {
+        if let Some(row) = client.query_opt(&stmt, &[&account_hash]).await? {
             return Ok(Some(hub_member_row(&row)?));
         }
     }
     let stmt = client
         .prepare_cached(
-            "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
-             WHERE group_id=$1 AND member_name=$2",
+            "SELECT member_name::text, hub_account_id, hidden FROM guildmap.members \
+             WHERE member_name=$1",
         )
         .await?;
-    let row = client.query_opt(&stmt, &[&group_id, &name]).await?;
+    let row = client.query_opt(&stmt, &[&name]).await?;
     row.as_ref().map(hub_member_row).transpose()
 }
 
 /// Binds a hub account id to a member, taking it away from any other member first.
 pub(crate) async fn bind_hub_account(
     client: &mut Client,
-    group_id: i64,
     member_name: &str,
     hub_account_id: &str,
     account_hash: Option<&str>,
@@ -77,17 +72,17 @@ pub(crate) async fn bind_hub_account(
     let transaction = client.transaction().await?;
     transaction
         .execute(
-            "UPDATE groupironman.members SET hub_account_id=NULL \
-             WHERE hub_account_id=$1 AND NOT (group_id=$2 AND member_name=$3)",
-            &[&hub_account_id, &group_id, &member_name],
+            "UPDATE guildmap.members SET hub_account_id=NULL \
+             WHERE hub_account_id=$1 AND member_name<>$2",
+            &[&hub_account_id, &member_name],
         )
         .await?;
     transaction
         .execute(
-            "UPDATE groupironman.members SET hub_account_id=$3, \
-             account_hash=COALESCE($4, account_hash), hub_orphaned_at=NULL \
-             WHERE group_id=$1 AND member_name=$2",
-            &[&group_id, &member_name, &hub_account_id, &account_hash],
+            "UPDATE guildmap.members SET hub_account_id=$2, \
+             account_hash=COALESCE($3, account_hash), hub_orphaned_at=NULL \
+             WHERE member_name=$1",
+            &[&member_name, &hub_account_id, &account_hash],
         )
         .await?;
     transaction.commit().await?;
@@ -97,20 +92,19 @@ pub(crate) async fn bind_hub_account(
 /// Records whether the hub reports the member online, and when it was last seen.
 pub(crate) async fn set_hub_presence(
     client: &Client,
-    group_id: i64,
     member_name: &str,
     online: bool,
     last_seen: Option<DateTime<Utc>>,
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "UPDATE groupironman.members SET hub_online=$3, \
-             hub_last_seen=COALESCE($4, hub_last_seen, NOW()) \
-             WHERE group_id=$1 AND member_name=$2",
+            "UPDATE guildmap.members SET hub_online=$2, \
+             hub_last_seen=COALESCE($3, hub_last_seen, NOW()) \
+             WHERE member_name=$1",
         )
         .await?;
     client
-        .execute(&stmt, &[&group_id, &member_name, &online, &last_seen])
+        .execute(&stmt, &[&member_name, &online, &last_seen])
         .await?;
     Ok(())
 }
@@ -119,32 +113,25 @@ pub(crate) async fn set_hub_presence(
 /// Returns whether the member exists.
 pub async fn set_member_hidden(
     client: &Client,
-    group_id: i64,
     member_name: &str,
     hidden: bool,
 ) -> Result<bool, ApiError> {
     let stmt = client
-        .prepare_cached(
-            "UPDATE groupironman.members SET hidden=$3 WHERE group_id=$1 AND member_name=$2",
-        )
+        .prepare_cached("UPDATE guildmap.members SET hidden=$2 WHERE member_name=$1")
         .await?;
-    Ok(client
-        .execute(&stmt, &[&group_id, &member_name, &hidden])
-        .await?
-        > 0)
+    Ok(client.execute(&stmt, &[&member_name, &hidden]).await? > 0)
 }
 
 /// Renames a member that is bound to a hub account.
 pub(crate) async fn rename_hub_member(
     client: &Client,
-    group_id: i64,
     original_name: &str,
     new_name: &str,
 ) -> Result<(), ApiError> {
     client
         .execute(
-            "UPDATE groupironman.members SET member_name=$3 WHERE group_id=$1 AND member_name=$2",
-            &[&group_id, &original_name, &new_name],
+            "UPDATE guildmap.members SET member_name=$2 WHERE member_name=$1",
+            &[&original_name, &new_name],
         )
         .await?;
     Ok(())
@@ -154,29 +141,26 @@ pub(crate) async fn rename_hub_member(
 /// mark for those that are. Returns the number of orphaned members.
 pub(crate) async fn mark_hub_orphans(
     client: &Client,
-    group_id: i64,
     visible_ids: &[String],
 ) -> Result<i64, ApiError> {
     client
         .execute(
-            "UPDATE groupironman.members SET hub_orphaned_at=NULL \
-             WHERE group_id=$1 AND hub_account_id = ANY($2)",
-            &[&group_id, &visible_ids],
+            "UPDATE guildmap.members SET hub_orphaned_at=NULL WHERE hub_account_id = ANY($1)",
+            &[&visible_ids],
         )
         .await?;
     client
         .execute(
-            "UPDATE groupironman.members SET hub_orphaned_at=NOW(), hub_online=FALSE \
-             WHERE group_id=$1 AND hub_account_id IS NOT NULL \
-             AND NOT (hub_account_id = ANY($2)) AND hub_orphaned_at IS NULL",
-            &[&group_id, &visible_ids],
+            "UPDATE guildmap.members SET hub_orphaned_at=NOW(), hub_online=FALSE \
+             WHERE hub_account_id IS NOT NULL \
+             AND NOT (hub_account_id = ANY($1)) AND hub_orphaned_at IS NULL",
+            &[&visible_ids],
         )
         .await?;
     let count: i64 = client
         .query_one(
-            "SELECT COUNT(*) FROM groupironman.members \
-             WHERE group_id=$1 AND hub_orphaned_at IS NOT NULL",
-            &[&group_id],
+            "SELECT COUNT(*) FROM guildmap.members WHERE hub_orphaned_at IS NOT NULL",
+            &[],
         )
         .await?
         .try_get(0)?;
@@ -186,15 +170,14 @@ pub(crate) async fn mark_hub_orphans(
 /// Member name, hub account id and hidden flag of every member bound to the hub.
 pub(crate) async fn get_hub_bindings(
     client: &Client,
-    group_id: i64,
 ) -> Result<Vec<(String, String, bool)>, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT member_name::text, hub_account_id, hidden FROM groupironman.members \
-             WHERE group_id=$1 AND hub_account_id IS NOT NULL",
+            "SELECT member_name::text, hub_account_id, hidden FROM guildmap.members \
+             WHERE hub_account_id IS NOT NULL",
         )
         .await?;
-    let rows = client.query(&stmt, &[&group_id]).await?;
+    let rows = client.query(&stmt, &[]).await?;
     rows.iter()
         .map(|row| Ok((row.try_get(0)?, row.try_get(1)?, row.try_get(2)?)))
         .collect()

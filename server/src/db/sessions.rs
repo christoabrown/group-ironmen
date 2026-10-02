@@ -13,7 +13,7 @@ pub(crate) async fn create_session(
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "INSERT INTO groupironman.sessions (session_id, discord_id, name, is_admin, expires_at) \
+            "INSERT INTO guildmap.sessions (session_id, discord_id, name, is_admin, expires_at) \
              VALUES($1, $2, $3, $4, $5)",
         )
         .await?;
@@ -36,7 +36,7 @@ pub(crate) async fn create_session(
 pub(crate) async fn get_session(client: &Client, session_id: &str) -> Result<Session, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT discord_id, name, is_admin FROM groupironman.sessions \
+            "SELECT discord_id, name, is_admin FROM guildmap.sessions \
              WHERE session_id=$1 AND expires_at > NOW()",
         )
         .await?;
@@ -53,7 +53,7 @@ pub(crate) async fn get_session(client: &Client, session_id: &str) -> Result<Ses
 
 pub(crate) async fn delete_session(client: &Client, session_id: &str) -> Result<(), ApiError> {
     let stmt = client
-        .prepare_cached("DELETE FROM groupironman.sessions WHERE session_id=$1")
+        .prepare_cached("DELETE FROM guildmap.sessions WHERE session_id=$1")
         .await?;
     client.execute(&stmt, &[&session_id]).await?;
     Ok(())
@@ -61,7 +61,7 @@ pub(crate) async fn delete_session(client: &Client, session_id: &str) -> Result<
 
 pub(crate) async fn cleanup_expired_sessions(client: &Client) -> Result<(), ApiError> {
     let stmt = client
-        .prepare_cached("DELETE FROM groupironman.sessions WHERE expires_at <= NOW()")
+        .prepare_cached("DELETE FROM guildmap.sessions WHERE expires_at <= NOW()")
         .await?;
     client.execute(&stmt, &[]).await?;
     Ok(())
@@ -76,7 +76,7 @@ pub(crate) async fn sessions_to_verify(
 ) -> Result<Vec<String>, ApiError> {
     let stmt = client
         .prepare_cached(
-            "SELECT discord_id FROM groupironman.sessions WHERE expires_at > NOW() \
+            "SELECT discord_id FROM guildmap.sessions WHERE expires_at > NOW() \
              GROUP BY discord_id HAVING MIN(verified_at) < $1 \
              ORDER BY MIN(verified_at) LIMIT $2",
         )
@@ -94,7 +94,7 @@ pub(crate) async fn refresh_sessions(
 ) -> Result<(), ApiError> {
     let stmt = client
         .prepare_cached(
-            "UPDATE groupironman.sessions SET name=COALESCE($2, name), is_admin=$3, \
+            "UPDATE guildmap.sessions SET name=COALESCE($2, name), is_admin=$3, \
              verified_at=NOW() WHERE discord_id=$1",
         )
         .await?;
@@ -107,7 +107,7 @@ pub(crate) async fn refresh_sessions(
 /// Ends every session of someone who is no longer a member. Returns how many.
 pub(crate) async fn delete_sessions_of(client: &Client, discord_id: &str) -> Result<u64, ApiError> {
     let stmt = client
-        .prepare_cached("DELETE FROM groupironman.sessions WHERE discord_id=$1")
+        .prepare_cached("DELETE FROM guildmap.sessions WHERE discord_id=$1")
         .await?;
     Ok(client.execute(&stmt, &[&discord_id]).await?)
 }

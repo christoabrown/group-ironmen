@@ -9,7 +9,7 @@ export class GroupData {
   }
 
   /**
-   * Applies one poll of `/api/group/get-group-data`:
+   * Applies one poll of `/api/members`:
    * `{cursor, roster: [{name, online, last_seen, orphaned}], members: [changed data]}`.
    * Publishes "members-updated" (all members) when the set of names or anyone's
    * online state changes, and "roster-changed" (a Set of names) whenever any

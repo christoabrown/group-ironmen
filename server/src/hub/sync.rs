@@ -16,7 +16,7 @@ use crate::hub::convert::{section_changed, MemberSections, SECTIONS};
 use crate::hub::directory::HubDirectory;
 use crate::hub::models::HubAccount;
 use crate::hub::{record_error, retry_wait, SharedHubStatus};
-use crate::models::GroupMember;
+use crate::models::MemberData;
 use crate::validators::valid_name;
 use chrono::Utc;
 use deadpool_postgres::{Client, Pool};
@@ -33,8 +33,7 @@ const PRESENCE_REFRESH: Duration = Duration::from_secs(60);
 pub struct SyncContext {
     pub pool: Pool,
     pub client: Arc<HubClient>,
-    pub sender: mpsc::Sender<GroupMember>,
-    pub group_id: i64,
+    pub sender: mpsc::Sender<MemberData>,
     pub config: HubConfig,
     pub status: SharedHubStatus,
     pub directory: HubDirectory,
@@ -199,7 +198,7 @@ impl HubSync {
             let visible: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
             let visible_set: HashSet<&String> = visible.iter().collect();
             self.known.retain(|id, _| visible_set.contains(id));
-            let orphaned = db::mark_hub_orphans(&client, self.context.group_id, &visible).await?;
+            let orphaned = db::mark_hub_orphans(&client, &visible).await?;
             if let Ok(mut status) = self.context.status.write() {
                 status.accounts_visible = accounts.len();
                 status.accounts_online = online;
@@ -224,10 +223,9 @@ impl HubSync {
             return Ok(());
         }
 
-        let group_id = self.context.group_id;
         let directory = &self.context.directory;
         if !self.known.contains_key(&account.id) {
-            let known = resolve_member(client, group_id, account).await?;
+            let known = resolve_member(client, account).await?;
             directory.set_hidden(&account.id, known.hidden);
             if known.hidden {
                 directory.remove_member(&known.member_name);
@@ -242,8 +240,7 @@ impl HubSync {
         }
 
         if known.member_name != account.name {
-            known.member_name =
-                follow_rename(client, group_id, account, &known.member_name).await?;
+            known.member_name = follow_rename(client, account, &known.member_name).await?;
             directory.bind(&account.id, &known.member_name);
             // A new name has no data on the site yet; send everything again.
             known.sent = None;
@@ -255,9 +252,8 @@ impl HubSync {
             .filter(|section| section_changed(known.sent.as_ref(), &sections, *section))
             .collect();
         if !changed.is_empty() {
-            let member = sections.to_member(group_id, &known.member_name, |section| {
-                changed.contains(&section)
-            });
+            let member =
+                sections.to_member(&known.member_name, |section| changed.contains(&section));
             if self.context.sender.send(member).await.is_err() {
                 return Err(ApiError::HubError("update channel closed".to_string()));
             }
@@ -272,14 +268,7 @@ impl HubSync {
             Some((was_online, at)) => was_online != online || at.elapsed() >= PRESENCE_REFRESH,
         };
         if write_presence {
-            db::set_hub_presence(
-                client,
-                group_id,
-                &known.member_name,
-                online,
-                account.last_seen,
-            )
-            .await?;
+            db::set_hub_presence(client, &known.member_name, online, account.last_seen).await?;
             known.presence = Some((online, Instant::now()));
         }
         Ok(())
@@ -289,7 +278,6 @@ impl HubSync {
 /// Finds or creates the member for a hub account and binds the account to it.
 async fn resolve_member(
     client: &mut Client,
-    group_id: i64,
     account: &HubAccount,
 ) -> Result<KnownAccount, ApiError> {
     let known = |member_name: String, hidden: bool| KnownAccount {
@@ -298,17 +286,13 @@ async fn resolve_member(
         sent: None,
         presence: None,
     };
-    if let Some(row) = db::get_member_by_hub_id(client, group_id, &account.id).await? {
+    if let Some(row) = db::get_member_by_hub_id(client, &account.id).await? {
         return Ok(known(row.member_name, row.hidden));
     }
 
-    let existing = db::find_member_for_hub_account(
-        client,
-        group_id,
-        account.account_hash.as_deref(),
-        &account.name,
-    )
-    .await?;
+    let existing =
+        db::find_member_for_hub_account(client, account.account_hash.as_deref(), &account.name)
+            .await?;
     let (member_name, hidden) = match existing {
         Some(row) => {
             if let Some(other) = &row.hub_account_id {
@@ -322,13 +306,12 @@ async fn resolve_member(
             (row.member_name, row.hidden)
         }
         None => {
-            db::ensure_member_exists(client, group_id, &account.name).await?;
+            db::ensure_member_exists(client, &account.name).await?;
             (account.name.clone(), false)
         }
     };
     db::bind_hub_account(
         client,
-        group_id,
         &member_name,
         &account.id,
         account.account_hash.as_deref(),
@@ -340,11 +323,10 @@ async fn resolve_member(
 /// Follows a rename on the hub. Returns the member name to use from now on.
 async fn follow_rename(
     client: &mut Client,
-    group_id: i64,
     account: &HubAccount,
     current_name: &str,
 ) -> Result<String, ApiError> {
-    let taken = db::find_member_for_hub_account(client, group_id, None, &account.name).await?;
+    let taken = db::find_member_for_hub_account(client, None, &account.name).await?;
     match taken {
         Some(row) if !row.member_name.eq_ignore_ascii_case(current_name) => {
             log::warn!(
@@ -357,7 +339,6 @@ async fn follow_rename(
             );
             db::bind_hub_account(
                 client,
-                group_id,
                 &row.member_name,
                 &account.id,
                 account.account_hash.as_deref(),
@@ -372,7 +353,7 @@ async fn follow_rename(
                 current_name,
                 account.name
             );
-            db::rename_hub_member(client, group_id, current_name, &account.name).await?;
+            db::rename_hub_member(client, current_name, &account.name).await?;
             Ok(account.name.clone())
         }
     }

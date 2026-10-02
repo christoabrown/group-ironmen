@@ -1,7 +1,7 @@
 //! Converts hub snapshot accounts into the member arrays the site understands,
 //! plus the display details (`HubMeta`) the site shows next to them.
 use crate::hub::models::{HubAccount, HubItems};
-use crate::models::GroupMember;
+use crate::models::MemberData;
 use crate::osrs::{equipment_slot_index, skill_index, SKILL_ORDER};
 use serde::{Deserialize, Serialize};
 
@@ -145,14 +145,8 @@ impl MemberSections {
 
     /// Builds the batcher update. Sections are only included when `include`
     /// says so, which lets the sync skip unchanged sections.
-    pub(crate) fn to_member(
-        &self,
-        group_id: i64,
-        name: &str,
-        include: impl Fn(Section) -> bool,
-    ) -> GroupMember {
-        GroupMember {
-            group_id: Some(group_id),
+    pub(crate) fn to_member(&self, name: &str, include: impl Fn(Section) -> bool) -> MemberData {
+        MemberData {
             name: name.to_owned(),
             stats: self.stats.clone().filter(|_| include(Section::Stats)),
             coordinates: self
@@ -428,13 +422,13 @@ mod tests {
     #[test]
     fn to_member_filters_sections() {
         let sections = MemberSections::from_account(&full_account(), None);
-        let member = sections.to_member(7, "Alpha Main", |section| section == Section::Stats);
-        assert_eq!(member.group_id, Some(7));
+        let member = sections.to_member("Alpha Main", |section| section == Section::Stats);
+        assert_eq!(member.name, "Alpha Main");
         assert!(member.stats.is_some());
         assert!(member.coordinates.is_none());
         assert!(member.skills.is_none());
         assert!(member.meta.is_none());
-        let member = sections.to_member(7, "Alpha Main", |section| section == Section::Meta);
+        let member = sections.to_member("Alpha Main", |section| section == Section::Meta);
         assert_eq!(member.meta.unwrap()["owner"], "Owner");
     }
 

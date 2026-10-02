@@ -51,7 +51,7 @@ frontend's `/api` proxy, so the session cookie is set for the frontend's hostnam
 | Filesystem | Writes nothing: settings come from the environment (`config.toml` is optional and not in the image). Runs with a read-only root filesystem and all capabilities dropped. |
 | Egress | The hub (`HUB_BASE_URL`); `prices.runescape.wiki` for Grand Exchange prices; `discord.com` for logging in. |
 
-**The backend is a singleton.** It runs the schema migrations in-process at start-up
+**The backend is a singleton.** It brings the schema up to date in-process at start-up
 (`db::update_schema`), polls the hub, and keeps state in memory: the event buffer, the hub directory and
 the update batcher. Run exactly one replica with the `Recreate` strategy, never two at once, including
 during a rollout. If that ever changes, this page changes first.
@@ -62,13 +62,20 @@ during a rollout. If that ever changes, this page changes first.
 |---|---|
 | Image | `postgres:17`, the same major as `docker-compose.yml`, `docker-compose-local.yml` and CI. Renovate bumps all three together. A major upgrade needs a dump and restore and never comes in that group. |
 | Data | `/var/lib/postgresql/data` |
-| Schema | `groupironman`, created and migrated by the backend at start-up |
+| Schema | `guildmap`, created by the backend at start-up on an empty database, and migrated by it from then on |
 | Settings | `PG_HOST`, `PG_PORT`, `PG_DB`, `PG_USER`, `PG_PASSWORD`, `PG_POOL_MAX_SIZE` |
 | Backup | `pg_dump` of the one database, for example `docker compose exec postgres pg_dump -U "$PG_USER" "$PG_DB" > map.sql` under Compose. What is lost without one is the hidden players and the local skill history; the players themselves come back from the hub. |
 
-The migrations run `CREATE EXTENSION IF NOT EXISTS citext`. `citext` is a trusted extension, so the
+At start-up the backend runs `CREATE EXTENSION IF NOT EXISTS citext`. `citext` is a trusted extension, so the
 app's role needs `CONNECT` and `CREATE` on its database but not superuser (checked on `postgres:17`
 with a role that has only those two privileges). The database owner has both.
+
+**A database from before the `guildmap` schema is not converted.** Earlier versions kept their data in
+the schema `groupironman`, which they had from the Group Ironmen tracker. The backend refuses to start
+on a database that still has it and says so; it never drops it. Give the map an empty database, or run
+`DROP SCHEMA groupironman CASCADE`. The players come back from the hub with the first sync. What does
+not come back: which players were hidden, the skill history the map aggregated itself, and the
+sessions, so everyone logs in again.
 
 ## osrs-data-hub
 
@@ -103,6 +110,4 @@ Without these the map works, with less:
   start-up when `DISCORD_API_BASE` isn't Discord's.
 - An admin is whoever the hub calls one. There is no first admin to create and nothing to claim on a
   freshly deployed site.
-- The upgrade from a version with its own accounts drops the tables `users`, `discord_users`,
-  `user_player_links` and `audit_log` and logs everyone out (migration `hub_decides_sessions`).
-  `SETUP_TOKEN`, `DISCORD_AUTO_REGISTRATION` and `DISCORD_AUTOREG_SERVERS` are no longer read.
+- The map has no accounts of its own any more. `SETUP_TOKEN`, `DISCORD_AUTO_REGISTRATION` and `DISCORD_AUTOREG_SERVERS` are no longer read.

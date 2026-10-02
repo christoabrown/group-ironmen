@@ -9,9 +9,9 @@ pub enum ApiError {
     PGError(tokio_postgres::error::Error),
     SerdeJsonError(serde_json::Error),
     #[from(ignore)]
-    GetGroupDataError(tokio_postgres::error::Error),
+    GetMembersError(tokio_postgres::error::Error),
     #[from(ignore)]
-    DeleteGroupMemberError(tokio_postgres::error::Error),
+    DeleteMemberError(tokio_postgres::error::Error),
     #[from(ignore)]
     GetSkillsDataError(tokio_postgres::error::Error),
     UreqError(ureq::Error),
@@ -24,6 +24,10 @@ pub enum ApiError {
     #[display("Bad request: {}", _0)]
     #[from(ignore)]
     BadRequest(String),
+    /// The database can't be used as it is; see `db::update_schema`.
+    #[display("{}", _0)]
+    #[from(ignore)]
+    Schema(String),
 }
 impl std::error::Error for ApiError {}
 fn handle_pg_error(err: &tokio_postgres::error::Error, name: &str) -> HttpResponse {
@@ -42,11 +46,9 @@ impl ResponseError for ApiError {
                 HttpResponse::InternalServerError().body(format!("PoolError: {}", err))
             }
             ApiError::PGError(ref err) => handle_pg_error(err, "PGError"),
-            ApiError::GetGroupDataError(ref err) => handle_pg_error(err, "GetGroupDataError"),
+            ApiError::GetMembersError(ref err) => handle_pg_error(err, "GetMembersError"),
             ApiError::GetSkillsDataError(ref err) => handle_pg_error(err, "GetSkillsDataError"),
-            ApiError::DeleteGroupMemberError(ref err) => {
-                handle_pg_error(err, "DeleteGroupMemberError")
-            }
+            ApiError::DeleteMemberError(ref err) => handle_pg_error(err, "DeleteMemberError"),
             ApiError::SerdeJsonError(ref err) => {
                 log::error!("SerdeJsonError: {}", err);
                 HttpResponse::InternalServerError().body(format!("SerdeJsonError: {}", err))
@@ -63,6 +65,10 @@ impl ResponseError for ApiError {
             }
             ApiError::Unauthorized => HttpResponse::Unauthorized().body("Unauthorized"),
             ApiError::BadRequest(ref msg) => HttpResponse::BadRequest().body(msg.clone()),
+            ApiError::Schema(ref msg) => {
+                log::error!("{}", msg);
+                HttpResponse::InternalServerError().finish()
+            }
         }
     }
 }

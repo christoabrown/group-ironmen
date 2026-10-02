@@ -1,16 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-/// The one group every member belongs to (the guild), registered as app data.
-#[derive(Clone, Copy, Debug)]
-pub struct GroupId(pub i64);
-
 /// A member's player data. As an update (to the batcher) a `None` field is
 /// left alone; in the poll response it means "unchanged since `from_time`".
 #[derive(Deserialize, Serialize, Default, Debug)]
-pub struct GroupMember {
-    #[serde(skip)]
-    pub group_id: Option<i64>,
+pub struct MemberData {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stats: Option<Vec<i32>>,
@@ -41,14 +35,14 @@ pub struct RosterEntry {
     pub orphaned: bool,
 }
 
-/// `GET /api/group/get-group-data`.
+/// `GET /api/members`.
 #[derive(Serialize, Debug)]
-pub struct GroupDataResponse {
+pub struct MembersResponse {
     /// Pass as `from_time` next time.
     pub cursor: DateTime<Utc>,
     pub roster: Vec<RosterEntry>,
     /// Only members with data that changed at or after `from_time`.
-    pub members: Vec<GroupMember>,
+    pub members: Vec<MemberData>,
 }
 #[derive(Serialize)]
 pub(crate) struct AggregateSkillData {
@@ -60,7 +54,8 @@ pub(crate) struct MemberSkillData {
     pub name: String,
     pub skill_data: Vec<AggregateSkillData>,
 }
-pub(crate) type GroupSkillData = Vec<MemberSkillData>;
+/// `GET /api/skill-history`.
+pub(crate) type SkillHistory = Vec<MemberSkillData>;
 #[derive(Deserialize)]
 pub(crate) struct WikiGEPrice {
     pub high: Option<i64>,

@@ -56,7 +56,7 @@ class Api {
   }
 
   async getGroupData() {
-    const response = await this.request(`/group/get-group-data?from_time=${this.nextCheck}`);
+    const response = await this.request(`/members?from_time=${this.nextCheck}`);
     if (!response.ok) {
       if (response.status === 401) {
         // The session ran out, or the hub no longer calls them a member.
@@ -81,7 +81,7 @@ class Api {
   async getSkillData(period, members) {
     const params = new URLSearchParams({ period });
     if (members?.length) params.set("members", members.join(","));
-    const response = await this.request(`/group/get-skill-data?${params}`);
+    const response = await this.request(`/skill-history?${params}`);
     return response.json();
   }
 
@@ -140,7 +140,7 @@ class Api {
   async loadFeatures() {
     let features = { hub_history: false };
     try {
-      const response = await this.request("/group/features");
+      const response = await this.request("/features");
       if (response.ok) {
         features = await response.json();
       }
@@ -153,7 +153,7 @@ class Api {
 
   /** The response of a hub history request; throws with its `status` when it failed. */
   async hubResponse(path) {
-    const response = await this.request(`/group/hub/${path}`);
+    const response = await this.request(`/hub/${path}`);
     if (!response.ok) {
       const error = new Error(`Hub request failed with status ${response.status}`);
       error.status = response.status;

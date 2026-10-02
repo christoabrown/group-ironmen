@@ -246,7 +246,7 @@ with it in a browser.
 Tests:
 
 ```bash
-cd server && TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/group_ironmen_test cargo test
+cd server && TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/guildmap_test cargo test
 cd site && npm run check    # format:check, lint and test
 ```
 

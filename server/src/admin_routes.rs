@@ -4,7 +4,6 @@ use crate::auth_middleware::AdminAuthenticated;
 use crate::db;
 use crate::error::ApiError;
 use crate::hub::HubContext;
-use crate::models::GroupId;
 use actix_web::{delete, get, put, web, Error, HttpResponse};
 use deadpool_postgres::{Client, Pool};
 
@@ -12,10 +11,9 @@ use deadpool_postgres::{Client, Pool};
 pub async fn list_players(
     _admin: AdminAuthenticated,
     db_pool: web::Data<Pool>,
-    group_id: web::Data<GroupId>,
 ) -> Result<HttpResponse, Error> {
     let client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    let players = db::list_players(&client, group_id.0).await?;
+    let players = db::list_players(&client).await?;
     Ok(HttpResponse::Ok().json(players))
 }
 
@@ -29,12 +27,13 @@ pub async fn delete_player(
     admin: AdminAuthenticated,
     path: web::Path<PlayerPath>,
     db_pool: web::Data<Pool>,
-    group_id: web::Data<GroupId>,
     hub: web::Data<HubContext>,
 ) -> Result<HttpResponse, Error> {
     let member_name = &path.member_name;
-    let mut client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    db::delete_group_member(&mut client, group_id.0, member_name).await?;
+    let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
+    if !db::delete_member(&client, member_name).await? {
+        return Ok(HttpResponse::NotFound().body("No such player"));
+    }
     // A deleted member the hub still shares comes back with the next full sync.
     hub.directory.remove_member(member_name);
     hub.sync_control.forget_member(member_name);
@@ -56,12 +55,11 @@ pub async fn set_player_hidden(
     path: web::Path<PlayerPath>,
     body: web::Json<SetHiddenRequest>,
     db_pool: web::Data<Pool>,
-    group_id: web::Data<GroupId>,
     hub: web::Data<HubContext>,
 ) -> Result<HttpResponse, Error> {
     let member_name = &path.member_name;
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
-    if !db::set_member_hidden(&client, group_id.0, member_name, body.hidden).await? {
+    if !db::set_member_hidden(&client, member_name, body.hidden).await? {
         return Ok(HttpResponse::NotFound().body("No such player"));
     }
     // Hide the player's events and leaderboard entries at once, not only

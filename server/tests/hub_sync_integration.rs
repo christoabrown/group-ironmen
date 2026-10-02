@@ -17,7 +17,7 @@ use server::hub::client::{HubClient, HubError};
 use server::hub::directory::HubDirectory;
 use server::hub::sync::{HubSync, SyncContext, SyncControl};
 use server::hub::HubStatus;
-use server::models::{GroupMember, RosterEntry};
+use server::models::{MemberData, RosterEntry};
 
 /// Room for the members one poll sends.
 const UPDATE_CAPACITY: usize = 1000;
@@ -139,11 +139,10 @@ fn offline_account(id: &str, name: &str, last_seen: DateTime<Utc>) -> Value {
 
 struct Harness {
     pool: Pool,
-    group_id: i64,
     hub: Arc<Mutex<MockHub>>,
     sync: HubSync,
     /// What the sync sends; `poll` hands it to the batcher.
-    updates: mpsc::Receiver<GroupMember>,
+    updates: mpsc::Receiver<MemberData>,
     sent: usize,
     control: SyncControl,
     directory: HubDirectory,
@@ -151,7 +150,7 @@ struct Harness {
 
 async fn harness() -> Harness {
     let pool = create_test_pool().await;
-    let group_id = fresh_database(&pool).await;
+    fresh_database(&pool).await;
     let hub = Arc::new(Mutex::new(MockHub::default()));
     let base_url = start_mock_hub(Arc::clone(&hub)).await;
 
@@ -164,7 +163,7 @@ async fn harness() -> Harness {
 
     // Nothing reads this channel while a poll runs, so it has to hold
     // everything one poll sends.
-    let (tx, updates) = mpsc::channel::<GroupMember>(UPDATE_CAPACITY);
+    let (tx, updates) = mpsc::channel::<MemberData>(UPDATE_CAPACITY);
 
     let directory = HubDirectory::default();
     let control = SyncControl::default();
@@ -172,7 +171,6 @@ async fn harness() -> Harness {
         pool: pool.clone(),
         client: HubClient::new(&hub_config),
         sender: tx,
-        group_id,
         config: hub_config,
         status: Arc::new(RwLock::new(HubStatus::default())),
         directory: directory.clone(),
@@ -181,7 +179,6 @@ async fn harness() -> Harness {
 
     Harness {
         pool,
-        group_id,
         hub,
         sync,
         updates,
@@ -213,15 +210,15 @@ impl Harness {
         self.sent
     }
 
-    async fn member(&self, name: &str) -> Option<GroupMember> {
+    async fn member(&self, name: &str) -> Option<MemberData> {
         let epoch = DateTime::from_timestamp(0, 0).unwrap();
         self.member_since(name, epoch).await
     }
 
     /// The member's data as a site polling since `from_time` gets it.
-    async fn member_since(&self, name: &str, from_time: DateTime<Utc>) -> Option<GroupMember> {
+    async fn member_since(&self, name: &str, from_time: DateTime<Utc>) -> Option<MemberData> {
         let client = self.pool.get().await.unwrap();
-        db::get_group_data(&client, self.group_id, &from_time)
+        db::get_members(&client, &from_time)
             .await
             .unwrap()
             .members
@@ -232,7 +229,7 @@ impl Harness {
     async fn roster(&self, name: &str) -> Option<RosterEntry> {
         let client = self.pool.get().await.unwrap();
         let epoch = DateTime::from_timestamp(0, 0).unwrap();
-        db::get_group_data(&client, self.group_id, &epoch)
+        db::get_members(&client, &epoch)
             .await
             .unwrap()
             .roster
@@ -243,10 +240,7 @@ impl Harness {
     async fn cursor(&self) -> DateTime<Utc> {
         let client = self.pool.get().await.unwrap();
         let epoch = DateTime::from_timestamp(0, 0).unwrap();
-        db::get_group_data(&client, self.group_id, &epoch)
-            .await
-            .unwrap()
-            .cursor
+        db::get_members(&client, &epoch).await.unwrap().cursor
     }
 
     async fn scalar<T: for<'a> tokio_postgres::types::FromSql<'a>>(&self, sql: &str) -> T {
@@ -290,7 +284,7 @@ async fn imports_online_and_offline_accounts() {
     assert_eq!(bravo.last_seen, Some(last_seen));
 
     let bound: i64 = h
-        .scalar("SELECT COUNT(*) FROM groupironman.members WHERE hub_account_id IS NOT NULL")
+        .scalar("SELECT COUNT(*) FROM guildmap.members WHERE hub_account_id IS NOT NULL")
         .await;
     assert_eq!(bound, 2);
 }
@@ -372,7 +366,7 @@ async fn only_changed_sections_are_stamped() {
     let client = h.pool.get().await.unwrap();
     let row = client
         .query_one(
-            "SELECT stats_last_update, skills_last_update FROM groupironman.members \
+            "SELECT stats_last_update, skills_last_update FROM guildmap.members \
              WHERE member_name='Alpha'",
             &[],
         )
@@ -413,9 +407,7 @@ async fn hidden_members_are_left_alone_until_shown_again() {
 
     {
         let client = h.pool.get().await.unwrap();
-        db::set_member_hidden(&client, h.group_id, "Alpha", true)
-            .await
-            .unwrap();
+        db::set_member_hidden(&client, "Alpha", true).await.unwrap();
     }
     h.control.forget_member("Alpha");
     h.hub.lock().unwrap().accounts[0]["hp"] = json!({"current": 1, "max": 99});
@@ -429,7 +421,7 @@ async fn hidden_members_are_left_alone_until_shown_again() {
 
     {
         let client = h.pool.get().await.unwrap();
-        db::set_member_hidden(&client, h.group_id, "Alpha", false)
+        db::set_member_hidden(&client, "Alpha", false)
             .await
             .unwrap();
     }
@@ -503,12 +495,10 @@ async fn matches_existing_member_by_account_hash() {
     // import); on the hub the account goes by a newer name.
     {
         let client = h.pool.get().await.unwrap();
-        db::ensure_member_exists(&client, h.group_id, "Old Name")
-            .await
-            .unwrap();
+        db::ensure_member_exists(&client, "Old Name").await.unwrap();
         client
             .execute(
-                "UPDATE groupironman.members SET account_hash='hash-123' WHERE member_name='Old Name'",
+                "UPDATE guildmap.members SET account_hash='hash-123' WHERE member_name='Old Name'",
                 &[],
             )
             .await
@@ -525,12 +515,10 @@ async fn matches_existing_member_by_account_hash() {
     );
     assert!(h.member("New Name").await.unwrap().coordinates.is_some());
     let bound: String = h
-        .scalar(
-            "SELECT member_name::text FROM groupironman.members WHERE hub_account_id='acc-alpha'",
-        )
+        .scalar("SELECT member_name::text FROM guildmap.members WHERE hub_account_id='acc-alpha'")
         .await;
     assert_eq!(bound, "New Name");
-    let members: i64 = h.scalar("SELECT COUNT(*) FROM groupironman.members").await;
+    let members: i64 = h.scalar("SELECT COUNT(*) FROM guildmap.members").await;
     assert_eq!(members, 1);
 }
 

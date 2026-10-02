@@ -3,7 +3,7 @@ use crate::hub::client::{HubError, Priority};
 use crate::hub::fetch::{bulk_accounts, bulk_or_each, parse, Period};
 use crate::hub::models::{HubXpLine, HubXpMulti};
 use crate::hub::HubContext;
-use crate::models::{AggregateSkillData, GroupSkillData, MemberSkillData};
+use crate::models::{AggregateSkillData, MemberSkillData, SkillHistory};
 use crate::osrs::{skill_index, SKILL_ORDER};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde_json::Value;
@@ -171,11 +171,11 @@ async fn hub_skill_data(
 pub(crate) async fn merge_skill_data(
     context: &HubContext,
     period: Period,
-    local: GroupSkillData,
+    local: SkillHistory,
     members: Option<&HashSet<String>>,
-) -> GroupSkillData {
+) -> SkillHistory {
     let wanted = |name: &str| members.is_none_or(|members| members.contains(&name.to_lowercase()));
-    let local: GroupSkillData = local
+    let local: SkillHistory = local
         .into_iter()
         .filter(|member| wanted(&member.name))
         .collect();
@@ -189,7 +189,7 @@ pub(crate) async fn merge_skill_data(
         return local;
     }
     let mut hub = hub_skill_data(context, &bindings, period).await;
-    let mut merged: GroupSkillData = local
+    let mut merged: SkillHistory = local
         .into_iter()
         .map(|member| match hub.remove(&member.name) {
             Some(skill_data) if !skill_data.is_empty() => MemberSkillData {

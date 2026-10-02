@@ -11,12 +11,11 @@ use deadpool_postgres::{Client, Pool};
 
 pub(crate) const SESSION_DURATION_HOURS: i64 = 72;
 
-/// Mounts `/api/auth`. Actix matches the first scope with a matching prefix
-/// and never falls through to a second one with the same prefix, so the
-/// session-protected route is a nested scope after the public ones.
-pub fn configure(cfg: &mut web::ServiceConfig) {
+/// Mounts `/auth` (under `/api`, see `api::configure`): public but for
+/// `me`, which is a nested scope after the rest for the reason given there.
+pub(crate) fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/auth")
+        web::scope("/auth")
             .service(crate::discord_routes::discord_start)
             .service(crate::discord_routes::discord_callback)
             .service(logout)
@@ -81,19 +80,4 @@ pub async fn logout(
 #[get("/me")]
 pub async fn me(session: Authenticated) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(&*session))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use actix_web::{test, App};
-
-    #[actix_web::test]
-    async fn who_is_signed_in_needs_a_session() {
-        let app = test::init_service(App::new().configure(configure)).await;
-        // Rejected by the middleware, not a 404: the nested scope is reached.
-        let request = test::TestRequest::get().uri("/api/auth/me").to_request();
-        let response = test::call_service(&app, request).await;
-        assert_eq!(response.status(), 401);
-    }
 }

@@ -12,12 +12,9 @@ use std::sync::{Arc, Mutex};
 mod common;
 
 use common::{create_test_pool, fresh_database, TEST_MUTEX};
-use server::auth_middleware::SessionMiddlewareFactory;
 use server::config::{Config, HubConfig};
 use server::hub::client::HubClient;
 use server::hub::{self, HubContext};
-use server::models::GroupId;
-use server::{admin_routes, auth_routes};
 
 const ALICE: &str = "200000000000000001";
 const ADMIN: &str = "200000000000000002";
@@ -110,12 +107,11 @@ struct Harness {
     outside: Arc<Mutex<Outside>>,
     config: Config,
     hub: web::Data<HubContext>,
-    group_id: i64,
 }
 
 async fn harness() -> Harness {
     let pool = create_test_pool().await;
-    let group_id = fresh_database(&pool).await;
+    fresh_database(&pool).await;
 
     let outside = Arc::new(Mutex::new(Outside::default()));
     {
@@ -150,7 +146,6 @@ async fn harness() -> Harness {
         outside,
         config,
         hub,
-        group_id,
     }
 }
 
@@ -160,19 +155,8 @@ macro_rules! map_app {
             App::new()
                 .app_data(web::Data::new($h.pool.clone()))
                 .app_data(web::Data::new($h.config.clone()))
-                .app_data(web::Data::new(GroupId($h.group_id)))
                 .app_data($h.hub.clone())
-                .configure(auth_routes::configure)
-                .service(
-                    web::scope("/api/admin")
-                        .wrap(SessionMiddlewareFactory)
-                        .service(admin_routes::list_players),
-                )
-                .service(
-                    web::scope("/api/group")
-                        .wrap(SessionMiddlewareFactory)
-                        .service(hub::routes::get_features),
-                ),
+                .configure(server::api::configure),
         )
         .await
     };
@@ -240,7 +224,7 @@ macro_rules! status_with {
 async fn session_count(pool: &Pool) -> i64 {
     let client = pool.get().await.unwrap();
     client
-        .query_one("SELECT COUNT(*) FROM groupironman.sessions", &[])
+        .query_one("SELECT COUNT(*) FROM guildmap.sessions", &[])
         .await
         .unwrap()
         .get(0)
@@ -276,19 +260,16 @@ async fn a_member_of_the_hub_signs_in_and_is_no_admin() {
     let me: Value = test::call_and_read_body_json(&app, request).await;
     assert_eq!(me, json!({"name": "Alice", "is_admin": false}));
 
-    assert_eq!(
-        status_with!(&app, "/api/group/features", Some(&session)),
-        200
-    );
+    assert_eq!(status_with!(&app, "/api/features", Some(&session)), 200);
     assert_eq!(
         status_with!(&app, "/api/admin/players", Some(&session)),
         403
     );
-    assert_eq!(status_with!(&app, "/api/group/features", None), 401);
+    assert_eq!(status_with!(&app, "/api/features", None), 401);
 
     // The session id only counts as a cookie.
     let request = test::TestRequest::get()
-        .uri("/api/group/features")
+        .uri("/api/features")
         .insert_header(("Authorization", format!("Bearer {session}")))
         .to_request();
     assert_eq!(test::call_service(&app, request).await.status(), 401);
@@ -394,7 +375,7 @@ async fn age_sessions(pool: &Pool) {
     let client = pool.get().await.unwrap();
     client
         .execute(
-            "UPDATE groupironman.sessions SET verified_at = NOW() - interval '1 hour'",
+            "UPDATE guildmap.sessions SET verified_at = NOW() - interval '1 hour'",
             &[],
         )
         .await
@@ -434,7 +415,7 @@ async fn sessions_follow_what_the_hub_says_later() {
         .await
         .unwrap();
     assert_eq!(asked, 2);
-    assert_eq!(status_with!(&app, "/api/group/features", Some(&alice)), 401);
+    assert_eq!(status_with!(&app, "/api/features", Some(&alice)), 401);
     assert_eq!(status_with!(&app, "/api/admin/players", Some(&admin)), 403);
     let request = test::TestRequest::get()
         .uri("/api/auth/me")

@@ -16,7 +16,7 @@ describe("hub features", () => {
 
     await expect(api.loadFeatures()).resolves.toEqual(features);
 
-    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/features", {
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/features", {
       method: "GET",
       credentials: "same-origin",
     });
@@ -43,15 +43,15 @@ describe("hub features", () => {
 
     const urls = globalThis.fetch.mock.calls.map(([url]) => url);
     expect(urls).toEqual([
-      "/api/group/hub/trails?members=Iron+Man%2CZezima&days=7",
-      "/api/group/hub/gains?period=week",
-      "/api/group/hub/leaderboards/loot?period=week&limit=5",
-      "/api/group/hub/players/Iron%20Man/gains?period=month",
-      "/api/group/hub/players/Iron%20Man/sessions?days=7",
-      "/api/group/hub/players/Iron%20Man/wealth?days=30",
-      "/api/group/hub/players/Iron%20Man/equipment-history?days=30",
-      "/api/group/hub/players/Iron%20Man/events?limit=20",
-      "/api/group/hub/players/Iron%20Man/trail-events?days=7&min_loot=100000",
+      "/api/hub/trails?members=Iron+Man%2CZezima&days=7",
+      "/api/hub/gains?period=week",
+      "/api/hub/leaderboards/loot?period=week&limit=5",
+      "/api/hub/players/Iron%20Man/gains?period=month",
+      "/api/hub/players/Iron%20Man/sessions?days=7",
+      "/api/hub/players/Iron%20Man/wealth?days=30",
+      "/api/hub/players/Iron%20Man/equipment-history?days=30",
+      "/api/hub/players/Iron%20Man/events?limit=20",
+      "/api/hub/players/Iron%20Man/trail-events?days=7&min_loot=100000",
     ]);
   });
 

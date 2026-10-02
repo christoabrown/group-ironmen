@@ -1,8 +1,6 @@
-use server::auth_middleware::SessionMiddlewareFactory;
 use server::config::Config;
 use server::hub::{self, HubContext, HubStatus};
-use server::models::GroupId;
-use server::{admin_routes, auth_routes, authed, db, health, models, unauthed, update_batcher};
+use server::{api, db, models, unauthed, update_batcher};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -30,13 +28,10 @@ async fn main() -> std::io::Result<()> {
     );
 
     let mut client = pool.get().await.unwrap();
-    db::update_schema(&mut client).await.unwrap();
-
-    // Get or create singleton group
-    let group_id = db::get_or_create_singleton_group(&mut client)
-        .await
-        .unwrap();
-    log::info!("Singleton group_id: {}", group_id);
+    if let Err(err) = db::update_schema(&mut client).await {
+        eprintln!("{}", err);
+        std::process::exit(1);
+    }
     if !config.discord.is_discord() {
         log::warn!(
             "Signing in goes through {} instead of Discord: anyone who can answer there can \
@@ -49,7 +44,7 @@ async fn main() -> std::io::Result<()> {
     unauthed::start_skills_aggregator(pool.clone());
 
     let update_batcher_pool = config.pg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
-    let (tx, rx) = mpsc::channel::<models::GroupMember>(10000);
+    let (tx, rx) = mpsc::channel::<models::MemberData>(10000);
     tokio::spawn(async move {
         update_batcher::background_worker(update_batcher_pool, rx, None).await;
     });
@@ -61,9 +56,7 @@ async fn main() -> std::io::Result<()> {
     }));
     let hub_client = hub::client::HubClient::new(&config.hub);
     let hub_events = hub::events::EventBuffer::default();
-    let hub_directory = hub::directory::HubDirectory::load(&client, group_id)
-        .await
-        .unwrap();
+    let hub_directory = hub::directory::HubDirectory::load(&client).await.unwrap();
     let sync_control = hub::sync::SyncControl::default();
     let hub_capabilities = hub::SharedKeyCapabilities::default();
     if let Some(status) = hub_status.write().ok().as_mut() {
@@ -80,7 +73,6 @@ async fn main() -> std::io::Result<()> {
         pool: pool.clone(),
         client: Arc::clone(&hub_client),
         sender: tx.clone(),
-        group_id,
         config: config.hub.clone(),
         status: Arc::clone(&hub_status),
         directory: hub_directory.clone(),
@@ -106,37 +98,6 @@ async fn main() -> std::io::Result<()> {
     });
 
     HttpServer::new(move || {
-        // For the hub's admins (the handlers ask for `AdminAuthenticated`).
-        let admin_scope = web::scope("/api/admin")
-            .wrap(SessionMiddlewareFactory)
-            .service(admin_routes::list_players)
-            .service(admin_routes::delete_player)
-            .service(admin_routes::set_player_hidden)
-            .service(hub::routes::get_hub_status)
-            .service(hub::routes::test_hub_connection);
-
-        // For everyone who is signed in.
-        let session_group_scope = web::scope("/api/group")
-            .wrap(SessionMiddlewareFactory)
-            .service(authed::get_group_data)
-            .service(authed::get_skill_data)
-            .service(hub::routes::get_features)
-            .service(hub::leaderboards::get_gains)
-            .service(hub::trails::get_trails)
-            .service(hub::events::get_events)
-            .service(hub::leaderboards::get_loot_leaderboard)
-            .service(hub::profile::get_player_gains)
-            .service(hub::profile::get_player_sessions)
-            .service(hub::profile::get_player_wealth)
-            .service(hub::profile::get_player_equipment_history)
-            .service(hub::profile::get_player_events)
-            .service(hub::profile::get_player_trail_events);
-
-        // Public endpoints
-        let unauthed_scope = web::scope("/api")
-            .service(health::health)
-            .service(unauthed::get_ge_prices);
-
         let json_config = web::JsonConfig::default().limit(100000);
         let cors = Cors::default()
             .allowed_origin("http://localhost:4000")
@@ -156,10 +117,8 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(
                 middleware::Logger::new("\"%r\" %s %b \"%{User-Agent}i\" %D")
-                    // Every open page polls this every couple of seconds.
-                    .exclude("/api/group/get-group-data")
-                    // Kubernetes probes hit this every 10 seconds.
-                    .exclude("/api/health"),
+                    .exclude(api::MEMBERS_PATH)
+                    .exclude(api::HEALTH_PATH),
             )
             .wrap(middleware::Compress::default())
             .wrap(cors)
@@ -167,12 +126,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
-            .app_data(web::Data::new(GroupId(group_id)))
             .app_data(hub_context.clone())
-            .configure(auth_routes::configure)
-            .service(admin_scope)
-            .service(session_group_scope)
-            .service(unauthed_scope)
+            .configure(api::configure)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

@@ -82,7 +82,7 @@ describe("api", () => {
 
     await api.getGroupData();
 
-    expect(globalThis.fetch).toHaveBeenCalledWith("/api/group/get-group-data?from_time=2026-03-30T00:00:00.000Z", {
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/members?from_time=2026-03-30T00:00:00.000Z", {
       method: "GET",
       credentials: "same-origin",
     });

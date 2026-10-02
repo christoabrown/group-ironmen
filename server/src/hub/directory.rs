@@ -20,9 +20,9 @@ struct Bindings {
 pub struct HubDirectory(Arc<RwLock<Bindings>>);
 
 impl HubDirectory {
-    pub async fn load(client: &Client, group_id: i64) -> Result<Self, ApiError> {
+    pub async fn load(client: &Client) -> Result<Self, ApiError> {
         let directory = HubDirectory::default();
-        for (name, id, hidden) in db::get_hub_bindings(client, group_id).await? {
+        for (name, id, hidden) in db::get_hub_bindings(client).await? {
             directory.set_hidden(&id, hidden);
             if !hidden {
                 directory.bind(&id, &name);

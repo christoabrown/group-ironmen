@@ -3,6 +3,7 @@
 //! (actix makes those public whatever they say). Everything else is
 //! `pub(crate)`, so that the compiler reports what nothing uses.
 pub mod admin_routes;
+pub mod api;
 pub mod auth_middleware;
 pub mod auth_routes;
 pub mod authed;

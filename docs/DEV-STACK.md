@@ -179,5 +179,5 @@ taskkill //F //PID <pid>
   `git checkout -- site/public/data/map.json` before committing, and don't `git add -A`.
 - The server's integration tests drop the schema of the database they are pointed at, and without
   `TEST_DATABASE_URL` that is the one from `.env`. Give them a database of their own in the dev
-  container: `docker exec map-dev-pg createdb -U postgres group_ironmen_test`, then
-  `TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55433/group_ironmen_test cargo test`.
+  container: `docker exec map-dev-pg createdb -U postgres guildmap_test`, then
+  `TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55433/guildmap_test cargo test`.

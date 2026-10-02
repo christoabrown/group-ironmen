@@ -631,7 +631,7 @@ export class CanvasMap extends BaseElement {
   }
 
   /**
-   * Shows a player's trail, as served by /api/group/hub/trails (one entry of
+   * Shows a player's trail, as served by /api/hub/trails (one entry of
    * `trails`). `style` is `{color, light, windowS}`: the player's colours and
    * how far back the trail was asked for, in seconds.
    */
