@@ -8,6 +8,10 @@ It is made to run beside a normal stack (`docker-compose-local.yml`: frontend :4
 postgres :55432) without touching it. That is why it doesn't use `cargo run` and `npm start`: those
 take port 4000 and read the repository's `.env`, with the real hub key and the real database in it.
 
+The steps below are also automated: with the `osrs-dev-stack` repository checked out next to this one,
+`node ../osrs-dev-stack/stack.mjs up map` brings up exactly this stack and `down` stops it. Its
+`up full` runs the map against a local osrs-data-hub fed by a fake plugin instead of the mock hub.
+
 | Part     | Address               | What                                                 |
 | -------- | --------------------- | ---------------------------------------------------- |
 | Site     | http://localhost:4100 | `site/scripts/server.js --port 4100`                 |
