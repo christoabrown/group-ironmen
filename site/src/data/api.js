@@ -4,7 +4,7 @@ import { groupData } from "./group-data";
 import { storage } from "./storage";
 
 // The hub sync writes every 5 s; polling faster only costs requests.
-export const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 2000;
 
 class Api {
   constructor() {
@@ -83,10 +83,6 @@ class Api {
     this.sessionToken = sessionToken;
     this.username = username;
     this.role = role;
-  }
-
-  async restart() {
-    await this.enable();
   }
 
   async enable() {
@@ -436,8 +432,9 @@ class Api {
   }
 
   /**
-   * Location trails of several players: `{days, trails: [{member, shared,
-   * points: [[x, y, plane, unixSeconds]]}]}`.
+   * Location trails of several players: `{as_of, trails: [{member, shared,
+   * points, step, truncated, worlds}]}`; see decodeTrail in trail-model.js
+   * for what a trail holds.
    */
   async getTrails(memberNames, days) {
     const params = new URLSearchParams({ members: memberNames.join(","), days: String(days) });
@@ -445,8 +442,9 @@ class Api {
   }
 
   /**
-   * Like getHubEvents, plus the newest `seq` the server has buffered (it
-   * restarts from 1 when the backend restarts).
+   * Buffered events, newest first, and the newest `seq` the server has
+   * buffered (it restarts from 1 when the backend restarts). `after` is a
+   * `seq` from an earlier response.
    */
   async getHubEventsPage(options = {}) {
     const params = new URLSearchParams({ limit: String(options.limit || 100) });
@@ -462,16 +460,6 @@ class Api {
     }
     const latest = parseInt(response.headers.get("X-Events-Latest"), 10);
     return { events: await response.json(), latest: isNaN(latest) ? null : latest };
-  }
-
-  /** Buffered events, newest first. `after` is a `seq` from an earlier response. */
-  async getHubEvents({ types = [], member, limit = 100, after, minValue } = {}) {
-    const params = new URLSearchParams({ limit: String(limit) });
-    if (types.length) params.set("types", types.join(","));
-    if (member) params.set("member", member);
-    if (after !== undefined && after !== null) params.set("after", String(after));
-    if (minValue) params.set("min_value", String(minValue));
-    return this.getHubJson(`events?${params}`);
   }
 
   async getHubGains(period) {

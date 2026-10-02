@@ -36,16 +36,8 @@ class PubSub {
     this.mostRecentPublish.clear();
   }
 
-  unpublish(dataName) {
-    this.mostRecentPublish.delete(dataName);
-  }
-
   getMostRecent(dataName) {
     return this.mostRecentPublish.get(dataName);
-  }
-
-  anyoneListening(dataName) {
-    return this.subscribers.has(dataName) && this.subscribers.get(dataName).size > 0;
   }
 
   waitUntilNextEvent(event, receiveMostRecent = true) {

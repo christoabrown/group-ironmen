@@ -6,7 +6,7 @@ import { GroupData, groupData } from "../data/group-data";
 import { colorForName } from "../data/player-colors";
 import { sortMembers } from "../data/roster-model";
 
-export const MAX_GRAPH_PLAYERS = 10;
+const MAX_GRAPH_PLAYERS = 10;
 const DEFAULT_GRAPH_PLAYERS = 5;
 const HUB_PERIODS = { Day: "day", Week: "week", Month: "month", Year: "month" };
 

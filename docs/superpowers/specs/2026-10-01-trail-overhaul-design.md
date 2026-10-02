@@ -133,5 +133,5 @@ Where the implementation differs from the plan above:
 - Thresholds (158 / 275 tiles at 60 s) are estimates; calibrate on real trails once deployed.
 - What coordinates the plugin reports on a boat is unverified; sail segments are classified by flag only.
 - Chevrons redraw the whole map at 25 fps. Fallback if too heavy: a separate overlay canvas.
-- Deaths older than the backend's 1000-event buffer are missing on 7 and 30 day trails.
+- ~~Deaths older than the backend's 1000-event buffer are missing on 7 and 30 day trails.~~ Lifted since: a trail's events are read from the hub over its whole length (see the map events spec).
 - Thinned 7 and 30 day replays have coarse timing.

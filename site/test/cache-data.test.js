@@ -3,12 +3,6 @@ import fs from "fs";
 import path from "path";
 
 const dataDir = path.resolve(__dirname, "../public/data");
-// Item icons come from the icon CDN; see README "Keeping up with group-ironmen".
-const iconsDir = path.resolve(__dirname, "../public/icons/items");
-const uiDir = path.resolve(__dirname, "../public/ui");
-
-const RAW_MASTER_BASE =
-  "https://raw.githubusercontent.com/christoabrown/group-ironmen/master/site/public/data";
 
 function loadJson(filename) {
   const raw = fs.readFileSync(path.join(dataDir, filename), "utf-8");
@@ -22,13 +16,10 @@ function expectNumericKeys(obj) {
   }
 }
 
-let itemData, questData, collectionLog, collectionLogDuplicates, mapData, mapIcons, mapLabels;
+let itemData, mapData, mapIcons, mapLabels;
 
 beforeAll(() => {
   itemData = loadJson("item_data.json");
-  questData = loadJson("quest_data.json");
-  collectionLog = loadJson("collection_log_info.json");
-  collectionLogDuplicates = loadJson("collection_log_duplicates.json");
   mapData = loadJson("map.json");
   mapIcons = loadJson("map_icons.json");
   mapLabels = loadJson("map_labels.json");
@@ -83,142 +74,6 @@ describe("cache data validation", () => {
     });
   });
 
-  describe("quest_data.json", () => {
-    const validDifficulties = [
-      "Novice",
-      "Intermediate",
-      "Experienced",
-      "Master",
-      "Grandmaster",
-      "Special",
-    ];
-
-    it("is valid JSON", () => {
-      expect(questData).toBeDefined();
-      expect(typeof questData).toBe("object");
-    });
-
-    it("has > 100 entries", () => {
-      expect(Object.keys(questData).length).toBeGreaterThan(100);
-    });
-
-    it("every entry has valid schema", () => {
-      for (const [key, quest] of Object.entries(questData)) {
-        expect(typeof quest.name).toBe("string");
-        expect(quest.name.length).toBeGreaterThan(0);
-        expect(validDifficulties).toContain(quest.difficulty);
-        expect(typeof quest.points).toBe("string");
-        expect(parseInt(quest.points, 10)).toBeGreaterThanOrEqual(0);
-        expect(typeof quest.member).toBe("boolean");
-      }
-    });
-
-    it("optional fields are valid when present", () => {
-      for (const quest of Object.values(questData)) {
-        if (quest.hidden !== undefined) {
-          expect(typeof quest.hidden).toBe("boolean");
-        }
-        if (quest.miniquest !== undefined) {
-          expect(typeof quest.miniquest).toBe("boolean");
-        }
-      }
-    });
-
-    it("all keys are numeric strings representing non-negative integers", () => {
-      expectNumericKeys(questData);
-    });
-
-    it("known quests are present", () => {
-      expect(questData["0"]).toBeDefined();
-      expect(questData["0"].name).toBe("Animal Magnetism");
-      expect(questData["10"]).toBeDefined();
-      expect(questData["10"].name).toBe("Black Knights' Fortress");
-    });
-  });
-
-  describe("collection_log_info.json", () => {
-    it("is valid JSON", () => {
-      expect(Array.isArray(collectionLog)).toBe(true);
-    });
-
-    it("each tab/page/item has valid schema", () => {
-      for (const tab of collectionLog) {
-        expect(Number.isInteger(tab.tabId)).toBe(true);
-        expect(tab.tabId).toBeGreaterThanOrEqual(0);
-        expect(tab.tabId).toBeLessThanOrEqual(4);
-        expect(Array.isArray(tab.pages)).toBe(true);
-        expect(tab.pages.length).toBeGreaterThan(0);
-        for (const page of tab.pages) {
-          expect(typeof page.name).toBe("string");
-          expect(page.name.length).toBeGreaterThan(0);
-          expect(Array.isArray(page.items)).toBe(true);
-          expect(page.items.length).toBeGreaterThan(0);
-          for (const item of page.items) {
-            expect(Number.isInteger(item.id)).toBe(true);
-            expect(item.id).toBeGreaterThan(0);
-            expect(typeof item.name).toBe("string");
-            expect(item.name.length).toBeGreaterThan(0);
-          }
-        }
-      }
-    });
-
-    it("tab IDs are unique", () => {
-      const tabIds = collectionLog.map((t) => t.tabId);
-      expect(new Set(tabIds).size).toBe(tabIds.length);
-    });
-
-    it("page names are unique across entire collection log", () => {
-      const names = collectionLog.flatMap((t) => t.pages.map((p) => p.name));
-      expect(new Set(names).size).toBe(names.length);
-    });
-
-    it("total items > 1000", () => {
-      const total = collectionLog.reduce(
-        (sum, tab) => sum + tab.pages.reduce((s, p) => s + p.items.length, 0),
-        0,
-      );
-      expect(total).toBeGreaterThan(1000);
-    });
-  });
-
-  describe("collection_log_duplicates.json", () => {
-    it("is valid JSON", () => {
-      expect(typeof collectionLogDuplicates).toBe("object");
-      expect(collectionLogDuplicates).not.toBeNull();
-    });
-
-    it("all values are non-empty arrays of numbers", () => {
-      for (const [key, value] of Object.entries(collectionLogDuplicates)) {
-        expect(Array.isArray(value)).toBe(true);
-        expect(value.length).toBeGreaterThan(0);
-        for (const id of value) {
-          expect(typeof id).toBe("number");
-          expect(Number.isInteger(id)).toBe(true);
-          expect(id).toBeGreaterThan(0);
-        }
-      }
-    });
-
-    it("all keys are numeric strings", () => {
-      expectNumericKeys(collectionLogDuplicates);
-    });
-
-    it("parent IDs exist in item_data", () => {
-      for (const key of Object.keys(collectionLogDuplicates)) {
-        expect(itemData[key]).toBeDefined();
-      }
-    });
-
-    it("referenced duplicate IDs exist in item_data", () => {
-      for (const ids of Object.values(collectionLogDuplicates)) {
-        for (const id of ids) {
-          expect(itemData[String(id)]).toBeDefined();
-        }
-      }
-    });
-  });
-
   describe("map.json", () => {
     it("is valid JSON", () => {
       expect(typeof mapData).toBe("object");
@@ -267,75 +122,5 @@ describe("cache data validation", () => {
         expect(planeKeys.length).toBeGreaterThan(0);
       }
     });
-  });
-
-  describe("item icons", () => {
-    it("are not bundled (an upstream cache merge must not bring site/public/icons/items back)", () => {
-      expect(fs.existsSync(iconsDir)).toBe(false);
-    });
-
-    it("skill and empty-slot sprites stay deleted from site/public/ui", () => {
-      const removed = [
-        ...Array.from({ length: 11 }, (_, i) => 156 + i),
-        ...Array.from({ length: 21 }, (_, i) => 197 + i),
-        220,
-        221,
-        228,
-      ];
-      const present = removed.map((n) => `${n}-0.png`).filter((f) => fs.existsSync(path.join(uiDir, f)));
-      expect(present).toEqual([]);
-    });
-  });
-
-  describe("cross-file referential integrity", () => {
-    it("every collection log item exists in item_data", () => {
-      for (const tab of collectionLog) {
-        for (const page of tab.pages) {
-          for (const item of page.items) {
-            expect(itemData[String(item.id)]).toBeDefined();
-          }
-        }
-      }
-    });
-  });
-
-  describe("no data regression vs master", () => {
-    const filesToCheck = [
-      { file: "item_data.json", countFn: (d) => Object.keys(d).length },
-      { file: "quest_data.json", countFn: (d) => Object.keys(d).length },
-      {
-        file: "collection_log_info.json",
-        countFn: (d) =>
-          d.reduce((s, t) => s + t.pages.reduce((ss, p) => ss + p.items.length, 0), 0),
-      },
-      {
-        file: "collection_log_duplicates.json",
-        countFn: (d) => Object.keys(d).length,
-      },
-    ];
-
-    for (const { file, countFn } of filesToCheck) {
-      it(`${file} entry count has not dropped > 10% vs master`, async () => {
-        const localData = loadJson(file);
-        const localCount = countFn(localData);
-
-        let masterData;
-        try {
-          const resp = await fetch(`${RAW_MASTER_BASE}/${file}`);
-          if (!resp.ok) {
-            console.warn(`Skipping regression check for ${file}: HTTP ${resp.status}`);
-            return;
-          }
-          masterData = await resp.json();
-        } catch (e) {
-          console.warn(`Skipping regression check for ${file}: ${e.message}`);
-          return;
-        }
-
-        const masterCount = countFn(masterData);
-        const threshold = masterCount * 0.9;
-        expect(localCount).toBeGreaterThanOrEqual(threshold);
-      });
-    }
   });
 });

@@ -99,7 +99,6 @@ async fn main() -> std::io::Result<()> {
     let last_seen = LastSeenThrottle::default();
 
     HttpServer::new(move || {
-        // Public auth endpoints (no session required)
         // Admin routes (session + admin role required)
         let admin_scope = web::scope("/api/admin")
             .wrap(SessionMiddlewareFactory::new(last_seen.clone()))
@@ -172,7 +171,6 @@ async fn main() -> std::io::Result<()> {
             .app_data(json_config)
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
-            .app_data(web::Data::new(tx.clone()))
             .app_data(web::Data::new(group_id))
             .app_data(hub_context.clone())
             .configure(|cfg| auth_routes::configure(cfg, last_seen.clone()))

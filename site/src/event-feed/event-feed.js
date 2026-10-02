@@ -1,11 +1,11 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { describeEvent, relativeTime, hubErrorMessage } from "../data/hub-format";
-import { eventIconUrl } from "../data/event-view";
+import { eventIconUrl, eventPlace } from "../data/event-view";
 import { selection } from "../data/selection";
 import { groupData } from "../data/group-data";
 
-export const EVENT_FILTERS = [
+const EVENT_FILTERS = [
   { label: "All", types: [] },
   { label: "Loot", types: ["loot", "pk_loot"] },
   { label: "Level ups", types: ["level_up"] },
@@ -96,11 +96,10 @@ export class EventFeed extends BaseElement {
     if (!row) return;
     const found = this.events.find((e) => e.id === row.dataset.id);
     if (!found) return;
-    if (found.location) {
-      selection.focusMap(found.location.x, found.location.y, found.location.plane || 0);
-    }
+    const place = eventPlace(found);
+    if (place) selection.focusMap(place.x, place.y, place.plane);
     if (!this.playerName && groupData.members.has(found.member)) {
-      selection.select(found.member, { follow: !found.location });
+      selection.select(found.member, { follow: !place });
     }
   }
 

@@ -193,12 +193,6 @@ pub struct HubXpLine {
     pub points: Vec<(DateTime<Utc>, i64)>,
 }
 
-/// `GET /accounts/{id}/locations`.
-#[derive(Deserialize, Debug)]
-pub struct HubLocations {
-    pub points: Vec<HubLocationPoint>,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct HubLocationPoint {
     pub at: DateTime<Utc>,
@@ -267,13 +261,11 @@ pub struct HubEvent {
 /// `GET /leaderboards/loot` (hub D-94).
 #[derive(Deserialize, Debug)]
 pub struct HubLootLeaderboard {
-    pub period: String,
     pub entries: Vec<HubLootEntry>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct HubLootEntry {
-    pub rank: i32,
     pub event: HubEvent,
 }
 

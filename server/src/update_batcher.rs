@@ -14,11 +14,6 @@ static CHUNK_SIZE: usize = 50;
 /// polls for changes since a time, so resending unchanged data costs nothing.
 /// Whether a player is online is tracked separately (`hub_online`).
 ///
-/// Number of columns per member update row. With 8 columns, the PostgreSQL
-/// parameter-count limit (65,535) allows a maximum chunk size of 65535 / 8 =
-/// 8191 rows when using the VALUES approach.
-const COLUMNS_PER_ROW: usize = 8;
-
 /// The member columns the batcher writes; each has a `<column>_last_update`.
 const COLUMNS: [(&str, &str); 6] = [
     ("stats", "int4[]"),
@@ -28,6 +23,11 @@ const COLUMNS: [(&str, &str); 6] = [
     ("equipment", "int4[]"),
     ("hub_meta", "jsonb"),
 ];
+
+/// Parameters per member update row: the group, the name and the columns.
+/// With 8, the PostgreSQL parameter-count limit (65,535) allows a chunk of
+/// 8191 rows with the VALUES approach.
+const COLUMNS_PER_ROW: usize = 2 + COLUMNS.len();
 
 pub async fn background_worker(
     pool: Pool,
@@ -161,10 +161,6 @@ fn merge_group_member(older: &mut GroupMember, newer: &GroupMember) {
         older.meta = newer.meta.clone();
     }
 
-    if newer.last_updated.is_some() {
-        older.last_updated = newer.last_updated;
-    }
-
     older.name = newer.name.clone();
     older.group_id = newer.group_id;
 }
@@ -279,7 +275,6 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
 mod tests {
     use super::*;
     use crate::models::GroupMember;
-    use chrono::DateTime;
 
     fn make_member(group_id: Option<i64>, name: &str) -> GroupMember {
         GroupMember {
@@ -327,21 +322,6 @@ mod tests {
         merge_group_member(&mut older, &newer);
         assert_eq!(older.stats, Some(vec![1, 2, 3]));
         assert_eq!(older.skills, Some(vec![10, 20, 30]));
-    }
-
-    #[test]
-    fn test_merge_group_member_last_updated_overwrites() {
-        let mut older = make_member(Some(1), "alice");
-        older.last_updated = Some(DateTime::from_timestamp(1000, 0).unwrap());
-
-        let mut newer = make_member(Some(1), "alice");
-        newer.last_updated = Some(DateTime::from_timestamp(2000, 0).unwrap());
-
-        merge_group_member(&mut older, &newer);
-        assert_eq!(
-            older.last_updated,
-            Some(DateTime::from_timestamp(2000, 0).unwrap())
-        );
     }
 
     #[test]

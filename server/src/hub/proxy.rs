@@ -645,7 +645,7 @@ async fn fetch_trails(
     for chunk in ids.chunks(bulk_accounts(context)) {
         let values = match fetch(chunk.to_vec()).await {
             Ok(value) => vec![value],
-            Err(HubError::NotFound) => {
+            Err(HubError::NotFound) if chunk.len() > 1 => {
                 let mut values = Vec::new();
                 for id in chunk {
                     match fetch(vec![id.clone()]).await {
@@ -656,6 +656,8 @@ async fn fetch_trails(
                 }
                 values
             }
+            // The one account asked for isn't shared.
+            Err(HubError::NotFound) => Vec::new(),
             Err(err) => return Err(err),
         };
         for (value, age) in values {
@@ -750,16 +752,10 @@ pub(crate) fn event_json(seq: Option<u64>, event: &HubEvent, directory: &HubDire
 #[derive(Deserialize)]
 pub struct EventsQuery {
     #[serde(default)]
-    types: Option<String>,
-    #[serde(default)]
-    member: Option<String>,
-    #[serde(default)]
     limit: Option<usize>,
     /// Only events after this `seq` (from an earlier response).
     #[serde(default)]
     after: Option<u64>,
-    #[serde(default)]
-    min_value: Option<i64>,
 }
 
 /// Newest first. `latest` is the newest `seq` the server has, so a client can
@@ -774,20 +770,10 @@ pub async fn get_events(
     if let Err(response) = history_enabled(&config) {
         return Ok(response);
     }
-    let types = list_param(query.types.as_deref());
-    let account_id = match query.member.as_deref() {
-        Some(member) => match context.directory.hub_id(member) {
-            Some(id) => Some(id),
-            None => return Ok(HttpResponse::Ok().json(Vec::<Value>::new())),
-        },
-        None => None,
-    };
     let limit = query.limit.unwrap_or(100).clamp(1, 500);
     let filter = EventFilter {
-        types: &types,
-        account_id: account_id.as_deref(),
+        types: &[],
         after: query.after,
-        min_value: query.min_value,
     };
     let directory = &context.directory;
     let events: Vec<Value> = context

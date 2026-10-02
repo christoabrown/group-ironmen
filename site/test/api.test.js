@@ -131,12 +131,4 @@ describe("api", () => {
     });
     expect(globalThis.fetch).toHaveBeenNthCalledWith(2, "/api/ge-prices");
   });
-
-  it("restart re-enables polling", async () => {
-    const enableSpy = vi.spyOn(api, "enable").mockResolvedValue();
-
-    await api.restart();
-
-    expect(enableSpy).toHaveBeenCalledTimes(1);
-  });
 });

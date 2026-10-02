@@ -25,7 +25,8 @@ of Group Ironman teams:
   bubble when zoomed out, names never overlap, and a click opens the player.
 - **Events on the map**: loot, level ups, deaths, collection log slots, diaries, combat tasks and
   superior spawns each get a marker with their icon where they happened, which stays for half an hour;
-  drops of a million and up get a gold ring, ten million and up a bigger one. Markers on the same spot
+  drops of a million and up and collection log slots get a gold ring, drops of ten million and up a
+  bigger one. Markers on the same spot
   stack with a count. Hover one for what happened and when, click it to go there and open the player.
   A toast in the corner of the map page announces each event as it happens. Checkboxes above the map
   choose the kinds, the smallest drop worth showing and whether toasts appear. The events of the last
@@ -41,8 +42,10 @@ of Group Ironman teams:
   boat trips as waves, and parts on another floor faintly. The player's events are marked along it,
   over the whole length of the trail (an event that doesn't say where it happened goes where the trail
   has the player at the time; of a very busy player the oldest may be missing, as at most 2000 drops
-  and 2000 other events are read). Hover a trail to see when the player was where, or press Replay to play the routes back on
-  a timeline with a tick for every event; the map follows the player while it plays, until you drag it,
+  and 2000 other events are read, or 2000 of all kinds together when every drop is shown). Hover a trail
+  to see when the player was where, or press Replay to play the routes back on a timeline with ticks for
+  the events and teleports (the 300 that matter most when there are more); the map follows the player
+  while it plays, until you drag it,
   waits a moment wherever they teleport or go underground, and each event rings as the replay passes
   it. The trails you had on are still there after a reload.
 - **Clan page**: who's online and where (click a place to see it on the map), which worlds, the top XP
@@ -153,8 +156,12 @@ a file for local development.
 | `SETUP_TOKEN` | | When set, creating the first admin asks for this token. Set it on any site that is public before the admin exists. |
 | `HUB_BASE_URL`, `HUB_API_KEY` | | The osrs-data-hub to read from, and its key. Required. |
 | `HUB_POLL_INTERVAL_SECS` | `5` | Snapshot poll interval (at least 2). |
-| `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails and the Activity page from the hub. |
+| `HUB_FULL_REFRESH_SECS` | `120` | How often the snapshot is read in full instead of only what changed. |
+| `HUB_EVENTS_POLL_SECS` | `5` | How often the hub's events feed is read. |
+| `HUB_TIMEOUT_SECS` | `10` | How long a hub request may take. |
+| `HUB_HISTORY_ENABLED` | `true` | Serve graphs, trails, events and the profile's history from the hub. |
 | `HUB_REQUEST_BUDGET` | 80 % of the key's limit | Hub requests per minute this server allows itself (the hub allows 120 per personal key, 600 per service key). |
+| `RUST_LOG` | `info` | Log level of the backend (`warn`, `debug`, or per module, as `env_logger` reads it). |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` | | Enables "Log in with Discord". The redirect URI is `https://<site>/login/discord`. |
 | `DISCORD_AUTO_REGISTRATION` | `false` | Let members of the servers below create an account by logging in. |
 | `DISCORD_AUTOREG_SERVERS` | | Comma-separated Discord server ids. Linked users must remain a member of one of them. |
@@ -178,7 +185,7 @@ Map tiles and labels are still served by the site itself.
 
 ## Development
 
-Prerequisites: Rust (stable), Node.js 22+ and PostgreSQL 16+.
+Prerequisites: Rust (stable), Node.js 22+ and PostgreSQL 17.
 
 ```bash
 # Backend (reads the repository's .env, server/config.toml or environment variables)
@@ -195,8 +202,8 @@ To try the map without a hub, run the mock and point the backend at it. `MOCK_HU
 many players it serves (default 12); every fourth keeps its inventory, equipment and trail private. The
 first player walks a fixed 40-minute route with everything a trail can show (teleports, a boat trip,
 stairs, a dungeon, a death, a logout) and the same events every lap (a level, a 14.5M drop, a collection
-log slot); `MOCK_HUB_TRAIL_HOURS` sets how far back trails go (default 6). The other players get an
-event of every type at random, one every `MOCK_HUB_EVENT_MS` (default 4000).
+log slot); `MOCK_HUB_TRAIL_HOURS` sets how far back trails go (default 6). Every `MOCK_HUB_EVENT_MS`
+(default 4000) a random online player gets an event of a random type.
 
 ```bash
 MOCK_HUB_ACCOUNTS=60 node tools/mock-hub/server.js    # http://localhost:7070, key ohub_mock_key
@@ -217,31 +224,13 @@ cd site && npm test && npm run lint && npm run format:check
 The server's integration tests (`server/tests/`) drop and recreate the schema in the test database, so
 point them at a database you don't mind wiping.
 
-### Keeping up with group-ironmen
+### Game data
 
-The upstream project keeps refreshing its game data (items, map tiles, quests). To bring that in:
-
-```bash
-git remote add upstream https://github.com/christoabrown/group-ironmen.git
-git fetch upstream
-git merge upstream/master
-```
-
-Generated data under `site/public/` merges without conflicts (the quest, diary and collection log files
-are kept for that reason, although the site no longer loads them). The exception is item icons: this fork loads them from
-the icon CDN (see [Icons](#icons)), so `site/public/icons/items/` is deleted here. Upstream's
-"chore: update cache outputs" merges add or modify files in it, which shows up as modify/delete conflicts
-or as new files. Resolve them as deleted before committing the merge:
-
-```bash
-git rm -rq --ignore-unmatch site/public/icons/items
-git commit
-```
-
-The same goes for the skill and empty-slot sprites that used to be in `site/public/ui/` (`156-0.png` to
-`166-0.png`, `197-0.png` to `217-0.png`, `220-0.png`, `221-0.png` and `228-0.png`): keep them deleted.
-`npm test` fails while `site/public/icons/items` exists, so a merge that brings it back is caught. Server changes rarely apply: this fork
-replaced group tokens with sessions, reads every player from the hub, and dropped the Group Ironman data.
+The item list (`site/public/data/item_data.json`) and the map (`site/public/map/`, and `map_icons.json`,
+`map_labels.json` and `map_links.json` beside the item list) are what group-ironmen had generated from the
+game cache when this fork stopped merging from it. Nothing refreshes them: an item that is newer than the
+list is left out of inventories and gear, and a new area is missing from the map, until those files are
+generated again.
 
 ## Project structure
 
@@ -250,7 +239,6 @@ server/            Rust backend (actix-web, tokio-postgres)
   src/hub/         osrs-data-hub sync, client and history proxy
 site/              Frontend (web components bundled with esbuild) and its Express server
 tools/mock-hub/    Stand-in for the osrs-data-hub API
-backup/            Database backup script
 docs/              Deployment contract (DEPLOYMENT.md), the dev stack (DEV-STACK.md) and integration notes (hub-integration: what the map uses from the hub)
 ```
 

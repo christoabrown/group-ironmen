@@ -4,7 +4,8 @@ import { pubsub } from "./pubsub";
 // and whose trails are shown. Components talk through these topics:
 //   player-selected  {name, follow} | null
 //   trails-changed   Set of member names
-//   map-focus        {x, y, plane, zoom?}   (a place to show on the map)
+//   map-focus        {x, y, plane, zoom?}   (a place to show on the map, in the
+//                    site's coordinates, like a member's `coordinates`)
 
 export const MAX_TRAILS = 8;
 const TRAILS_KEY = "map-trails";

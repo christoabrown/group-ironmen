@@ -21,9 +21,6 @@ pub enum ApiError {
     #[display("Unauthorized")]
     #[from(ignore)]
     Unauthorized,
-    #[display("Forbidden")]
-    #[from(ignore)]
-    Forbidden,
     #[display("Bad request: {}", _0)]
     #[from(ignore)]
     BadRequest(String),
@@ -66,7 +63,6 @@ impl ResponseError for ApiError {
                     .body("The data hub is currently unavailable")
             }
             ApiError::Unauthorized => HttpResponse::Unauthorized().body("Unauthorized"),
-            ApiError::Forbidden => HttpResponse::Forbidden().body("Forbidden"),
             ApiError::BadRequest(ref msg) => HttpResponse::BadRequest().body(msg.clone()),
             ApiError::BcryptError(ref err) => {
                 log::error!("BcryptError: {}", err);

@@ -12,7 +12,7 @@ export const EVENT_RING_MS = 2400;
 export const EVENT_LABEL_MS = 20000;
 
 // Markers closer than this on screen are drawn as one, with a count.
-export const EVENT_STACK_PX = 24;
+const EVENT_STACK_PX = 24;
 
 export const EVENT_MARKERS_MAX = 200;
 

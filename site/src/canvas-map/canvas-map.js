@@ -30,12 +30,12 @@ const REPLAY_FOLLOW_MS = 100;
 
 // Below this zoom, players closer than CLUSTER_CELL_PX on screen are drawn as
 // one bubble with a count.
-export const CLUSTER_BELOW_ZOOM = 2;
+const CLUSTER_BELOW_ZOOM = 2;
 
-export const CLUSTER_CELL_PX = 34;
+const CLUSTER_CELL_PX = 34;
 
 // Player names are shown from this zoom on (and always for the selected one).
-export const LABEL_MIN_ZOOM = 1;
+const LABEL_MIN_ZOOM = 1;
 const LABEL_FONT_PX = 16;
 
 export class CanvasMap extends BaseElement {
@@ -248,6 +248,7 @@ export class CanvasMap extends BaseElement {
     }
     const coordinates = member.coordinates || {};
     if (this.isValidCoordinates(coordinates)) {
+      const turnedUp = !this.playerMarkers.has(member.name);
       this.playerMarkers.set(member.name, {
         name: member.name,
         label: member.name,
@@ -258,6 +259,8 @@ export class CanvasMap extends BaseElement {
         hitpoints: member.stats?.hitpoints,
         region: member.region,
       });
+      // An event that was waiting for its player has a place now.
+      if (turnedUp) this.placeLiveEvents();
 
       if (this.followingPlayer.name === member.name) {
         this.followingPlayer.coordinates = coordinates;
@@ -292,7 +295,7 @@ export class CanvasMap extends BaseElement {
     this.requestUpdate();
   }
 
-  /** Shows a place: `{x, y, plane, zoom}` in game coordinates (plane zero-based). */
+  /** Shows a place: `{x, y, plane, zoom}` in the site's coordinates, like a player's (plane zero-based). */
   handleMapFocus(focus) {
     if (!focus) return;
     this.stopFollowingPlayer();
@@ -770,7 +773,7 @@ export class CanvasMap extends BaseElement {
   }
 
   hideTrailTooltip() {
-    if (this.trailLayer.setHover(null)) this.requestUpdate();
+    if (this.trailLayerInstance?.setHover(null)) this.requestUpdate();
     if (this.trailTooltipShown) {
       this.trailTooltipShown = false;
       tooltipManager.hideTooltip();
@@ -1186,71 +1189,6 @@ export class CanvasMap extends BaseElement {
     this.ctx.stroke();
     this.ctx.fill();
     this.ctx.closePath();
-  }
-
-  drawLabels(labels, fillColor, strokeColor, position) {
-    const groupedByTile = new Map();
-    for (const label of labels) {
-      const key = this.coordinateKey(label.x, label.y);
-      if (!groupedByTile.has(key)) {
-        groupedByTile.set(key, []);
-      }
-      groupedByTile.get(key).push(label);
-    }
-
-    this.ctx.fillStyle = fillColor;
-    this.ctx.strokeStyle = strokeColor;
-    this.ctx.font = `${20 / this.camera.zoom.current}px rssmall`;
-    this.ctx.textAlign = "center";
-    this.ctx.lineWidth = 1 / this.camera.zoom.current;
-    const xOffset = this.pixelsPerGameTile / 2;
-    const strokeOffset = 1 / this.camera.zoom.current;
-
-    const yOffsets = {
-      top: -18 / this.camera.zoom.current,
-      bottom: 18 / this.camera.zoom.current,
-    };
-
-    for (const labelsOnTile of groupedByTile.values()) {
-      let yOffset = position === "top" ? 0 : this.pixelsPerGameTile + yOffsets[position];
-      for (const label of labelsOnTile) {
-        let [x, y] = [label.x, label.y];
-        x += xOffset;
-        y += yOffset;
-        yOffset += yOffsets[position];
-        this.ctx.strokeText(label.text, x + strokeOffset, y + strokeOffset);
-        this.ctx.fillText(label.text, x, y);
-      }
-    }
-  }
-
-  drawTileMarkers(markers, options) {
-    const groupedByPlane = [[], [], [], []];
-    for (const tileMarker of markers) {
-      if (this.isValidCoordinates(tileMarker?.coordinates)) {
-        groupedByPlane[tileMarker.coordinates.plane]?.push(tileMarker);
-      }
-    }
-
-    for (let plane = 0; plane < groupedByPlane.length; ++plane) {
-      const tilesOnPlane = groupedByPlane[plane];
-
-      // Change the opacity based on distance to currently displayed plane
-      this.ctx.globalAlpha = 1 - Math.abs(this.plane - 1 - plane) * 0.25;
-
-      const positions = [];
-      const labelPadPx = 64;
-      const padPx = this.pixelsPerGameTile * this.camera.zoom.current + labelPadPx;
-      for (const tileMarker of tilesOnPlane) {
-        if (!this.isGameTileInView(tileMarker.coordinates.x, tileMarker.coordinates.y, padPx)) continue;
-        const [x, y] = this.gamePositionToCanvas(tileMarker.coordinates.x, tileMarker.coordinates.y);
-        positions.push({ x, y, text: tileMarker.label });
-      }
-      this.drawGameTiles(positions, options.fillColor, options.strokeColor);
-      this.drawLabels(positions, options.labelFill, options.labelStroke, options.labelPosition);
-    }
-
-    this.ctx.globalAlpha = 1;
   }
 
   drawMapLinks() {
@@ -1779,10 +1717,6 @@ export class CanvasMap extends BaseElement {
     const canvasRect = this.canvas.getBoundingClientRect();
     this.cursor.x = x - canvasRect.left;
     this.cursor.y = y - canvasRect.top;
-    this.cursor.tileX = Math.floor((this.cursor.x + this.camera.x.current) / this.tileSize / this.camera.zoom.current);
-    this.cursor.tileY = Math.floor(
-      (this.camera.y.current - this.cursor.y + this.tileSize) / this.tileSize / this.camera.zoom.current
-    );
     this.cursor.worldX = Math.floor(
       (this.cursor.x + this.camera.x.current) / this.pixelsPerGameTile / this.camera.zoom.current
     );

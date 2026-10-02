@@ -70,11 +70,9 @@ describe("item", () => {
     const item = new Item("4151", 25);
 
     expect(item.id).toBe(4151);
-    expect(item.imageUrl).toBe("https://icons.scapekeeper.com/items/4152.webp");
     expect(item.name).toBe("Abyssal whip");
     expect(item.highAlch).toBe(72000);
     expect(item.gePrice).toBe(2100000);
-    expect(item.wikiLink).toContain("id=4151");
     expect(item.isValid()).toBe(true);
   });
 
@@ -115,27 +113,5 @@ describe("item", () => {
     await Item.loadGePrices();
 
     expect(Item.gePrices[4151]).toBe(123456);
-  });
-
-  it("generates random packed items with optional quantity", () => {
-    Item.itemDetails = {
-      1: { id: 1, name: "A" },
-      2: { id: 2, name: "B" },
-    };
-
-    vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValueOnce(0.5);
-
-    expect(Item.randomItem(50)).toEqual([1, 50]);
-    expect(Item.randomItem()).toEqual([1, 50001]);
-  });
-
-  it("expands randomItems into packed [id, quantity] pairs", () => {
-    Item.itemDetails = {
-      1: { id: 1, name: "A" },
-      2: { id: 2, name: "B" },
-    };
-    vi.spyOn(Math, "random").mockReturnValue(0);
-
-    expect(Item.randomItems(3, 7)).toEqual([1, 7, 1, 7, 1, 7]);
   });
 });

@@ -1,20 +1,8 @@
-# This file ignores stuff for ripgrep search
+# What ripgrep leaves out of a search: generated data, images and lock files.
 
-site/assets
 site/public
 package-lock.json
 *.png
 *.ttf
-site/node_modules
-server/node_modules
-server/application*
-server/combined*
-site/.husky
-.idea
-.github
-plugin/.gradle
-plugin/.idea
-plugin/buildSrc/build
-plugin/gradle
-plugin/group_ironman_plugin/build
 *.webp
+site/node_modules

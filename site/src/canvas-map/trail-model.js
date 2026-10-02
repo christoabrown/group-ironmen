@@ -16,28 +16,28 @@ import { eventKind, eventPlace, eventTier, eventTimeMs } from "../data/event-vie
 //   teleport  further than anyone could have run, or to another part of the map
 //   unknown   a gap in the data, or far enough that it may have been either
 
-export const TICK_S = 0.6;
+const TICK_S = 0.6;
 
 // Running covers two tiles a game tick.
-export const RUN_TILES_PER_S = 2 / TICK_S;
+const RUN_TILES_PER_S = 2 / TICK_S;
 
 // A guess: nothing says how fast a boat goes or what the plugin reports on one.
-export const BOAT_TILES_PER_S = 2 * RUN_TILES_PER_S;
+const BOAT_TILES_PER_S = 2 * RUN_TILES_PER_S;
 
 // The hub keeps one sample per account per minute.
-export const BUCKET_S = 60;
+const BUCKET_S = 60;
 
 // A sample's time is the start of its minute, so more time may have passed
 // than two samples say. Allowing the full minute would hide most teleports.
-export const UNCERTAINTY_S = 20;
+const UNCERTAINTY_S = 20;
 
-export const SLACK_TILES = 8;
+const SLACK_TILES = 8;
 
 // Up to this share of the distance a run could cover, it was a run for sure.
-export const SURE_FRACTION = 0.75;
+const SURE_FRACTION = 0.75;
 
 // Samples further apart than this are a gap: logged out, or not sharing.
-export const GAP_S = 300;
+const GAP_S = 300;
 const UNDERGROUND_OFFSET = 6400;
 const FLAG_BOAT = 1;
 const LIVE_MAX_POINTS = 240;
@@ -227,7 +227,7 @@ export function mergeTrail(history, live, head) {
 }
 
 /** The index of the last point reached by time t, or -1. */
-export function indexAt(points, t) {
+function indexAt(points, t) {
   let low = 0;
   let high = points.length - 1;
   let found = -1;

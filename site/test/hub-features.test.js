@@ -5,13 +5,12 @@ import { describeEvent, relativeTime } from "../src/data/hub-format";
 
 describe("hub features", () => {
   beforeEach(() => {
-    api.exampleDataEnabled = false;
     api.sessionToken = "session-token";
     globalThis.fetch = vi.fn();
   });
 
   it("publishes the server's features", async () => {
-    const features = { data_source: "hub", direct_pairing: false, hub_history: true };
+    const features = { hub_history: true };
     globalThis.fetch.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue(features) });
     const publishSpy = vi.spyOn(pubsub, "publish");
 
@@ -32,8 +31,6 @@ describe("hub features", () => {
   it("builds hub history requests", async () => {
     globalThis.fetch.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue([]) });
 
-    await api.getHubEvents({ types: ["loot", "pk_loot"], member: "Alice", limit: 50 });
-    await api.getHubEvents({ after: 12, minValue: 1000000 });
     await api.getTrails(["Iron Man", "Zezima"], 7);
     await api.getHubGains("week");
     await api.getLootLeaderboard("week", 5);
@@ -46,8 +43,6 @@ describe("hub features", () => {
 
     const urls = globalThis.fetch.mock.calls.map(([url]) => url);
     expect(urls).toEqual([
-      "/api/group/hub/events?limit=50&types=loot%2Cpk_loot&member=Alice",
-      "/api/group/hub/events?limit=100&after=12&min_value=1000000",
       "/api/group/hub/trails?members=Iron+Man%2CZezima&days=7",
       "/api/group/hub/gains?period=week",
       "/api/group/hub/leaderboards/loot?period=week&limit=5",
@@ -66,7 +61,7 @@ describe("hub features", () => {
   });
 });
 
-describe("activity page helpers", () => {
+describe("hub wording", () => {
   const now = new Date("2026-09-29T12:00:00Z");
 
   it("formats relative times", () => {

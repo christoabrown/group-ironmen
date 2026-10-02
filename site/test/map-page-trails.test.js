@@ -309,6 +309,25 @@ describe("map page trails", () => {
       expect(marked("Alice")).toEqual(["recent"]);
     });
 
+    it("are asked for again with the next refresh when the hub was busy, not when they aren't shared", async () => {
+      api.getTrailEvents.mockRejectedValueOnce(Object.assign(new Error("busy"), { status: 503 }));
+      mount();
+      selection.toggleTrail("Alice");
+      await settle();
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(2);
+      expect(marked("Alice")).toEqual(["a", "l"]);
+
+      api.getTrailEvents.mockClear();
+      api.getTrailEvents.mockRejectedValue(Object.assign(new Error("not shared"), { status: 404 }));
+      selection.toggleTrail("Alice");
+      selection.toggleTrail("Alice");
+      await settle();
+      await vi.advanceTimersByTimeAsync(5 * 60000);
+      expect(api.getTrailEvents).toHaveBeenCalledTimes(1);
+    });
+
     it("leave the filtering to the map, which is told the filters", async () => {
       localStorage.setItem("map-event-filters", JSON.stringify({ death: false }));
       mount();

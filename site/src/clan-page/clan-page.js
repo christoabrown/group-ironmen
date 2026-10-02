@@ -1,7 +1,7 @@
 import { BaseElement } from "../base-element/base-element";
 import { api } from "../data/api";
 import { groupData } from "../data/group-data";
-import { Item } from "../data/item";
+import { eventIconUrl } from "../data/event-view";
 import { selection } from "../data/selection";
 import { groupByRegion, groupByWorld } from "../data/regions";
 import { describeEvent, formatGp, relativeTime } from "../data/hub-format";
@@ -181,8 +181,7 @@ export class ClanPage extends BaseElement {
     if (this.handlePlayerClick(event)) return;
     const header = event.target.closest(".clan-page__region-name");
     if (!header) return;
-    // Stored coordinates are one tile north of the plugin's.
-    selection.focusMap(Number(header.dataset.x), Number(header.dataset.y) - 1, Number(header.dataset.plane), 2);
+    selection.focusMap(Number(header.dataset.x), Number(header.dataset.y), Number(header.dataset.plane), 2);
     window.history.pushState("", "", "/group");
   }
 
@@ -267,7 +266,7 @@ export class ClanPage extends BaseElement {
     const icon = el("img", "clan-page__drop-icon");
     icon.alt = "";
     icon.loading = "lazy";
-    const iconUrl = event.item_id ? Item.imageUrl(event.item_id, 1) : "";
+    const iconUrl = eventIconUrl(event);
     if (iconUrl) {
       icon.src = iconUrl;
     } else {

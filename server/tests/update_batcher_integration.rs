@@ -190,7 +190,7 @@ async fn test_concurrent_updates_different_members() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Integration tests: concurrent deposits
+// Integration tests: every field, stored and read back
 // ──────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -270,7 +270,7 @@ async fn test_multiple_sequential_batches() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Integration tests: deposit + regular field update in same batch
+// Integration tests: more updates than fit one statement
 // ──────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -332,7 +332,7 @@ async fn test_batch_exceeding_chunk_size() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Integration tests: deposit with zero item_id and zero quantity filtered
+// Integration tests: updates that change nothing
 // ──────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]

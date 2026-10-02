@@ -43,11 +43,13 @@ export class TrailLayer {
 
   remove(name) {
     if (this.hover?.name === name) this.hover = null;
+    this.events.delete(name);
     return this.trails.delete(name);
   }
 
   clear() {
     this.hover = null;
+    this.events.clear();
     this.trails.clear();
   }
 

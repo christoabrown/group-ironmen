@@ -13,7 +13,7 @@ Intended outcome: events are first-class things on the map. They get an icon, st
 - **Out of scope:** hub API changes, site-wide toasts, sound.
 
 ### Limits accepted
-- **History depth.** The hub gives a player's newest 200 events with no date range, and the backend buffers 1000 guild-wide. On 7 and 30 day trails the older stretch has no events. Fixing it needs a hub change.
+- ~~**History depth.** The hub gives a player's newest 200 events with no date range, and the backend buffers 1000 guild-wide. On 7 and 30 day trails the older stretch has no events. Fixing it needs a hub change.~~ Lifted since; see the last line of this document.
 - **Positions.** Only `death` and `superior_spawn` carry a location. Other events are placed where the player stands when the event arrives (live), or by timestamp along the trail (history, accurate to about a minute of movement). Marks placed by guesswork are flagged "approximate".
 
 ## Design
@@ -95,7 +95,7 @@ A ring and a toast fire only for events whose `occurred_at` is under 90 s old. A
 | `REPLAY_POP_MAX` | 3 |
 | `EVENT_TIER_GP` | 1M, 10M |
 | `TOAST_MS` / `TOAST_NOTABLE_MS` / `TOAST_MAX` | 8 s / 15 s / 4 |
-| `TRAIL_EVENTS_LIMIT` | 200 |
+| ~~`TRAIL_EVENTS_LIMIT`~~ | ~~200~~ (gone with the time-range read) |
 | `TRAIL_EVENTS_REFRESH_MS` | 10 min |
 
 Removed: `PING_RING_MS`, `PING_LABEL_MS`, `DEATH_MARKER_MS`, `TRAIL_DEATHS_LIMIT`, `DEATH_RED`.

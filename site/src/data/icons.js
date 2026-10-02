@@ -2,7 +2,7 @@
 // repository. The server injects the base URL as window.siteConfig.iconsBaseUrl (ICONS_BASE_URL).
 // An empty base URL turns icons off: every helper then returns "".
 
-export const DEFAULT_ICONS_BASE_URL = "https://icons.scapekeeper.com";
+const DEFAULT_ICONS_BASE_URL = "https://icons.scapekeeper.com";
 
 export const SLOT_SLUGS = [
   "head",

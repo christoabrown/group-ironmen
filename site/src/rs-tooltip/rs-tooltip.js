@@ -18,7 +18,6 @@ export class RsTooltip extends BaseElement {
   connectedCallback() {
     super.connectedCallback();
     this.render();
-    RsTooltip.globalTooltip = this;
   }
 
   disconnectedCallback() {

@@ -244,15 +244,6 @@ impl Config {
             self.server.setup_token = Some(setup_token);
         }
 
-        if let Some(data_source) = env_string("DATA_SOURCE") {
-            if !data_source.eq_ignore_ascii_case("hub") {
-                // Runs before the logger is initialised.
-                eprintln!(
-                    "Ignoring DATA_SOURCE '{}': player data only comes from osrs-data-hub now",
-                    data_source
-                );
-            }
-        }
         if let Some(base_url) = env_string("HUB_BASE_URL") {
             self.hub.base_url = base_url;
         }

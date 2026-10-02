@@ -1,4 +1,4 @@
-//! OSRS data layouts shared by every data source (direct plugin ingest and the hub sync).
+//! OSRS data layouts: the order of skills and of the slots of an inventory and of worn gear.
 
 // Must match the iteration order of SkillName in site/src/data/skill.js
 // (Object.keys order, excluding Overall)

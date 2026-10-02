@@ -21,7 +21,7 @@ describe("member-data", () => {
     expect(updated.has("inventory")).toBe(true);
     expect(updated.has("equipment")).toBe(true);
     expect(member.itemQuantities.inventory.get(4151)).toBe(2);
-    expect(member.totalItemQuantity(4151)).toBe(3);
+    expect(member.itemQuantities.equipment.get(4151)).toBe(1);
     expect(pubsub.getMostRecent("inventory:Alice")[0][0].id).toBe(4151);
   });
 

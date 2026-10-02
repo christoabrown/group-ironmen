@@ -8,13 +8,14 @@
 // its inventory, equipment and location history private, like a player who
 // never changed the hub's defaults, so its history endpoints answer 404.
 //
-// Serves /me, /snapshot (ETag/If-None-Match and `since`, with game_state),
-// /accounts/{id} and its /xp, /gains, /sessions, /wealth, /equipment-history
-// and /locations, the bulk /xp and /locations, /leaderboards/gains,
-// /leaderboards/loot and /events (the cursor feed, and with from/to a time
-// range read newest first; types, accounts, min_value), following the hub's
-// docs/API.md as of D-98. MOCK_HUB_EVENTS_RANGE=off mimics a hub from before
-// the range read, which ignores from and to. Something happens every few seconds
+// Serves what the map's backend asks the hub for, following the hub's
+// docs/API.md as of D-98: /me, /snapshot (ETag/If-None-Match, with
+// game_state; always in full, whatever `since` says), an account's /gains,
+// /sessions, /wealth and /equipment-history, the bulk /xp and /locations,
+// /leaderboards/gains, /leaderboards/loot and /events (the cursor feed, and
+// with `from` a time range read newest first; types, accounts, min_value).
+// MOCK_HUB_EVENTS_RANGE=off mimics a hub from before the range read, which
+// ignores `from`. Something happens every few seconds
 // (MOCK_HUB_EVENT_MS, default 4000): mostly small drops and levels, now and
 // then a big drop, PK loot, a collection log slot, a diary, a combat task, a
 // superior spawn or a death.
@@ -554,10 +555,10 @@ const server = http.createServer((req, res) => {
 
   if (path === "/xp") {
     const ids = (url.searchParams.get("accounts") || "").split(",");
-    if (ids.length > 50) return send(res, 400, { error: { code: "invalid", message: "at most 50 accounts" } });
+    if (ids.length > 50) return invalid(res, "at most 50 accounts");
     const requestedSkills = (url.searchParams.get("skills") || "Overall").split(",");
     const unknown = requestedSkills.find((name) => !KNOWN_SKILLS.has(name.trim().toLowerCase()));
-    if (unknown) return send(res, 400, { error: { code: "invalid", message: `unknown skill: ${unknown}` } });
+    if (unknown) return invalid(res, `unknown skill: ${unknown}`);
     const from = fromParam(url, 7);
     const step = url.searchParams.get("resolution") === "1h" ? 3600_000 : 86400_000;
     const selected = ids.map(findAccount);
@@ -572,7 +573,7 @@ const server = http.createServer((req, res) => {
 
   if (path === "/locations") {
     const ids = (url.searchParams.get("accounts") || "").split(",");
-    if (ids.length > 50) return send(res, 400, { error: { code: "invalid", message: "at most 50 accounts" } });
+    if (ids.length > 50) return invalid(res, "at most 50 accounts");
     const selected = ids.map(findAccount);
     if (selected.some((a) => !a || !shares(a, "location_history"))) return notFound(res);
     const from = fromParam(url, 30);
@@ -583,26 +584,13 @@ const server = http.createServer((req, res) => {
     });
   }
 
-  const accountPath = path.match(/^\/accounts\/([^/]+)(\/[a-z-]+)?$/);
+  const accountPath = path.match(/^\/accounts\/([^/]+)(\/[a-z-]+)$/);
   if (accountPath) {
     const account = findAccount(accountPath[1]);
-    const sub = accountPath[2] || "";
+    const sub = accountPath[2];
     if (!account) return notFound(res);
     const base = { account: ref(account), from: "", to: new Date().toISOString() };
 
-    if (sub === "") {
-      const snapshot = snapshotAccount(account);
-      return ok(res, {
-        ...ref(account),
-        first_seen: new Date(started - 90 * 86400_000).toISOString(),
-        categories: account.categories,
-        presence: { online: snapshot.online, world: snapshot.world, game_state: snapshot.game_state, last_seen: snapshot.last_seen },
-      });
-    }
-    if (sub === "/locations") {
-      if (!shares(account, "location_history")) return notFound(res);
-      return ok(res, { ...base, points: trail(account, fromParam(url, 30)) });
-    }
     if (sub === "/gains") {
       const period = url.searchParams.get("period") || "day";
       const scale = { day: 1, week: 6, month: 25, year: 250 }[period] || 1;
@@ -692,19 +680,18 @@ const server = http.createServer((req, res) => {
         (!ids.length || ids.includes(e.account.id)) &&
         (minValue === null || (e.value_gp ?? -1) >= Number(minValue))
     );
-    // With from or to: the events that occurred in the range, newest first,
-    // paged on (occurred_at, seq) until next_cursor is null (hub D-98).
+    // With from: the events that occurred since then, newest first, paged on
+    // (occurred_at, seq) until next_cursor is null (hub D-98). The hub also
+    // takes `to`; the map never sends it.
     const from = url.searchParams.get("from");
-    const to = url.searchParams.get("to");
-    if (EVENTS_RANGE && (from !== null || to !== null)) {
-      const after = cursor === null ? null : cursor === "now" ? undefined : parseRangeCursor(cursor);
-      if (after === undefined || (cursor !== null && !after)) return invalid(res, "cursor is not a cursor of a time range");
-      const end = to === null ? Date.now() : Date.parse(to);
-      const start = from === null ? end - 30 * 86400_000 : Date.parse(from);
-      if (Number.isNaN(start) || Number.isNaN(end) || start > end) return invalid(res, "from must be before to");
+    if (EVENTS_RANGE && from !== null) {
+      const after = cursor === null ? null : parseRangeCursor(cursor);
+      if (cursor !== null && !after) return invalid(res, "cursor is not a cursor of a time range");
+      const start = Date.parse(from);
+      if (Number.isNaN(start)) return invalid(res, "from is not a time");
       const at = (e) => Date.parse(e.occurred_at);
       const older = matching
-        .filter((e) => at(e) >= start && at(e) <= end)
+        .filter((e) => at(e) >= start)
         .filter((e) => !after || at(e) < after.at || (at(e) === after.at && e.seq < after.seq))
         .sort((a, b) => at(b) - at(a) || b.seq - a.seq);
       const range = older.slice(0, limit);
@@ -714,19 +701,13 @@ const server = http.createServer((req, res) => {
         { count: range.length, next_cursor: older.length > limit ? rangeCursor(range[range.length - 1]) : null }
       );
     }
-    if (EVENTS_RANGE && cursor && cursor !== "now" && parseRangeCursor(cursor)) {
+    if (EVENTS_RANGE && cursor && parseRangeCursor(cursor)) {
       return invalid(res, "cursor is not a cursor from this feed");
     }
-    let page;
-    if (cursor === "now") {
-      page = [];
-    } else if (cursor) {
-      const after = parseInt(Buffer.from(cursor, "base64url").toString(), 10);
-      page = matching.filter((e) => e.seq > after).slice(0, limit);
-    } else {
-      page = matching.slice(-limit);
-    }
-    const last = page.length ? page[page.length - 1].seq : cursor && cursor !== "now" ? parseInt(Buffer.from(cursor, "base64url").toString(), 10) : seq;
+    // The feed: the newest events, or the ones after the cursor's, oldest first.
+    const after = cursor ? parseInt(Buffer.from(cursor, "base64url").toString(), 10) : null;
+    const page = after === null ? matching.slice(-limit) : matching.filter((e) => e.seq > after).slice(0, limit);
+    const last = page.length ? page[page.length - 1].seq : after ?? seq;
     const next = Buffer.from(String(last)).toString("base64url");
     return ok(
       res,

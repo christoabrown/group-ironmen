@@ -94,8 +94,8 @@ the real one.
   (one in twelve worth 10M or more), level-up 25 %, death 8 %, PK loot 5 %, collection log 5 %, diary
   4 %, combat task 4 %, superior spawn 4 %. At start it also adds 80 random events spread over the
   last 12 hours and Zezima's lap events for the whole trail window. Only deaths and superior spawns
-  say where they happened. `/events` also reads a time range (`from`, `to`), as the hub does;
-  `MOCK_HUB_EVENTS_RANGE=off` makes it ignore those, like a hub from before that.
+  say where they happened. `/events` also reads a time range (`from`), as the hub does;
+  `MOCK_HUB_EVENTS_RANGE=off` makes it ignore that, like a hub from before it.
 - **Skills, XP series, sessions, wealth, equipment**: formulas over the account's number, the same
   on every request.
 

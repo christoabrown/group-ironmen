@@ -440,8 +440,8 @@ async fn create_timestamp_trigger(
 CREATE OR REPLACE FUNCTION groupironman.update_{0}_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Keep a timestamp the statement set itself (e.g. the source time of
-    -- imported data); only stamp now() when it was left unchanged.
+    -- Keep a timestamp the statement set itself (the update batcher does);
+    -- only stamp now() when it was left unchanged.
     IF NEW.{0}_last_update IS NOT DISTINCT FROM OLD.{0}_last_update THEN
         NEW.{0}_last_update = now();
     END IF;

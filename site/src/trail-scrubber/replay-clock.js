@@ -12,7 +12,7 @@ const IDLE_LEAD_S = 30;
 // eye (and the camera) can catch up before it goes on.
 const LANDING_HOLD_MS = 1500;
 
-export const DEFAULT_SPEED = 300;
+const DEFAULT_SPEED = 300;
 
 export class ReplayClock {
   constructor() {

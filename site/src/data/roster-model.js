@@ -1,7 +1,7 @@
 // Filtering and sorting of players, shared by the roster and the players table.
 
 /** The categories a player shares with the guild, or null when unknown. */
-export function sharedCategories(member) {
+function sharedCategories(member) {
   return member?.meta?.categories || null;
 }
 
@@ -34,7 +34,7 @@ const byNumber = (get) => (a, b) => (get(b) ?? -Infinity) - (get(a) ?? -Infinity
 const lastSeenTime = (member) => (member.lastSeen ? member.lastSeen.getTime() : null);
 
 /** Sort orders by key; every order puts equal values in name order. */
-export const SORTS = {
+const SORTS = {
   status: {
     label: "Online first",
     compare: (a, b) => Number(b.online) - Number(a.online) || compareNames(a, b),

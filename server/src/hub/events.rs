@@ -35,11 +35,8 @@ pub struct EventBuffer(Arc<RwLock<Inner>>);
 #[derive(Default)]
 pub struct EventFilter<'a> {
     pub types: &'a [String],
-    /// Only this hub account.
-    pub account_id: Option<&'a str>,
     /// Only events newer than this sequence number.
     pub after: Option<u64>,
-    pub min_value: Option<i64>,
 }
 
 impl EventBuffer {
@@ -75,12 +72,8 @@ impl EventBuffer {
             .rev()
             .take_while(|buffered| filter.after.is_none_or(|after| buffered.seq > after))
             .filter(|buffered| {
-                let event = &buffered.event;
-                (filter.types.is_empty() || filter.types.iter().any(|t| t == &event.event_type))
-                    && filter.account_id.is_none_or(|id| event.account.id == id)
-                    && filter
-                        .min_value
-                        .is_none_or(|min| event.value_gp.is_some_and(|value| value >= min))
+                filter.types.is_empty()
+                    || filter.types.iter().any(|t| t == &buffered.event.event_type)
             })
             .take(limit)
             .cloned()
@@ -225,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn filters_by_type_account_value_after_and_limit() {
+    fn filters_by_type_after_and_limit() {
         let buffer = EventBuffer::default();
         buffer.extend(vec![
             event("1", "loot", "a"),
@@ -238,21 +231,11 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(buffer.query(&loot, 10).len(), 2);
-        let account = EventFilter {
-            account_id: Some("a"),
-            ..Default::default()
-        };
-        assert_eq!(ids(buffer.query(&account, 10)), vec!["3", "1"]);
         let after = EventFilter {
             after: Some(1),
             ..Default::default()
         };
         assert_eq!(ids(buffer.query(&after, 10)), vec!["3", "2"]);
-        let valuable = EventFilter {
-            min_value: Some(2000),
-            ..Default::default()
-        };
-        assert_eq!(ids(buffer.query(&valuable, 10)), vec!["3", "2"]);
         assert_eq!(ids(buffer.query(&EventFilter::default(), 1)), vec!["3"]);
     }
 

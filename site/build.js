@@ -96,8 +96,6 @@ const htmlBuildPlugin = {
       "/ui/border-dark.png",
       "/ui/border-tiny.png",
       "/ui/border-tiny-dark.png",
-      "/ui/metal-border.png",
-      "/ui/173-0.png",
       "/ui/297-0.png",
       "/ui/297-0-dark.png"
     ];

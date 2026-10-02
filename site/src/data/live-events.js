@@ -9,7 +9,7 @@ import { utility } from "../utility";
 // load, so old events don't look new). The first load asks for all it keeps:
 // the map shows the events of the last half hour.
 
-export const LIVE_EVENTS_POLL_MS = 5000;
+const LIVE_EVENTS_POLL_MS = 5000;
 const KEEP = 300;
 
 export class LiveEvents {

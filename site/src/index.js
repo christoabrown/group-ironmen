@@ -27,7 +27,6 @@ import "./logout-page/logout-page.js";
 import "./stat-bar/stat-bar.js";
 import "./skills-graphs/skills-graphs.js";
 import "./skill-graph/skill-graph.js";
-import "./confirm-dialog/confirm-dialog.js";
 import "./players-page/players-page.js";
 import "./canvas-map/canvas-map.js";
 import "./player-icon/player-icon.js";

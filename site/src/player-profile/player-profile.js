@@ -1,7 +1,6 @@
 import { BaseElement } from "../base-element/base-element";
 import { appearance } from "../appearance";
 import { selection } from "../data/selection";
-import { groupData } from "../data/group-data";
 
 /**
  * The drawer that shows the selected player. It sits on the side opposite the
@@ -61,10 +60,6 @@ export class PlayerProfile extends BaseElement {
     if (this.currentName && !members.some((member) => member.name === this.currentName)) {
       selection.clear();
     }
-  }
-
-  get member() {
-    return groupData.members.get(this.currentName);
   }
 }
 

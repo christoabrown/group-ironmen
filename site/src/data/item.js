@@ -11,7 +11,6 @@ export class Item {
       this.id = id;
     }
     this.quantity = quantity;
-    this.visible = true;
   }
 
   static imageUrl(itemId, quantity) {
@@ -27,36 +26,12 @@ export class Item {
     return itemIconUrl(imageId);
   }
 
-  static itemName(itemId) {
-    return Item.itemDetails[itemId].name;
-  }
-
   static shortQuantity(quantity) {
     return utility.formatShortQuantity(quantity);
   }
 
-  static veryShortQuantity(quantity) {
-    return utility.formatVeryShortQuantity(quantity);
-  }
-
-  get imageUrl() {
-    return Item.imageUrl(this.id, this.quantity);
-  }
-
-  get shortQuantity() {
-    return Item.shortQuantity(this.quantity);
-  }
-
-  get veryShortQuantity() {
-    return Item.veryShortQuantity(this.quantity);
-  }
-
   get name() {
     return Item.itemDetails[this.id].name;
-  }
-
-  get wikiLink() {
-    return `https://oldschool.runescape.wiki/w/Special:Lookup?type=item&id=${this.id}`;
   }
 
   get highAlch() {
@@ -107,20 +82,5 @@ export class Item {
   static async loadGePrices() {
     const response = await api.getGePrices();
     Item.gePrices = await response.json();
-  }
-
-  static randomItem(quantity = null) {
-    const keys = Object.keys(Item.itemDetails);
-    const key = keys[(keys.length * Math.random()) << 0];
-    const item = Item.itemDetails[key];
-    return [item.id, quantity ? quantity : Math.round(Math.random() * 100000 + 1)];
-  }
-
-  static randomItems(count, quantity) {
-    let result = [];
-    for (let i = 0; i < count; ++i) {
-      result.push(...Item.randomItem(quantity));
-    }
-    return result;
   }
 }

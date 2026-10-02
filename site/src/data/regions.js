@@ -1,5 +1,3 @@
-import { pubsub } from "./pubsub";
-
 // Names for the places players are, from the game's 64x64 map regions. The
 // names come from `/data/regions.json` (see scripts/generate-regions.js); a
 // region without a name borrows one from a neighbouring region, and a few
@@ -22,7 +20,6 @@ export async function loadRegions() {
     if (!response.ok) return;
     const data = await response.json();
     setRegionNames(data.regions || {});
-    pubsub.publish("regions-loaded");
   } catch {
     // Without names, places fall back to the rules below.
   }

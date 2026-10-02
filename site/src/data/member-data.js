@@ -4,24 +4,7 @@ import { pubsub } from "./pubsub";
 import { colorForName } from "./player-colors";
 import { regionForMember } from "./regions";
 
-export const memberInventoryFields = ["inventory", "equipment"];
-
-const itemFieldMappings = [
-  {
-    sourceKey: "inventory",
-    targetKey: "inventory",
-    inventoryName: "inventory",
-    publishKey: "inventory",
-    updatedAttribute: "inventory",
-  },
-  {
-    sourceKey: "equipment",
-    targetKey: "equipment",
-    inventoryName: "equipment",
-    publishKey: "equipment",
-    updatedAttribute: "equipment",
-  },
-];
+const memberInventoryFields = ["inventory", "equipment"];
 
 export class MemberData {
   constructor(name) {
@@ -89,15 +72,18 @@ export class MemberData {
     if (memberData.skills) {
       const previousSkills = this.skills;
       this.skills = Skill.parseSkillData(memberData.skills);
-      this.publishUpdate("skills");
       updatedAttributes.add("skills");
 
       this.computeXpDrops(previousSkills);
       this.computeCombatLevel();
     }
 
-    for (const field of itemFieldMappings) {
-      this.applyItemFieldUpdate(memberData, field, updatedAttributes);
+    for (const field of memberInventoryFields) {
+      if (!memberData[field]) continue;
+      this[field] = Item.parseItemData(memberData[field]);
+      this.updateItemQuantitiesIn(field);
+      this.publishUpdate(field);
+      updatedAttributes.add(field);
     }
 
     return updatedAttributes;
@@ -112,41 +98,16 @@ export class MemberData {
     return true;
   }
 
-  applyItemFieldUpdate(memberData, field, updatedAttributes) {
-    if (!memberData[field.sourceKey]) return;
-    this[field.targetKey] = Item.parseItemData(memberData[field.sourceKey]);
-    this.updateItemQuantitiesIn(field.inventoryName);
-    this.publishUpdate(field.publishKey);
-    updatedAttributes.add(field.updatedAttribute);
-  }
-
   publishUpdate(attributeName, publishValueKey = attributeName) {
     pubsub.publish(`${attributeName}:${this.name}`, this[publishValueKey], this);
   }
 
-  totalItemQuantity(itemId) {
-    let total = 0;
-    for (const inventoryField of memberInventoryFields) {
-      total += this.itemQuantities[inventoryField].get(itemId) || 0;
-    }
-    return total;
-  }
-
   updateItemQuantitiesIn(inventoryName) {
-    this.itemQuantities[inventoryName] = new Map();
-    for (const item of this.itemsIn(inventoryName)) {
-      const x = this.itemQuantities[inventoryName];
-      x.set(item.id, (x.get(item.id) || 0) + item.quantity);
+    const quantities = new Map();
+    for (const item of this[inventoryName]) {
+      if (item.isValid()) quantities.set(item.id, (quantities.get(item.id) || 0) + item.quantity);
     }
-  }
-
-  *itemsIn(...inventoryNames) {
-    for (const inventoryName of inventoryNames) {
-      if (this[inventoryName] === undefined) continue;
-      for (const item of this[inventoryName]) {
-        if (item.isValid()) yield item;
-      }
-    }
+    this.itemQuantities[inventoryName] = quantities;
   }
 
   computeXpDrops(previousSkills) {
@@ -191,9 +152,6 @@ export class MemberData {
 
     const combatLevel = Math.floor(base + Math.max(melee, range, mage));
 
-    if (combatLevel !== this.combatLevel) {
-      this.combatLevel = combatLevel;
-      this.publishUpdate("combatLevel");
-    }
+    this.combatLevel = combatLevel;
   }
 }

@@ -64,6 +64,7 @@ during a rollout. If that ever changes, this page changes first.
 | Data | `/var/lib/postgresql/data` |
 | Schema | `groupironman`, created and migrated by the backend at start-up |
 | Settings | `PG_HOST`, `PG_PORT`, `PG_DB`, `PG_USER`, `PG_PASSWORD`, `PG_POOL_MAX_SIZE` |
+| Backup | `pg_dump` of the one database, for example `docker compose exec postgres pg_dump -U "$PG_USER" "$PG_DB" > map.sql` under Compose. What is lost without one is the hidden players and the local skill history; the players themselves come back from the hub. |
 
 The migrations run `CREATE EXTENSION IF NOT EXISTS citext`. `citext` is a trusted extension, so the
 app's role needs `CONNECT` and `CREATE` on its database but not superuser (checked on `postgres:17`

@@ -34,7 +34,6 @@ function createMap() {
   map.cursor = { x: 0, y: 0, frameX: [0], frameY: [0] };
   map.touch = {};
   map.playerMarkers = new Map();
-  map.trails = new Map();
   map.renderedEvents = [];
   map.renderedPlayers = [];
   map.followingPlayer = {};
@@ -199,6 +198,19 @@ describe("events on the map", () => {
     expect(map.eventMarkers.find("bob")).toBeNull();
     map.handleUpdatedMembers([{ name: "Bob", coordinates: { x: 3100, y: 3100, plane: 0 }, color: "blue" }]);
     expect(map.eventMarkers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
+  });
+
+  it("turn up when a player on the roster gets a position", () => {
+    map.handleLiveEvents({ events: [drop("bob", MINUTE, { member: "Bob" })], added: [], initial: true });
+    map.handleUpdatedMembers([alice, { name: "Bob", color: "blue" }]);
+    expect(map.eventMarkers.find("bob")).toBeNull();
+    map.handleUpdatedCoordinates({ name: "Bob", coordinates: { x: 3100, y: 3100, plane: 0 }, color: "blue" });
+    expect(map.eventMarkers.find("bob")).toMatchObject({ x: 3100, y: 3100, color: "blue" });
+  });
+
+  it("leave the trails alone until there is one", () => {
+    map.onMouseLeave();
+    expect(map.trailLayerInstance).toBeUndefined();
   });
 
   describe("after a reload", () => {

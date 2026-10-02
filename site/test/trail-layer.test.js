@@ -157,6 +157,21 @@ describe("TrailLayer", () => {
     expect(layer.marksOn("Alice")).toEqual([]);
   });
 
+  it("forgets a player's events with their trail", () => {
+    layer.setHistory("Alice", history(), COLORS);
+    layer.setHistory("Bob", history(), COLORS);
+    layer.setEvents("Alice", [event("d", 30)]);
+    layer.setEvents("Bob", [event("b", 30, { member: "Bob" })]);
+    layer.remove("Alice");
+    layer.setHistory("Alice", history(), COLORS);
+    expect(layer.marksOn("Alice")).toEqual([]);
+    expect(layer.marksOn("Bob")).toHaveLength(1);
+
+    layer.clear();
+    layer.setHistory("Bob", history(), COLORS);
+    expect(layer.marksOn("Bob")).toEqual([]);
+  });
+
   it("marks a player's events on their trail, whichever comes first", () => {
     layer.setEvents("Alice", [event("d", 30, { type: "level_up" })]);
     expect(layer.marksOn("Alice")).toEqual([]);

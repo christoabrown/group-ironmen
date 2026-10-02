@@ -12,20 +12,22 @@ describe("pubsub", () => {
   });
 
   it("replays most recent event to new subscribers by default", () => {
-    pubsub.publish("route-activated", "items");
+    pubsub.publish("route-activated", "map");
 
     const received = [];
     pubsub.subscribe("route-activated", (...args) => received.push(args));
 
-    expect(received).toEqual([["items"]]);
+    expect(received).toEqual([["map"]]);
   });
 
   it("does not notify after unsubscribe", () => {
-    const subscriber = () => {};
-    pubsub.subscribe("items-updated", subscriber, false);
-    pubsub.unsubscribe("items-updated", subscriber);
+    const received = [];
+    const subscriber = (...args) => received.push(args);
+    pubsub.subscribe("roster-changed", subscriber, false);
+    pubsub.unsubscribe("roster-changed", subscriber);
+    pubsub.publish("roster-changed", "alice");
 
-    expect(pubsub.anyoneListening("items-updated")).toBe(false);
+    expect(received).toEqual([]);
   });
 
   it("waitUntilNextEvent resolves once event publishes", async () => {
@@ -34,14 +36,13 @@ describe("pubsub", () => {
     pubsub.publish("item-data-loaded");
 
     await expect(wait).resolves.toBeUndefined();
-    expect(pubsub.anyoneListening("item-data-loaded")).toBe(false);
   });
 
   it("waitForAllEvents resolves after all events fire", async () => {
-    const wait = pubsub.waitForAllEvents("item-data-loaded", "quest-data-loaded");
+    const wait = pubsub.waitForAllEvents("item-data-loaded", "features");
 
     pubsub.publish("item-data-loaded");
-    pubsub.publish("quest-data-loaded");
+    pubsub.publish("features");
 
     await expect(wait).resolves.toEqual([undefined, undefined]);
   });

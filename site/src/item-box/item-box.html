@@ -1,8 +1,6 @@
 <div class="item-box__container">
   <img class="item-box__image" src="${Item.imageUrl(this.itemId, this.quantity)}" loading="lazy" />
   ${this.quantity > 1 ? `
-  <span class="item-box__quantity">
-    ${this.veryShortQuantity ? Item.veryShortQuantity(this.quantity) : Item.shortQuantity(this.quantity)}
-  </span>
+  <span class="item-box__quantity">${Item.shortQuantity(this.quantity)}</span>
   ` : ""}
 </div>

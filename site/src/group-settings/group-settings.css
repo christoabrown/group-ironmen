@@ -7,11 +7,3 @@ group-settings {
   max-width: 500px;
   width: 100%;
 }
-
-.group-settings__section-content {
-  padding-left: 1em;
-}
-
-.group-settings__members edit-member {
-  margin-bottom: 1em;
-}

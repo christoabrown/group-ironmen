@@ -265,8 +265,13 @@ export class MapPage extends BaseElement {
         try {
           const events = await api.getTrailEvents(name, days, minLoot);
           if (this.trailEvents.has(name)) this.trailEvents.set(name, { events, at: now, days, minLoot });
-        } catch {
-          // Not shared, or the hub is busy: the trail is shown with what the live feed has.
+        } catch (error) {
+          // The trail is shown with what the live feed has. Not shared is an
+          // answer; anything else (the hub is busy) is asked again with the
+          // next refresh of the trails.
+          if (error.status !== 404 && this.trailEvents.has(name)) {
+            this.trailEvents.set(name, { events: known, at: 0, days, minLoot });
+          }
         }
       })
     );

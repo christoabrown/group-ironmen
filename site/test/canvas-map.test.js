@@ -83,7 +83,6 @@ function createMapInstance() {
   };
   map.touch = {};
   map.playerMarkers = new Map();
-  map.trails = new Map();
   map.followingPlayer = {};
   map.tiles = [new Map(), new Map(), new Map(), new Map()];
   map.tilesInView = [];

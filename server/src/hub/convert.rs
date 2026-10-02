@@ -176,15 +176,6 @@ impl MemberSections {
             ..Default::default()
         }
     }
-
-    /// Whether the account has none of the player data sections.
-    pub fn is_empty(&self) -> bool {
-        self.stats.is_none()
-            && self.coordinates.is_none()
-            && self.skills.is_none()
-            && self.inventory.is_none()
-            && self.equipment.is_none()
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -426,7 +417,11 @@ mod tests {
             "id": "abc", "name": "Private", "type": 0, "categories": []
         }));
         let sections = MemberSections::from_account(&account, None);
-        assert!(sections.is_empty());
+        assert_eq!(sections.stats, None);
+        assert_eq!(sections.coordinates, None);
+        assert_eq!(sections.skills, None);
+        assert_eq!(sections.inventory, None);
+        assert_eq!(sections.equipment, None);
         assert!(sections.meta.unwrap().categories.is_empty());
     }
 

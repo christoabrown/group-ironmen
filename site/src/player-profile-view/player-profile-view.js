@@ -8,7 +8,7 @@ import { carriedValue, shares, totalLevel, world } from "../data/roster-model";
 import { formatDuration, formatGp, hubErrorMessage, relativeTime } from "../data/hub-format";
 import { ACCOUNT_TYPE_BADGES } from "../player-roster/player-roster";
 
-export const PROFILE_TABS = [
+const PROFILE_TABS = [
   ["overview", "Overview"],
   ["gains", "Gains"],
   ["activity", "Activity"],

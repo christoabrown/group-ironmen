@@ -31,10 +31,9 @@ export class BaseElement extends HTMLElement {
   }
 
   handleMouseOver(mouseEvent) {
-    const tooltipText = this.tooltipText || this.getAttribute("tooltip-text");
-    if (tooltipText) {
+    if (this.tooltipText) {
       this.showingTooltip = true;
-      this.updateTooltip(tooltipText.trim(), mouseEvent);
+      this.updateTooltip(this.tooltipText.trim(), mouseEvent);
       mouseEvent.stopPropagation();
     }
   }
