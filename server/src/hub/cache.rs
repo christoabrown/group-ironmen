@@ -43,7 +43,7 @@ impl TtlCache {
         entries.insert(key.to_owned(), (Instant::now(), value));
     }
 
-    pub async fn get_or_fetch<F, Fut>(
+    pub(crate) async fn get_or_fetch<F, Fut>(
         &self,
         key: &str,
         ttl: Duration,
@@ -59,7 +59,7 @@ impl TtlCache {
     }
 
     /// Like [`TtlCache::get_or_fetch`], with how long ago the value came from the hub.
-    pub async fn get_or_fetch_dated<F, Fut>(
+    pub(crate) async fn get_or_fetch_dated<F, Fut>(
         &self,
         key: &str,
         ttl: Duration,

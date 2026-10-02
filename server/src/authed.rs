@@ -2,6 +2,7 @@ use crate::auth_middleware::Authenticated;
 use crate::config::Config;
 use crate::db;
 use crate::error::ApiError;
+use crate::hub::fetch::Period;
 use crate::hub::HubContext;
 use crate::models::{GroupDataResponse, GroupId, GroupSkillData};
 use actix_web::{get, web, Error};
@@ -12,7 +13,7 @@ use std::collections::HashSet;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GetGroupDataQuery {
+pub(crate) struct GetGroupDataQuery {
     pub from_time: DateTime<Utc>,
 }
 #[get("/get-group-data")]
@@ -32,16 +33,9 @@ pub async fn get_group_data(
 const MAX_SKILL_DATA_MEMBERS: usize = 10;
 
 #[derive(Deserialize)]
-pub enum SkillDataPeriod {
-    Day,
-    Week,
-    Month,
-    Year,
-}
-#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GetSkillDataQuery {
-    pub period: SkillDataPeriod,
+pub(crate) struct GetSkillDataQuery {
+    pub period: Period,
     /// Comma-separated member names; all members when left out.
     #[serde(default)]
     pub members: Option<String>,
@@ -57,10 +51,9 @@ pub async fn get_skill_data(
 ) -> Result<web::Json<GroupSkillData>, Error> {
     let client: Client = db_pool.get().await.map_err(ApiError::PoolError)?;
     let aggregate_period = match query.period {
-        SkillDataPeriod::Day => db::AggregatePeriod::Day,
-        SkillDataPeriod::Week => db::AggregatePeriod::Month,
-        SkillDataPeriod::Month => db::AggregatePeriod::Month,
-        SkillDataPeriod::Year => db::AggregatePeriod::Year,
+        Period::Day => db::AggregatePeriod::Day,
+        Period::Week | Period::Month => db::AggregatePeriod::Month,
+        Period::Year => db::AggregatePeriod::Year,
     };
     let members: Option<HashSet<String>> = query.members.as_deref().map(|members| {
         members
@@ -74,9 +67,9 @@ pub async fn get_skill_data(
         db::get_skills_for_period(&client, group_id.0, aggregate_period).await?;
     drop(client);
     if config.hub_history_enabled() {
-        group_skill_data = crate::hub::proxy::merge_skill_data(
+        group_skill_data = crate::hub::xp::merge_skill_data(
             &hub_context,
-            &query.period,
+            query.period,
             group_skill_data,
             members.as_ref(),
         )

@@ -7,12 +7,15 @@ pub mod client;
 pub mod convert;
 pub mod directory;
 pub mod events;
+pub mod fetch;
+pub mod leaderboards;
 pub mod members;
 pub mod models;
 pub mod profile;
-pub mod proxy;
 pub mod routes;
 pub mod sync;
+pub mod trails;
+pub mod xp;
 
 use chrono::{DateTime, Utc};
 use client::{HubClient, HubError, Priority};
@@ -28,6 +31,11 @@ pub const USER_KEY_BULK_ACCOUNTS: usize = 10;
 pub const SERVICE_KEY_BULK_ACCOUNTS: usize = 50;
 /// Share of the key's hub rate limit this server uses when no budget is configured.
 const BUDGET_SHARE_OF_HUB_LIMIT: f64 = 0.8;
+/// The wait after the hub rejected the key: it won't take it a second later
+/// either, someone has to replace it first.
+const UNAUTHORIZED_RETRY: Duration = Duration::from_secs(300);
+/// The wait before asking the hub about the key again.
+const KEY_RETRY: Duration = Duration::from_secs(60);
 
 /// What the admin portal shows about the hub connection.
 #[derive(Serialize, Clone, Default)]
@@ -51,13 +59,24 @@ pub struct HubStatus {
     pub bulk_accounts: usize,
 }
 
-pub type SharedHubStatus = Arc<RwLock<HubStatus>>;
+pub(crate) type SharedHubStatus = Arc<RwLock<HubStatus>>;
 
-pub fn record_error(status: &SharedHubStatus, message: String) {
+pub(crate) fn record_error(status: &SharedHubStatus, message: String) {
     if let Ok(mut status) = status.write() {
         status.last_error = Some(message);
         status.last_error_at = Some(Utc::now());
         status.consecutive_failures = status.consecutive_failures.saturating_add(1);
+    }
+}
+
+/// How long a task that asks the hub every `interval` waits after a failed
+/// request: long when the hub rejected the key, as long as the hub says when
+/// it is busy, and `otherwise` after anything else.
+pub(crate) fn retry_wait(err: &HubError, interval: Duration, otherwise: Duration) -> Duration {
+    match err {
+        HubError::Unauthorized => UNAUTHORIZED_RETRY,
+        HubError::RateLimited(after) => (*after).max(interval),
+        _ => otherwise,
     }
 }
 
@@ -93,7 +112,7 @@ pub struct HubContext {
 }
 
 /// The request budget to use for a key the hub allows `hub_limit` requests per minute.
-pub fn request_budget(configured: Option<u32>, hub_limit: Option<u32>) -> usize {
+pub(crate) fn request_budget(configured: Option<u32>, hub_limit: Option<u32>) -> usize {
     match (configured, hub_limit) {
         (Some(configured), Some(limit)) => configured.min(limit) as usize,
         (Some(configured), None) => configured as usize,
@@ -104,7 +123,7 @@ pub fn request_budget(configured: Option<u32>, hub_limit: Option<u32>) -> usize 
 
 /// Applies what `/me` says about the key: its kind decides the bulk request
 /// size, its rate limit the request budget.
-pub fn apply_key_info(
+pub(crate) fn apply_key_info(
     me: &HubMe,
     configured_budget: Option<u32>,
     client: &HubClient,
@@ -162,12 +181,8 @@ pub fn start_key_discovery(
                     return;
                 }
                 Err(err) => {
-                    let wait = match err {
-                        HubError::RateLimited(after) => after,
-                        _ => Duration::from_secs(60),
-                    };
                     log::warn!("Could not read the hub key's details from /me: {}", err);
-                    tokio::time::sleep(wait).await;
+                    tokio::time::sleep(retry_wait(&err, KEY_RETRY, KEY_RETRY)).await;
                 }
             }
         }
@@ -186,6 +201,23 @@ mod tests {
         assert_eq!(request_budget(Some(1000), Some(600)), 600);
         assert_eq!(request_budget(Some(50), Some(600)), 50);
         assert_eq!(request_budget(Some(50), None), 50);
+    }
+
+    #[test]
+    fn the_wait_after_a_failure_follows_what_went_wrong() {
+        let (interval, otherwise) = (Duration::from_secs(5), Duration::from_secs(20));
+        let wait = |err: HubError| retry_wait(&err, interval, otherwise);
+        assert_eq!(wait(HubError::Unauthorized), UNAUTHORIZED_RETRY);
+        assert_eq!(
+            wait(HubError::RateLimited(Duration::from_secs(30))),
+            Duration::from_secs(30)
+        );
+        assert_eq!(
+            wait(HubError::RateLimited(Duration::from_secs(1))),
+            interval
+        );
+        assert_eq!(wait(HubError::Other("down".to_owned())), otherwise);
+        assert_eq!(wait(HubError::NotFound), otherwise);
     }
 
     #[test]

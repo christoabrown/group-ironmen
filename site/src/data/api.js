@@ -228,7 +228,7 @@ class Api {
    * reads at most a few thousand; for a busy player the oldest may be missing.
    */
   async getTrailEvents(memberName, days, minLoot = 0) {
-    return this.getHubJson(`${this.playerPath(memberName, "events")}?days=${days}&min_loot=${minLoot}`);
+    return this.getHubJson(`${this.playerPath(memberName, "trail-events")}?days=${days}&min_loot=${minLoot}`);
   }
 }
 

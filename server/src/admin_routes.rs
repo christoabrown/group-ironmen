@@ -20,7 +20,7 @@ pub async fn list_players(
 }
 
 #[derive(serde::Deserialize)]
-pub struct PlayerPath {
+pub(crate) struct PlayerPath {
     pub member_name: String,
 }
 
@@ -44,7 +44,7 @@ pub async fn delete_player(
 }
 
 #[derive(serde::Deserialize)]
-pub struct SetHiddenRequest {
+pub(crate) struct SetHiddenRequest {
     pub hidden: bool,
 }
 

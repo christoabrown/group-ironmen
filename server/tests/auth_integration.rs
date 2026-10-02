@@ -1,46 +1,27 @@
 //! Signing in: Discord says who someone is, the hub says whether they are a
 //! member and an admin. Runs the real routes against an in-process stand-in
-//! for both and a real PostgreSQL database (see `update_batcher_integration.rs`
+//! for both and a real PostgreSQL database (see `common/mod.rs`
 //! for the database setup). Drops the test schema.
 use actix_web::dev::ServiceResponse;
 use actix_web::{test, web, App, HttpRequest, HttpResponse, HttpServer};
-use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
+use deadpool_postgres::Pool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::env;
 use std::sync::{Arc, Mutex};
-use tokio_postgres::NoTls;
 
+mod common;
+
+use common::{create_test_pool, fresh_database, TEST_MUTEX};
 use server::auth_middleware::SessionMiddlewareFactory;
 use server::config::{Config, HubConfig};
 use server::hub::client::HubClient;
 use server::hub::{self, HubContext};
 use server::models::GroupId;
-use server::{admin_routes, auth_routes, db};
-
-static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+use server::{admin_routes, auth_routes};
 
 const ALICE: &str = "200000000000000001";
 const ADMIN: &str = "200000000000000002";
 const STRANGER: &str = "200000000000000003";
-
-async fn create_test_pool() -> Pool {
-    let mut cfg = if let Ok(url) = env::var("TEST_DATABASE_URL") {
-        let mut c = deadpool_postgres::Config::new();
-        c.url = Some(url);
-        c
-    } else {
-        let config = Config::from_env().expect("failed to read config");
-        let mut pg = config.pg.clone();
-        pg.dbname = Some("group_ironmen_test".to_string());
-        pg
-    };
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.create_pool(None, NoTls)
-        .expect("failed to create test pool")
-}
 
 // ----------------------------------------------------------------------------
 // A stand-in for Discord and for the hub's /members
@@ -134,17 +115,7 @@ struct Harness {
 
 async fn harness() -> Harness {
     let pool = create_test_pool().await;
-    let group_id = {
-        let mut client = pool.get().await.unwrap();
-        client
-            .execute("DROP SCHEMA IF EXISTS groupironman CASCADE", &[])
-            .await
-            .unwrap();
-        db::update_schema(&mut client).await.unwrap();
-        db::get_or_create_singleton_group(&mut client)
-            .await
-            .unwrap()
-    };
+    let group_id = fresh_database(&pool).await;
 
     let outside = Arc::new(Mutex::new(Outside::default()));
     {

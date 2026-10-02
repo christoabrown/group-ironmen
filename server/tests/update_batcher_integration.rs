@@ -1,73 +1,16 @@
-use deadpool_postgres::{ManagerConfig, Object, Pool, RecyclingMethod};
-use std::env;
-use tokio_postgres::NoTls;
+mod common;
 
-use server::config::Config;
+use common::{create_test_pool, fresh_database, store, TEST_MUTEX};
+use deadpool_postgres::{Object, Pool};
+
 use server::db;
 use server::models::GroupMember;
 use server::update_batcher;
 
-/// Serializes integration tests since they all share the same database
-/// and each test drops/recreates the schema.
-static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-/// Create a connection pool for the test database.
-///
-/// By default, reads connection parameters from `config.toml` (same file
-/// the server uses) but overrides the database name to `group_ironmen_test`.
-///
-/// To use a completely custom connection string, set the `TEST_DATABASE_URL`
-/// environment variable:
-///
-///   TEST_DATABASE_URL="postgres://postgres:password@localhost:5432/group_ironmen_test"
-///
-/// Integration tests require a running PostgreSQL instance with a
-/// `group_ironmen_test` database. Run them with:
-///
-///   cargo test
-async fn create_test_pool() -> Pool {
-    let mut cfg = if let Ok(url) = env::var("TEST_DATABASE_URL") {
-        let mut c = deadpool_postgres::Config::new();
-        c.url = Some(url);
-        c
-    } else {
-        let config = Config::from_env().expect("failed to read config.toml");
-        let mut pg = config.pg.clone();
-        pg.dbname = Some("group_ironmen_test".to_string());
-        pg
-    };
-
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-
-    cfg.create_pool(None, NoTls)
-        .expect("failed to create test pool")
-}
-
-/// Set up a clean schema and a test group with members.
-/// Returns (pool, group_id).
+/// A clean schema and the group, with three members. Returns the group's id.
 async fn setup_test_group(pool: &Pool) -> i64 {
-    let mut client = pool.get().await.expect("failed to get client");
-
-    // Drop and recreate schema for a clean slate
-    client
-        .execute("DROP SCHEMA IF EXISTS groupironman CASCADE", &[])
-        .await
-        .expect("failed to drop schema");
-    client
-        .execute("CREATE SCHEMA IF NOT EXISTS groupironman", &[])
-        .await
-        .expect("failed to create schema");
-
-    // Run schema migrations (they bootstrap the groups table themselves)
-    db::update_schema(&mut client)
-        .await
-        .expect("failed to update schema");
-
-    let group_id = db::get_or_create_singleton_group(&mut client)
-        .await
-        .expect("failed to create the group");
+    let group_id = fresh_database(pool).await;
+    let client = pool.get().await.expect("failed to get client");
     for name in ["alice", "bob", "carol"] {
         db::ensure_member_exists(&client, group_id, name)
             .await
@@ -113,22 +56,6 @@ fn spawn_worker(
         update_batcher::background_worker(worker_pool, rx, Some(notify_tx)).await;
     });
     (tx, notify_rx)
-}
-
-/// Runs the batcher over `updates` and returns when all of them are stored.
-///
-/// A running worker closes a batch 50 ms after the first update arrives, so
-/// updates sent one after another can end up in more than one batch, and one
-/// notification does not say that the last of them is written. Tests that
-/// send several updates use this instead of `spawn_worker`.
-async fn store(pool: &Pool, updates: Vec<GroupMember>) {
-    let (tx, rx) = tokio::sync::mpsc::channel::<GroupMember>(updates.len().max(1));
-    for update in updates {
-        tx.try_send(update).expect("the channel holds every update");
-    }
-    // With the sender gone the worker returns once the channel is empty.
-    drop(tx);
-    update_batcher::background_worker(pool.clone(), rx, None).await;
 }
 
 #[tokio::test]

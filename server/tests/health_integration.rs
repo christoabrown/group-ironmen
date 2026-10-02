@@ -1,30 +1,13 @@
 //! `GET /api/health`, the endpoint Kubernetes probes (see
-//! `update_batcher_integration.rs` for the database setup). Touches no schema.
+//! `common/mod.rs` for the database setup). Touches no schema.
 use actix_web::{test, web, App};
-use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
-use std::env;
+use deadpool_postgres::Pool;
 use tokio_postgres::NoTls;
 
-use server::config::Config;
-use server::health;
+mod common;
 
-async fn create_test_pool() -> Pool {
-    let mut cfg = if let Ok(url) = env::var("TEST_DATABASE_URL") {
-        let mut c = deadpool_postgres::Config::new();
-        c.url = Some(url);
-        c
-    } else {
-        let config = Config::from_env().expect("failed to read config");
-        let mut pg = config.pg.clone();
-        pg.dbname = Some("group_ironmen_test".to_string());
-        pg
-    };
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.create_pool(None, NoTls)
-        .expect("failed to create test pool")
-}
+use common::create_test_pool;
+use server::health;
 
 /// Mounted as `main.rs` mounts it: inside the public `/api` scope.
 async fn call_health(pool: Pool) -> (u16, serde_json::Value) {

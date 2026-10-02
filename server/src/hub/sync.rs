@@ -15,7 +15,7 @@ use crate::hub::client::{Fetched, HubClient, HubError, Priority};
 use crate::hub::convert::{section_changed, MemberSections, SECTIONS};
 use crate::hub::directory::HubDirectory;
 use crate::hub::models::HubAccount;
-use crate::hub::{record_error, SharedHubStatus};
+use crate::hub::{record_error, retry_wait, SharedHubStatus};
 use crate::models::GroupMember;
 use crate::validators::valid_name;
 use chrono::Utc;
@@ -25,7 +25,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-const UNAUTHORIZED_RETRY: Duration = Duration::from_secs(300);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 /// How often an unchanged presence is written again, which keeps `hub_last_seen`
 /// fresh enough for the site's five-minute online check.
@@ -116,11 +115,7 @@ impl HubSync {
                 }
                 Err(err) => {
                     self.failures += 1;
-                    let wait = match &err {
-                        HubError::Unauthorized => UNAUTHORIZED_RETRY,
-                        HubError::RateLimited(after) => (*after).max(poll_interval),
-                        _ => backoff(self.failures),
-                    };
+                    let wait = retry_wait(&err, poll_interval, backoff(self.failures));
                     log::warn!("Hub sync failed ({}), retrying in {}s", err, wait.as_secs());
                     record_error(&self.context.status, err.to_string());
                     wait

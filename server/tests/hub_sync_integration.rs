@@ -1,58 +1,26 @@
 //! Runs the hub sync against an in-process mock of the osrs-data-hub API and a
-//! real PostgreSQL database (see `update_batcher_integration.rs` for setup).
+//! real PostgreSQL database (see `common/mod.rs` for setup).
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
+use deadpool_postgres::Pool;
 use serde_json::{json, Value};
-use std::env;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tokio_postgres::NoTls;
 
-use server::config::{Config, HubConfig};
+mod common;
+
+use common::{create_test_pool, fresh_database, store, TEST_MUTEX};
+use server::config::HubConfig;
 use server::db;
 use server::hub::client::{HubClient, HubError};
 use server::hub::directory::HubDirectory;
 use server::hub::sync::{HubSync, SyncContext, SyncControl};
 use server::hub::HubStatus;
 use server::models::{GroupMember, RosterEntry};
-use server::update_batcher;
-
-static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// Room for the members one poll sends.
 const UPDATE_CAPACITY: usize = 1000;
-
-async fn create_test_pool() -> Pool {
-    let mut cfg = if let Ok(url) = env::var("TEST_DATABASE_URL") {
-        let mut c = deadpool_postgres::Config::new();
-        c.url = Some(url);
-        c
-    } else {
-        let config = Config::from_env().expect("failed to read config");
-        let mut pg = config.pg.clone();
-        pg.dbname = Some("group_ironmen_test".to_string());
-        pg
-    };
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.create_pool(None, NoTls)
-        .expect("failed to create test pool")
-}
-
-async fn setup_database(pool: &Pool) -> i64 {
-    let mut client = pool.get().await.unwrap();
-    client
-        .execute("DROP SCHEMA IF EXISTS groupironman CASCADE", &[])
-        .await
-        .unwrap();
-    db::update_schema(&mut client).await.unwrap();
-    db::get_or_create_singleton_group(&mut client)
-        .await
-        .unwrap()
-}
 
 // ----------------------------------------------------------------------------
 // Mock hub
@@ -183,7 +151,7 @@ struct Harness {
 
 async fn harness() -> Harness {
     let pool = create_test_pool().await;
-    let group_id = setup_database(&pool).await;
+    let group_id = fresh_database(&pool).await;
     let hub = Arc::new(Mutex::new(MockHub::default()));
     let base_url = start_mock_hub(Arc::clone(&hub)).await;
 
@@ -227,22 +195,17 @@ impl Harness {
     /// One poll, with everything it sent stored by the time this returns.
     ///
     /// The sync sends its accounts one by one with database work in between,
-    /// and a running batcher closes a batch 50 ms after the first member
-    /// arrives, so one poll can end up in several batches. Instead of guessing
-    /// how many to wait for, the real batcher runs here over exactly what the
-    /// poll sent, until it is done.
+    /// so one poll can end up in several of a running batcher's batches.
+    /// Instead of guessing how many to wait for, the batcher runs here over
+    /// exactly what the poll sent (see `common::store`).
     async fn poll(&mut self) -> Result<(), HubError> {
         let result = self.sync.poll_once().await;
-        let (batch_tx, batch_rx) = mpsc::channel::<GroupMember>(UPDATE_CAPACITY);
+        let mut sent = Vec::new();
         while let Ok(member) = self.updates.try_recv() {
-            self.sent += 1;
-            batch_tx
-                .try_send(member)
-                .expect("as large as the channel it is filled from");
+            sent.push(member);
         }
-        // With the sender gone the batcher returns once the channel is empty.
-        drop(batch_tx);
-        update_batcher::background_worker(self.pool.clone(), batch_rx, None).await;
+        self.sent += sent.len();
+        store(&self.pool, sent).await;
         result
     }
 

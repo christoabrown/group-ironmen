@@ -68,7 +68,7 @@ mod valid_name_tests {
 
 static NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new("[^A-Za-z 0-9-_]").unwrap());
 
-pub fn valid_name(name: &str) -> bool {
+pub(crate) fn valid_name(name: &str) -> bool {
     let len = name.len();
     (1..=16).contains(&len) && name.is_ascii() && !NAME_RE.is_match(name) && !name.trim().is_empty()
 }

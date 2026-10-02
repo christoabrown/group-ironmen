@@ -1,31 +1,9 @@
 //! Checks the schema migrations against a real PostgreSQL database (see
-//! `update_batcher_integration.rs` for setup). Drops the test schema.
-use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
-use std::env;
-use tokio_postgres::NoTls;
+//! `common/mod.rs` for setup). Drops the test schema.
+mod common;
 
-use server::config::Config;
+use common::{create_test_pool, drop_schema, TEST_MUTEX};
 use server::db;
-
-static TEST_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-async fn create_test_pool() -> Pool {
-    let mut cfg = if let Ok(url) = env::var("TEST_DATABASE_URL") {
-        let mut c = deadpool_postgres::Config::new();
-        c.url = Some(url);
-        c
-    } else {
-        let config = Config::from_env().expect("failed to read config");
-        let mut pg = config.pg.clone();
-        pg.dbname = Some("group_ironmen_test".to_string());
-        pg
-    };
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.create_pool(None, NoTls)
-        .expect("failed to create test pool")
-}
 
 async fn member_columns(client: &deadpool_postgres::Object) -> Vec<String> {
     client
@@ -46,10 +24,7 @@ async fn what_the_map_no_longer_keeps_is_dropped_and_migrations_are_idempotent()
     let _guard = TEST_MUTEX.lock().await;
     let pool = create_test_pool().await;
     let mut client = pool.get().await.unwrap();
-    client
-        .execute("DROP SCHEMA IF EXISTS groupironman CASCADE", &[])
-        .await
-        .unwrap();
+    drop_schema(&client).await;
 
     db::update_schema(&mut client).await.unwrap();
     // A second run finds every migration recorded and changes nothing.
@@ -151,10 +126,7 @@ async fn accounts_the_map_kept_itself_go_with_their_tables() {
     let _guard = TEST_MUTEX.lock().await;
     let pool = create_test_pool().await;
     let mut client = pool.get().await.unwrap();
-    client
-        .execute("DROP SCHEMA IF EXISTS groupironman CASCADE", &[])
-        .await
-        .unwrap();
+    drop_schema(&client).await;
     db::update_schema(&mut client).await.unwrap();
 
     // Back to how it was: the old tables with someone in them, a session of

@@ -52,7 +52,7 @@ impl Default for DiscordConfig {
     }
 }
 impl DiscordConfig {
-    pub fn is_configured(&self) -> bool {
+    pub(crate) fn is_configured(&self) -> bool {
         !self.client_id.is_empty()
             && !self.client_secret.is_empty()
             && !self.redirect_uri.is_empty()
@@ -69,11 +69,11 @@ impl DiscordConfig {
             .unwrap_or_else(|| format!("{}/oauth2/authorize", self.api_base))
     }
 
-    pub fn token_url(&self) -> String {
+    pub(crate) fn token_url(&self) -> String {
         format!("{}/oauth2/token", self.api_base)
     }
 
-    pub fn user_url(&self) -> String {
+    pub(crate) fn user_url(&self) -> String {
         format!("{}/v10/users/@me", self.api_base)
     }
 }
@@ -135,7 +135,7 @@ impl Default for HubConfig {
     }
 }
 impl HubConfig {
-    pub fn is_configured(&self) -> bool {
+    pub(crate) fn is_configured(&self) -> bool {
         !self.base_url.is_empty() && !self.api_key.is_empty()
     }
 }

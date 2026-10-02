@@ -51,33 +51,33 @@ pub struct GroupDataResponse {
     pub members: Vec<GroupMember>,
 }
 #[derive(Serialize)]
-pub struct AggregateSkillData {
+pub(crate) struct AggregateSkillData {
     pub time: DateTime<Utc>,
     pub data: Vec<i32>,
 }
 #[derive(Serialize)]
-pub struct MemberSkillData {
+pub(crate) struct MemberSkillData {
     pub name: String,
     pub skill_data: Vec<AggregateSkillData>,
 }
-pub type GroupSkillData = Vec<MemberSkillData>;
+pub(crate) type GroupSkillData = Vec<MemberSkillData>;
 #[derive(Deserialize)]
-pub struct WikiGEPrice {
+pub(crate) struct WikiGEPrice {
     pub high: Option<i64>,
     pub low: Option<i64>,
 }
 #[derive(Deserialize)]
-pub struct WikiGEPrices {
+pub(crate) struct WikiGEPrices {
     pub data: std::collections::HashMap<i32, WikiGEPrice>,
 }
-pub type GEPrices = std::collections::HashMap<i32, i64>;
+pub(crate) type GEPrices = std::collections::HashMap<i32, i64>;
 
 // --- Signing in ---
 
 /// Who a session belongs to, as the hub knew them when it was last asked
 /// (see `hub::members`). Also what `GET /api/auth/me` answers with.
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
-pub struct Session {
+pub(crate) struct Session {
     #[serde(skip)]
     pub discord_id: String,
     pub name: String,
@@ -86,20 +86,20 @@ pub struct Session {
 
 /// `POST /api/auth/discord/callback`: what Discord sent the browser back with.
 #[derive(Deserialize)]
-pub struct DiscordCallbackRequest {
+pub(crate) struct DiscordCallbackRequest {
     pub code: String,
     #[serde(default)]
     pub state: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct DiscordTokenResponse {
+pub(crate) struct DiscordTokenResponse {
     pub access_token: String,
     pub token_type: String,
 }
 
 #[derive(Deserialize)]
-pub struct DiscordUser {
+pub(crate) struct DiscordUser {
     pub id: String,
     pub username: String,
     #[serde(default)]
@@ -109,7 +109,7 @@ pub struct DiscordUser {
 // --- The admin page ---
 
 #[derive(Serialize)]
-pub struct PlayerInfo {
+pub(crate) struct PlayerInfo {
     pub member_name: String,
     pub last_updated: Option<DateTime<Utc>>,
     pub hub_linked: bool,

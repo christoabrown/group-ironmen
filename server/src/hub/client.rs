@@ -12,12 +12,12 @@ use std::time::{Duration, Instant};
 const RESPONSE_BODY_LIMIT: u64 = 64 * 1024 * 1024;
 const BUDGET_WINDOW: Duration = Duration::from_secs(60);
 /// Budget until the hub's `/me` says what the key may use (a user key allows 120).
-pub const DEFAULT_BUDGET_PER_MIN: usize = 100;
+pub(crate) const DEFAULT_BUDGET_PER_MIN: usize = 100;
 
 /// Who is asking. Background sync always goes first; interactive history
 /// requests give up early so they never starve the sync.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Priority {
+pub(crate) enum Priority {
     Sync,
     Interactive,
 }
@@ -50,10 +50,10 @@ impl std::fmt::Display for HubError {
     }
 }
 
-pub type HubResult<T> = Result<T, HubError>;
+pub(crate) type HubResult<T> = Result<T, HubError>;
 
 /// The result of a conditional GET.
-pub enum Fetched<T> {
+pub(crate) enum Fetched<T> {
     NotModified,
     Ok {
         data: T,
@@ -87,7 +87,7 @@ impl HubClient {
         let agent = ureq::Agent::config_builder()
             .timeout_global(Some(Duration::from_secs(config.timeout_secs)))
             .http_status_as_error(false)
-            .user_agent("ha-osrs-map (github.com/RedFirebreak/ha-osrs-map)")
+            .user_agent(crate::http::USER_AGENT)
             .build()
             .new_agent();
         let budget_per_min = config
@@ -156,7 +156,7 @@ impl HubClient {
     }
 
     /// GETs `path` (relative to `/api/v1`) with the given query parameters.
-    pub async fn get<T: DeserializeOwned + Send + 'static>(
+    pub(crate) async fn get<T: DeserializeOwned + Send + 'static>(
         self: &Arc<Self>,
         path: &str,
         query: &[(&str, String)],
@@ -178,7 +178,7 @@ impl HubClient {
     }
 
     /// Like [`HubClient::get`] without conditional requests.
-    pub async fn get_data<T: DeserializeOwned + Send + 'static>(
+    pub(crate) async fn get_data<T: DeserializeOwned + Send + 'static>(
         self: &Arc<Self>,
         path: &str,
         query: &[(&str, String)],

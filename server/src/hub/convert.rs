@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// Details about an account the site shows but doesn't compute with. Stored
 /// as one JSON column so the hub can add fields without a migration.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct HubMeta {
+pub(crate) struct HubMeta {
     /// Ironman type (0 normal … 6) and its display name.
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub account_type: Option<i32>,
@@ -91,7 +91,7 @@ impl HubMeta {
 /// The member arrays built from one hub account. `None` means the hub did not
 /// send that section (category not readable, or never sent by the plugin).
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-pub struct MemberSections {
+pub(crate) struct MemberSections {
     pub stats: Option<Vec<i32>>,
     pub coordinates: Option<Vec<i32>>,
     pub skills: Option<Vec<i32>>,
@@ -102,7 +102,7 @@ pub struct MemberSections {
 
 impl MemberSections {
     /// `previous` is what was sent for the account before, if anything.
-    pub fn from_account(account: &HubAccount, previous: Option<&MemberSections>) -> Self {
+    pub(crate) fn from_account(account: &HubAccount, previous: Option<&MemberSections>) -> Self {
         let special_world = account.special_world.unwrap_or(false);
         MemberSections {
             stats: stats(account),
@@ -145,7 +145,7 @@ impl MemberSections {
 
     /// Builds the batcher update. Sections are only included when `include`
     /// says so, which lets the sync skip unchanged sections.
-    pub fn to_member(
+    pub(crate) fn to_member(
         &self,
         group_id: i64,
         name: &str,
@@ -179,7 +179,7 @@ impl MemberSections {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Section {
+pub(crate) enum Section {
     Stats,
     Coordinates,
     Skills,
@@ -188,7 +188,7 @@ pub enum Section {
     Meta,
 }
 
-pub const SECTIONS: [Section; 6] = [
+pub(crate) const SECTIONS: [Section; 6] = [
     Section::Stats,
     Section::Coordinates,
     Section::Skills,
@@ -198,7 +198,7 @@ pub const SECTIONS: [Section; 6] = [
 ];
 
 /// Whether a section differs between the previously sent and the current data.
-pub fn section_changed(
+pub(crate) fn section_changed(
     previous: Option<&MemberSections>,
     current: &MemberSections,
     section: Section,
@@ -257,7 +257,7 @@ fn inventory(items: &HubItems) -> Vec<i32> {
 }
 
 /// 14 equipment slots as id/quantity pairs, placed by slot name.
-pub fn equipment(items: &HubItems) -> Vec<i32> {
+pub(crate) fn equipment(items: &HubItems) -> Vec<i32> {
     let mut flat = vec![0i32; 28];
     for item in &items.items {
         let Some(slot) = item

@@ -32,7 +32,7 @@ impl HubDirectory {
     }
 
     /// Binds a hub account to a member, replacing earlier bindings of either.
-    pub fn bind(&self, hub_id: &str, member_name: &str) {
+    pub(crate) fn bind(&self, hub_id: &str, member_name: &str) {
         let mut bindings = self.0.write().expect("hub directory lock poisoned");
         if let Some(old_name) = bindings.name_by_id.remove(hub_id) {
             bindings.id_by_name.remove(&old_name.to_lowercase());
@@ -49,7 +49,7 @@ impl HubDirectory {
     }
 
     /// Forgets a member (deleted or hidden).
-    pub fn remove_member(&self, member_name: &str) {
+    pub(crate) fn remove_member(&self, member_name: &str) {
         let mut bindings = self.0.write().expect("hub directory lock poisoned");
         if let Some(id) = bindings.id_by_name.remove(&member_name.to_lowercase()) {
             bindings.name_by_id.remove(&id);
@@ -57,7 +57,7 @@ impl HubDirectory {
     }
 
     /// Records whether the member of a hub account is hidden.
-    pub fn set_hidden(&self, hub_id: &str, hidden: bool) {
+    pub(crate) fn set_hidden(&self, hub_id: &str, hidden: bool) {
         let mut bindings = self.0.write().expect("hub directory lock poisoned");
         if hidden {
             bindings.hidden.insert(hub_id.to_owned());
@@ -77,7 +77,7 @@ impl HubDirectory {
     }
 
     /// The member name for a hub account.
-    pub fn member_name(&self, hub_id: &str) -> Option<String> {
+    pub(crate) fn member_name(&self, hub_id: &str) -> Option<String> {
         self.0
             .read()
             .expect("hub directory lock poisoned")
@@ -97,7 +97,7 @@ impl HubDirectory {
     }
 
     /// Every binding as `(member name, hub id)`.
-    pub fn bindings(&self) -> Vec<(String, String)> {
+    pub(crate) fn bindings(&self) -> Vec<(String, String)> {
         self.0
             .read()
             .expect("hub directory lock poisoned")

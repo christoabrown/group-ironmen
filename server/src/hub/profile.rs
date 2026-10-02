@@ -6,12 +6,13 @@ use crate::auth_middleware::Authenticated;
 use crate::config::Config;
 use crate::hub::client::{HubClient, HubError, Priority};
 use crate::hub::convert::equipment;
+use crate::hub::events::event_json;
+use crate::hub::fetch::{cached, history_enabled, parse, HistoryError, Period};
 use crate::hub::models::{
     HubAccountGains, HubEquipmentHistory, HubEvent, HubItems, HubSessions, HubWealth,
 };
-use crate::hub::proxy::{event_json, fetch_value, history_enabled, hub_error_response, parse};
 use crate::hub::HubContext;
-use actix_web::{get, web, Error, HttpResponse};
+use actix_web::{get, web, HttpResponse};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::Deserialize;
 use serde_json::Value;
@@ -43,24 +44,42 @@ const OTHER_TYPES: &str =
 const MAX_GEAR_CHANGES: usize = 50;
 
 #[derive(Deserialize)]
-pub struct ProfileQuery {
+pub(crate) struct PeriodQuery {
     #[serde(default)]
-    period: Option<String>,
+    period: Option<Period>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct DaysQuery {
     #[serde(default)]
     days: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct LimitQuery {
     #[serde(default)]
     limit: Option<u32>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TrailEventsQuery {
+    #[serde(default)]
+    days: Option<i64>,
     #[serde(default)]
     min_loot: Option<i64>,
 }
 
 type HubRequest = (String, Vec<(&'static str, String)>);
 
-/// Fetches the hub request `request` builds for the member's hub account,
-/// through the cache, and parses it; or answers with the error response the
-/// site expects. `what` tells the request apart from the member's others in
-/// the cache, and holds nothing that changes with the time of asking: a key
-/// with the start of a period in it would be a new one every time.
+/// The member's hub account. A member without one has nothing on the hub.
+fn hub_id(context: &HubContext, member: &str) -> Result<String, HistoryError> {
+    let id = context.directory.hub_id(member);
+    id.ok_or(HistoryError::Hub(HubError::NotFound))
+}
+
+/// The hub's answer to the request `request` builds for the member's hub
+/// account, through the cache. `what` tells the request apart from the
+/// member's others in the cache (see [`cached`] for what goes in a key).
 async fn fetch_for_member<T: serde::de::DeserializeOwned>(
     context: &HubContext,
     config: &Config,
@@ -68,22 +87,12 @@ async fn fetch_for_member<T: serde::de::DeserializeOwned>(
     ttl: Duration,
     what: &str,
     request: impl FnOnce(&str) -> HubRequest,
-) -> Result<T, HttpResponse> {
+) -> Result<T, HistoryError> {
     history_enabled(config)?;
-    let Some(hub_id) = context.directory.hub_id(member) else {
-        return Err(hub_error_response(HubError::NotFound));
-    };
+    let hub_id = hub_id(context, member)?;
+    let (path, query) = request(&urlencoding::encode(&hub_id));
     let key = format!("player:{hub_id}:{what}");
-    let client = Arc::clone(&context.client);
-    context
-        .cache
-        .get_or_fetch(&key, ttl, || async move {
-            let (path, query) = request(&urlencoding::encode(&hub_id));
-            fetch_value::<Value>(&client, &path, &query).await
-        })
-        .await
-        .and_then(|value| parse::<T>(&value))
-        .map_err(hub_error_response)
+    Ok(cached(context, &key, ttl, &path, &query).await?)
 }
 
 /// How many days back to read: `days`, or `default` when not given, at most `max`.
@@ -96,42 +105,30 @@ fn from_days(days: i64) -> String {
     (Utc::now() - ChronoDuration::days(days)).to_rfc3339()
 }
 
-macro_rules! respond {
-    ($result:expr) => {
-        match $result {
-            Ok(value) => value,
-            Err(response) => return Ok(response),
-        }
-    };
-}
-
 /// XP gained per skill, Overall first.
 #[get("/hub/players/{member}/gains")]
 pub async fn get_player_gains(
     _auth: Authenticated,
     path: web::Path<String>,
-    query: web::Query<ProfileQuery>,
+    query: web::Query<PeriodQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-) -> Result<HttpResponse, Error> {
-    let period = match query.period.as_deref().unwrap_or("day") {
-        period @ ("day" | "week" | "month" | "year") => period.to_owned(),
-        _ => return Ok(HttpResponse::BadRequest().body("period must be day, week, month or year")),
-    };
-    let gains: HubAccountGains = respond!(
-        fetch_for_member(
-            &context,
-            &config,
-            &path,
-            GAINS_TTL,
-            &format!("gains:{period}"),
-            |id| (
+) -> Result<HttpResponse, HistoryError> {
+    let period = query.period.unwrap_or(Period::Day);
+    let gains: HubAccountGains = fetch_for_member(
+        &context,
+        &config,
+        &path,
+        GAINS_TTL,
+        &format!("gains:{period}"),
+        |id| {
+            (
                 format!("/accounts/{id}/gains"),
-                vec![("period", period.clone())]
+                vec![("period", period.to_string())],
             )
-        )
-        .await
-    );
+        },
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(gains))
 }
 
@@ -140,25 +137,25 @@ pub async fn get_player_gains(
 pub async fn get_player_sessions(
     _auth: Authenticated,
     path: web::Path<String>,
-    query: web::Query<ProfileQuery>,
+    query: web::Query<DaysQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, HistoryError> {
     let days = clamp_days(query.days, 7, 30);
-    let sessions: HubSessions = respond!(
-        fetch_for_member(
-            &context,
-            &config,
-            &path,
-            SESSIONS_TTL,
-            &format!("sessions:{days}"),
-            |id| (
+    let sessions: HubSessions = fetch_for_member(
+        &context,
+        &config,
+        &path,
+        SESSIONS_TTL,
+        &format!("sessions:{days}"),
+        |id| {
+            (
                 format!("/accounts/{id}/sessions"),
-                vec![("from", from_days(days))]
+                vec![("from", from_days(days))],
             )
-        )
-        .await
-    );
+        },
+    )
+    .await?;
     let total_ms: i64 = sessions
         .sessions
         .iter()
@@ -175,25 +172,25 @@ pub async fn get_player_sessions(
 pub async fn get_player_wealth(
     _auth: Authenticated,
     path: web::Path<String>,
-    query: web::Query<ProfileQuery>,
+    query: web::Query<DaysQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, HistoryError> {
     let days = clamp_days(query.days, 30, 90);
-    let wealth: HubWealth = respond!(
-        fetch_for_member(
-            &context,
-            &config,
-            &path,
-            WEALTH_TTL,
-            &format!("wealth:{days}"),
-            |id| (
+    let wealth: HubWealth = fetch_for_member(
+        &context,
+        &config,
+        &path,
+        WEALTH_TTL,
+        &format!("wealth:{days}"),
+        |id| {
+            (
                 format!("/accounts/{id}/wealth"),
-                vec![("from", from_days(days))]
+                vec![("from", from_days(days))],
             )
-        )
-        .await
-    );
+        },
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(wealth))
 }
 
@@ -203,25 +200,25 @@ pub async fn get_player_wealth(
 pub async fn get_player_equipment_history(
     _auth: Authenticated,
     path: web::Path<String>,
-    query: web::Query<ProfileQuery>,
+    query: web::Query<DaysQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, HistoryError> {
     let days = clamp_days(query.days, 30, 90);
-    let history: HubEquipmentHistory = respond!(
-        fetch_for_member(
-            &context,
-            &config,
-            &path,
-            GEAR_TTL,
-            &format!("equipment-history:{days}"),
-            |id| (
+    let history: HubEquipmentHistory = fetch_for_member(
+        &context,
+        &config,
+        &path,
+        GEAR_TTL,
+        &format!("equipment-history:{days}"),
+        |id| {
+            (
                 format!("/accounts/{id}/equipment-history"),
-                vec![("from", from_days(days))]
+                vec![("from", from_days(days))],
             )
-        )
-        .await
-    );
+        },
+    )
+    .await?;
     let changes: Vec<Value> = history
         .changes
         .into_iter()
@@ -333,85 +330,77 @@ fn newest_first(mut events: Vec<Value>) -> Vec<Value> {
     events
 }
 
-/// The member's events of the last `days`, for their trail: every kind the
-/// map shows, drops only from `min_loot` gp. Drops are read apart from the
-/// rest, so that a month of small ones doesn't crowd out the levels and deaths.
-async fn trail_events(
-    context: &HubContext,
-    config: &Config,
-    member: &str,
-    days: i64,
-    min_loot: i64,
-) -> Result<Vec<HubEvent>, HttpResponse> {
-    history_enabled(config)?;
-    let Some(hub_id) = context.directory.hub_id(member) else {
-        return Err(hub_error_response(HubError::NotFound));
-    };
-    let days = days.clamp(1, RANGE_MAX_DAYS);
-    let min_loot = min_loot.max(0);
+/// The events as the site gets them, in the order given.
+fn events_json<'a>(events: impl Iterator<Item = &'a HubEvent>, context: &HubContext) -> Vec<Value> {
+    events
+        .map(|event| event_json(None, event, &context.directory))
+        .collect()
+}
+
+/// The member's events of the last `days` (default 1), newest first, for
+/// their trail: every kind the map shows, drops only from `min_loot` gp. Drops
+/// are read apart from the rest, so that a month of small ones doesn't crowd
+/// out the levels and deaths.
+#[get("/hub/players/{member}/trail-events")]
+pub async fn get_player_trail_events(
+    _auth: Authenticated,
+    path: web::Path<String>,
+    query: web::Query<TrailEventsQuery>,
+    config: web::Data<Config>,
+    context: web::Data<HubContext>,
+) -> Result<HttpResponse, HistoryError> {
+    history_enabled(&config)?;
+    let hub_id = hub_id(&context, &path)?;
+    let days = clamp_days(query.days, 1, RANGE_MAX_DAYS);
+    let min_loot = query.min_loot.unwrap_or(0).max(0);
     let key = format!("/events?accounts={hub_id}&days={days}&min_loot={min_loot}");
     let from = from_days(days);
-    let client = Arc::clone(&context.client);
-    context
+    let client = &context.client;
+    let events = context
         .cache
         .get_or_fetch(&key, RANGE_EVENTS_TTL, || async {
             let events = if min_loot > 0 {
                 let mut events =
-                    fetch_range(&client, &hub_id, &from, Some(LOOT_TYPES), Some(min_loot)).await?;
-                events.extend(fetch_range(&client, &hub_id, &from, Some(OTHER_TYPES), None).await?);
+                    fetch_range(client, &hub_id, &from, Some(LOOT_TYPES), Some(min_loot)).await?;
+                events.extend(fetch_range(client, &hub_id, &from, Some(OTHER_TYPES), None).await?);
                 newest_first(events)
             } else {
-                fetch_range(&client, &hub_id, &from, None, None).await?
+                fetch_range(client, &hub_id, &from, None, None).await?
             };
             Ok(Value::Array(events))
         })
-        .await
-        .and_then(|value| parse::<Vec<HubEvent>>(&value))
-        .map_err(hub_error_response)
+        .await?;
+    let events: Vec<HubEvent> = parse(&events)?;
+    Ok(HttpResponse::Ok().json(events_json(events.iter(), &context)))
 }
 
-/// The member's most recent events from the hub (not only the buffered ones),
-/// newest first: the newest `limit`, or with `days` those of that many days
-/// (the events along a trail; see [`trail_events`]).
+/// The member's newest `limit` events from the hub (not only the buffered
+/// ones), newest first.
 #[get("/hub/players/{member}/events")]
 pub async fn get_player_events(
     _auth: Authenticated,
     path: web::Path<String>,
-    query: web::Query<ProfileQuery>,
+    query: web::Query<LimitQuery>,
     config: web::Data<Config>,
     context: web::Data<HubContext>,
-) -> Result<HttpResponse, Error> {
-    if let Some(days) = query.days {
-        let min_loot = query.min_loot.unwrap_or(0);
-        let events = respond!(trail_events(&context, &config, &path, days, min_loot).await);
-        let events: Vec<Value> = events
-            .iter()
-            .map(|event| event_json(None, event, &context.directory))
-            .collect();
-        return Ok(HttpResponse::Ok().json(events));
-    }
+) -> Result<HttpResponse, HistoryError> {
     let limit = query.limit.unwrap_or(50).clamp(1, 200);
-    let events: Vec<HubEvent> = respond!(
-        fetch_for_member(
-            &context,
-            &config,
-            &path,
-            EVENTS_TTL,
-            &format!("events:{limit}"),
-            |id| (
+    let events: Vec<HubEvent> = fetch_for_member(
+        &context,
+        &config,
+        &path,
+        EVENTS_TTL,
+        &format!("events:{limit}"),
+        |id| {
+            (
                 "/events".to_string(),
-                vec![("accounts", id.to_owned()), ("limit", limit.to_string())]
+                vec![("accounts", id.to_owned()), ("limit", limit.to_string())],
             )
-        )
-        .await
-    );
+        },
+    )
+    .await?;
     // Without a cursor the hub returns the newest events oldest first.
-    let events: Vec<Value> = events
-        .iter()
-        .rev()
-        .map(|event| event_json(None, event, &context.directory))
-        .collect();
-    Ok(HttpResponse::Ok().json(events))
+    Ok(HttpResponse::Ok().json(events_json(events.iter().rev(), &context)))
 }
 
 #[cfg(test)]

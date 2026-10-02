@@ -2,7 +2,7 @@
 
 // Must match the iteration order of SkillName in site/src/data/skill.js
 // (Object.keys order, excluding Overall)
-pub const SKILL_ORDER: &[&str] = &[
+pub(crate) const SKILL_ORDER: &[&str] = &[
     "Agility",
     "Attack",
     "Construction",
@@ -31,7 +31,7 @@ pub const SKILL_ORDER: &[&str] = &[
 
 /// Maps a RuneLite `EquipmentInventorySlot` name to its index in the 14-slot
 /// equipment array the site expects.
-pub fn equipment_slot_index(slot_name: &str) -> Option<usize> {
+pub(crate) fn equipment_slot_index(slot_name: &str) -> Option<usize> {
     match slot_name {
         "HEAD" => Some(0),
         "CAPE" => Some(1),
@@ -49,7 +49,7 @@ pub fn equipment_slot_index(slot_name: &str) -> Option<usize> {
 }
 
 /// Index of a skill name in [`SKILL_ORDER`], ignoring case.
-pub fn skill_index(name: &str) -> Option<usize> {
+pub(crate) fn skill_index(name: &str) -> Option<usize> {
     SKILL_ORDER
         .iter()
         .position(|skill| skill.eq_ignore_ascii_case(name))

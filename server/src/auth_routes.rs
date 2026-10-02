@@ -9,7 +9,7 @@ use actix_web::{cookie, get, post, web, Error, HttpRequest, HttpResponse};
 use chrono::{Duration, Utc};
 use deadpool_postgres::{Client, Pool};
 
-pub const SESSION_DURATION_HOURS: i64 = 72;
+pub(crate) const SESSION_DURATION_HOURS: i64 = 72;
 
 /// Mounts `/api/auth`. Actix matches the first scope with a matching prefix
 /// and never falls through to a second one with the same prefix, so the
@@ -42,7 +42,7 @@ fn session_cookie(
 
 /// Starts a session for someone the hub calls a member, and answers with the
 /// cookie that carries it and with who they are.
-pub async fn start_session(
+pub(crate) async fn start_session(
     client: &Client,
     config: &Config,
     session: Session,

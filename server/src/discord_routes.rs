@@ -4,20 +4,16 @@
 use crate::auth_routes::start_session;
 use crate::config::Config;
 use crate::error::ApiError;
+use crate::http;
 use crate::hub::client::HubError;
 use crate::hub::{members, HubContext};
 use crate::models::{DiscordCallbackRequest, DiscordTokenResponse, DiscordUser, Session};
 use actix_web::{cookie, get, post, web, Error, HttpRequest, HttpResponse};
 use deadpool_postgres::Pool;
-use std::sync::OnceLock;
-use std::time::Duration;
 use subtle::ConstantTimeEq;
-use tokio::task;
 
 const OAUTH_STATE_COOKIE: &str = "discord_oauth_state";
 const OAUTH_STATE_MAX_AGE_MINUTES: i64 = 10;
-/// How long Discord may take to answer.
-const DISCORD_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn oauth_state_cookie(
     value: &str,
@@ -38,16 +34,6 @@ fn generate_oauth_state() -> String {
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);
     data_encoding::HEXLOWER.encode(&bytes)
-}
-
-fn discord_agent() -> &'static ureq::Agent {
-    static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT.get_or_init(|| {
-        ureq::Agent::config_builder()
-            .timeout_global(Some(DISCORD_TIMEOUT))
-            .build()
-            .new_agent()
-    })
 }
 
 /// Where to send the browser to sign in: `{auth_url}`. Asked for when the
@@ -171,8 +157,8 @@ async fn exchange_code(
     let discord = config.discord.clone();
     let code = code.to_owned();
 
-    task::spawn_blocking(move || {
-        let response = discord_agent().post(discord.token_url()).send_form([
+    http::blocking(move |agent| {
+        let response = agent.post(discord.token_url()).send_form([
             ("client_id", discord.client_id.as_str()),
             ("client_secret", discord.client_secret.as_str()),
             ("grant_type", "authorization_code"),
@@ -193,23 +179,18 @@ async fn exchange_code(
         }
     })
     .await
-    .map_err(|err| ApiError::BadRequest(format!("Discord request task failed: {}", err)))?
 }
 
 /// Who the access token belongs to.
 async fn discord_user(config: &Config, authorization: &str) -> Result<DiscordUser, ApiError> {
     let url = config.discord.user_url();
     let authorization = authorization.to_owned();
-    task::spawn_blocking(move || {
-        discord_agent()
+    http::blocking(move |agent| {
+        let mut response = agent
             .get(url)
             .header("Authorization", authorization.as_str())
-            .call()
-            .map_err(ApiError::UreqError)?
-            .body_mut()
-            .read_json::<DiscordUser>()
-            .map_err(ApiError::UreqError)
+            .call()?;
+        Ok(response.body_mut().read_json::<DiscordUser>()?)
     })
     .await
-    .map_err(|err| ApiError::BadRequest(format!("Discord request task failed: {}", err)))?
 }

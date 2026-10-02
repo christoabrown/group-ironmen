@@ -15,12 +15,12 @@ use futures_util::{
 };
 use std::rc::Rc;
 
-pub const SESSION_COOKIE: &str = "session";
+pub(crate) const SESSION_COOKIE: &str = "session";
 
 type SessionInfo = Rc<Session>;
 
 /// Someone who is signed in.
-pub struct Authenticated(SessionInfo);
+pub(crate) struct Authenticated(SessionInfo);
 impl std::ops::Deref for Authenticated {
     type Target = Session;
 
@@ -42,7 +42,7 @@ impl FromRequest for Authenticated {
 }
 
 /// Someone who is signed in and an admin on the hub.
-pub struct AdminAuthenticated(SessionInfo);
+pub(crate) struct AdminAuthenticated(SessionInfo);
 impl std::ops::Deref for AdminAuthenticated {
     type Target = Session;
 

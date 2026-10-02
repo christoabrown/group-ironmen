@@ -1,3 +1,4 @@
+use crate::db::MEMBER_COLUMNS as COLUMNS;
 use crate::models::GroupMember;
 use deadpool_postgres::Pool;
 use futures_util::stream::{self, StreamExt};
@@ -14,16 +15,6 @@ static CHUNK_SIZE: usize = 50;
 /// polls for changes since a time, so resending unchanged data costs nothing.
 /// Whether a player is online is tracked separately (`hub_online`).
 ///
-/// The member columns the batcher writes; each has a `<column>_last_update`.
-const COLUMNS: [(&str, &str); 6] = [
-    ("stats", "int4[]"),
-    ("coordinates", "int4[]"),
-    ("skills", "int4[]"),
-    ("inventory", "int4[]"),
-    ("equipment", "int4[]"),
-    ("hub_meta", "jsonb"),
-];
-
 /// Parameters per member update row: the group, the name and the columns.
 /// With 8, the PostgreSQL parameter-count limit (65,535) allows a chunk of
 /// 8191 rows with the VALUES approach.
@@ -253,6 +244,7 @@ async fn process_chunk(pool: &Pool, chunk: Vec<GroupMember>) -> Option<()> {
 
     let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
         Vec::with_capacity(COLUMNS_PER_ROW * chunk_size);
+    // The columns in the order of `MEMBER_COLUMNS`.
     for member_data in buffer {
         params.push(&member_data.group_id);
         params.push(&member_data.name);

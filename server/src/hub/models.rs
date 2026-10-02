@@ -7,14 +7,14 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
-pub struct Envelope<T> {
+pub(crate) struct Envelope<T> {
     pub data: T,
     #[serde(default)]
     pub meta: Meta,
 }
 
 #[derive(Deserialize, Debug, Default)]
-pub struct Meta {
+pub(crate) struct Meta {
     #[serde(default)]
     pub last_modified: Option<String>,
     #[serde(default)]
@@ -22,25 +22,25 @@ pub struct Meta {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct ErrorEnvelope {
+pub(crate) struct ErrorEnvelope {
     pub error: ErrorBody,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct ErrorBody {
+pub(crate) struct ErrorBody {
     pub code: String,
     #[serde(default)]
     pub message: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Meter {
+pub(crate) struct Meter {
     pub current: i32,
     pub max: i32,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
-pub struct HubLocation {
+pub(crate) struct HubLocation {
     pub x: i32,
     pub y: i32,
     pub plane: i32,
@@ -51,14 +51,14 @@ pub struct HubLocation {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubSkill {
+pub(crate) struct HubSkill {
     pub skill: String,
     #[serde(default)]
     pub xp: Option<i64>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubSkills {
+pub(crate) struct HubSkills {
     #[serde(default)]
     pub total_level: Option<i64>,
     #[serde(default)]
@@ -68,7 +68,7 @@ pub struct HubSkills {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubItem {
+pub(crate) struct HubItem {
     pub id: i32,
     pub quantity: i64,
     #[serde(default)]
@@ -79,7 +79,7 @@ pub struct HubItem {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubItems {
+pub(crate) struct HubItems {
     /// The items' value at GE prices.
     #[serde(default)]
     pub value: Option<i64>,
@@ -89,7 +89,7 @@ pub struct HubItems {
 
 /// The account owner, sent by hubs that support integration keys.
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubOwner {
+pub(crate) struct HubOwner {
     #[serde(default)]
     pub name: Option<String>,
 }
@@ -98,7 +98,7 @@ pub struct HubOwner {
 /// active member of the guild, and an admin. Someone the hub doesn't know
 /// and someone on their way out both come back as `member: false`.
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubMember {
+pub(crate) struct HubMember {
     pub member: bool,
     #[serde(default)]
     pub is_admin: bool,
@@ -108,7 +108,7 @@ pub struct HubMember {
 
 /// One account of `GET /snapshot`.
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubAccount {
+pub(crate) struct HubAccount {
     pub id: String,
     pub name: String,
     #[serde(default)]
@@ -152,14 +152,14 @@ pub struct HubAccount {
 
 /// `GET /me`.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct HubMe {
+pub(crate) struct HubMe {
     pub key: HubMeKey,
     #[serde(default)]
     pub visible_accounts: Option<i64>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct HubMeKey {
+pub(crate) struct HubMeKey {
     pub name: String,
     #[serde(default)]
     pub kind: Option<String>,
@@ -174,37 +174,37 @@ pub struct HubMeKey {
 
 impl HubMeKey {
     /// Service (integration) keys belong to the guild, not to a person (hub D-88).
-    pub fn is_service_key(&self) -> bool {
+    pub(crate) fn is_service_key(&self) -> bool {
         self.kind.as_deref() == Some("service")
     }
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubAccountRef {
+pub(crate) struct HubAccountRef {
     pub id: String,
     pub name: String,
 }
 
 /// `GET /xp?accounts=`.
 #[derive(Deserialize, Debug)]
-pub struct HubXpMulti {
+pub(crate) struct HubXpMulti {
     pub accounts: Vec<HubXpSeries>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubXpSeries {
+pub(crate) struct HubXpSeries {
     pub account: HubAccountRef,
     pub series: Vec<HubXpLine>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubXpLine {
+pub(crate) struct HubXpLine {
     pub skill: String,
     pub points: Vec<(DateTime<Utc>, i64)>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubLocationPoint {
+pub(crate) struct HubLocationPoint {
     pub at: DateTime<Utc>,
     pub x: i32,
     pub y: i32,
@@ -217,19 +217,19 @@ pub struct HubLocationPoint {
 
 /// `GET /leaderboards/gains`.
 #[derive(Deserialize, Debug)]
-pub struct HubLeaderboards {
+pub(crate) struct HubLeaderboards {
     pub period: String,
     pub leaderboards: Vec<HubLeaderboard>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubLeaderboard {
+pub(crate) struct HubLeaderboard {
     pub skill: String,
     pub entries: Vec<HubLeaderboardEntry>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubLeaderboardEntry {
+pub(crate) struct HubLeaderboardEntry {
     pub rank: i32,
     pub account: HubAccountRef,
     pub gain: i64,
@@ -237,7 +237,7 @@ pub struct HubLeaderboardEntry {
 
 /// One event of `GET /events` (and of `/leaderboards/loot`).
 #[derive(Deserialize, Debug, Clone)]
-pub struct HubEvent {
+pub(crate) struct HubEvent {
     pub id: String,
     #[serde(rename = "type")]
     pub event_type: String,
@@ -270,18 +270,18 @@ pub struct HubEvent {
 
 /// `GET /leaderboards/loot` (hub D-94).
 #[derive(Deserialize, Debug)]
-pub struct HubLootLeaderboard {
+pub(crate) struct HubLootLeaderboard {
     pub entries: Vec<HubLootEntry>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubLootEntry {
+pub(crate) struct HubLootEntry {
     pub event: HubEvent,
 }
 
 /// `GET /accounts/{id}/gains`.
 #[derive(Deserialize, Serialize, Debug)]
-pub struct HubAccountGains {
+pub(crate) struct HubAccountGains {
     #[serde(default)]
     pub period: Option<String>,
     /// Passed through to the site as sent.
@@ -293,19 +293,19 @@ pub struct HubAccountGains {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct HubSkillGain {
+pub(crate) struct HubSkillGain {
     pub skill: String,
     pub xp: i64,
 }
 
 /// `GET /accounts/{id}/sessions`.
 #[derive(Deserialize, Debug)]
-pub struct HubSessions {
+pub(crate) struct HubSessions {
     pub sessions: Vec<HubSession>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct HubSession {
+pub(crate) struct HubSession {
     pub started_at: DateTime<Utc>,
     #[serde(default)]
     pub ended_at: Option<DateTime<Utc>>,
@@ -321,12 +321,12 @@ pub struct HubSession {
 
 /// `GET /accounts/{id}/wealth`.
 #[derive(Deserialize, Serialize, Debug)]
-pub struct HubWealth {
+pub(crate) struct HubWealth {
     pub days: Vec<HubWealthDay>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct HubWealthDay {
+pub(crate) struct HubWealthDay {
     pub day: String,
     #[serde(default)]
     pub last_value: Option<i64>,
@@ -336,12 +336,12 @@ pub struct HubWealthDay {
 
 /// `GET /accounts/{id}/equipment-history`.
 #[derive(Deserialize, Debug)]
-pub struct HubEquipmentHistory {
+pub(crate) struct HubEquipmentHistory {
     pub changes: Vec<HubEquipmentChange>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubEquipmentChange {
+pub(crate) struct HubEquipmentChange {
     pub changed_at: DateTime<Utc>,
     #[serde(default)]
     pub items: Vec<HubItem>,
@@ -349,12 +349,12 @@ pub struct HubEquipmentChange {
 
 /// `GET /locations?accounts=`.
 #[derive(Deserialize, Debug)]
-pub struct HubLocationsMulti {
+pub(crate) struct HubLocationsMulti {
     pub accounts: Vec<HubAccountLocations>,
 }
 
 #[derive(Deserialize, Debug)]
-pub struct HubAccountLocations {
+pub(crate) struct HubAccountLocations {
     pub account: HubAccountRef,
     pub points: Vec<HubLocationPoint>,
 }

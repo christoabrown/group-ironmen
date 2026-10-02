@@ -26,7 +26,10 @@ const SWEEP_MEMBERS: i64 = 50;
 /// What the hub says of a Discord account. `HubError::NotFound` means the hub
 /// has no such endpoint for this key: it is from before D-100, or the key is
 /// a personal one.
-pub async fn lookup(client: &Arc<HubClient>, discord_id: &str) -> Result<HubMember, HubError> {
+pub(crate) async fn lookup(
+    client: &Arc<HubClient>,
+    discord_id: &str,
+) -> Result<HubMember, HubError> {
     let path = format!("/members/{}", urlencoding::encode(discord_id));
     let (member, _) = client
         .get_data::<HubMember>(&path, &[], Priority::Interactive)
