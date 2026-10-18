@@ -62,6 +62,9 @@ class PlayerLog {
   }
 }
 
+// Virtual player name for the combined log of every group member
+const GROUP_LOG_NAME = "@GROUP";
+
 class CollectionLog {
   constructor() {}
 
@@ -110,6 +113,26 @@ class CollectionLog {
     }
 
     this.playerNames = Array.from(this.playerLogs.keys());
+
+    // Sum every member's obtained counts into one log. Item ids are already
+    // de-duplicated by each PlayerLog, so the summed map is keyed the same way.
+    const groupItems = new Map();
+    for (const playerLog of this.playerLogs.values()) {
+      for (const [itemId, quantity] of playerLog.unlockedItems.entries()) {
+        groupItems.set(itemId, (groupItems.get(itemId) || 0) + quantity);
+      }
+    }
+    this.playerLogs.set(
+      GROUP_LOG_NAME,
+      new PlayerLog(
+        GROUP_LOG_NAME,
+        Array.from(groupItems.entries()).map(([id, quantity]) => ({ id, quantity }))
+      )
+    );
+  }
+
+  get groupLogName() {
+    return GROUP_LOG_NAME;
   }
 
   tabName(tabId) {
