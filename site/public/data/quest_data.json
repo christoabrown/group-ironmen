@@ -500,6 +500,13 @@
     "points": "1",
     "member": false
   },
+  "17027": {
+    "name": "The Fractured Archive",
+    "difficulty": "Grandmaster",
+    "points": "0",
+    "member": true,
+    "miniquest": true
+  },
   "18": {
     "name": "The Corsair Curse",
     "difficulty": "Intermediate",
