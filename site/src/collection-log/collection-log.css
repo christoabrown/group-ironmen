@@ -88,3 +88,22 @@ collection-log .collection-log__title {
 .collection-log__not-started {
   color: var(--red);
 }
+
+.collection-log__embedded {
+  display: flex;
+  justify-content: center;
+  height: calc(100vh - 140px);
+  min-height: 400px;
+}
+
+.collection-log__embedded .collection-log__container {
+  width: min(100%, 1200px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.collection-log__embedded .collection-log__main {
+  flex: 1;
+  min-height: 0;
+}

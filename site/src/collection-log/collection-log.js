@@ -15,6 +15,8 @@ export class CollectionLog extends BaseElement {
     super.connectedCallback();
     loadingScreenManager.showLoadingScreen();
     this.playerName = this.getAttribute("player-name");
+    this.embedded = this.hasAttribute("embedded");
+    this.isGroup = this.playerName === collectionLog.groupLogName;
     this.subscribeOnce("get-group-data", this.init.bind(this));
   }
 
@@ -45,12 +47,14 @@ export class CollectionLog extends BaseElement {
 
     this.tabContent = this.querySelector(".collection-log__tab-container");
     this.tabButtons = this.querySelector(".collection-log__tab-buttons");
-    this.background = this.querySelector(".dialog__visible");
     this.showTab(0);
 
     this.eventListener(this.tabButtons, "click", this.handleTabClick.bind(this));
-    this.eventListener(this.background, "click", this.closeIfBackgroundClick.bind(this));
-    this.eventListener(this.querySelector(".dialog__close"), "click", this.close.bind(this));
+    if (!this.embedded) {
+      this.background = this.querySelector(".dialog__visible");
+      this.eventListener(this.background, "click", this.closeIfBackgroundClick.bind(this));
+      this.eventListener(this.querySelector(".dialog__close"), "click", this.close.bind(this));
+    }
   }
 
   handleTabClick(event) {
