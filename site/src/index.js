@@ -50,5 +50,6 @@ import "./collection-log/collection-log.js";
 import "./collection-log-page/collection-log-page.js";
 import "./collection-log-tab/collection-log-tab.js";
 import "./collection-log-item/collection-log-item.js";
+import "./group-collection-log-page/group-collection-log-page.js";
 import "./player-icon/player-icon.js";
 import "./donate-button/donate-button.js";
