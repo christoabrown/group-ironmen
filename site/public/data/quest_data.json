@@ -549,6 +549,12 @@
     "points": "1",
     "member": true
   },
+  "17328": {
+    "name": "The Graveyard",
+    "difficulty": "Master",
+    "points": "3",
+    "member": true
+  },
   "18": {
     "name": "The Corsair Curse",
     "difficulty": "Intermediate",
